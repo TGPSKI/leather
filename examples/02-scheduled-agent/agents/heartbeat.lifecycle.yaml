@@ -1,0 +1,6 @@
+agent: heartbeat
+max_tokens: 2048
+instances:
+  - name: heartbeat-10s
+    schedule: "*/10 * * * * *"
+    prompt: Give me a single specific fact about systems engineering.

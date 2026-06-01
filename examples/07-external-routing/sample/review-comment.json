@@ -1,0 +1,9 @@
+{
+  "action": "created",
+  "repository": {"full_name": "acme/checkout"},
+  "pull_request": {"number": 42, "title": "Tune redis pool sizing"},
+  "comment": {
+    "user": {"login": "reviewer-a"},
+    "body": "The retry budget looks low under burst traffic. Please justify max_attempts=2."
+  }
+}

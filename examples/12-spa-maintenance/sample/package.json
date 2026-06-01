@@ -1,0 +1,35 @@
+{
+  "name": "my-spa",
+  "version": "2.4.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-router-dom": "6.11.0",
+    "@tanstack/react-query": "4.29.0",
+    "axios": "1.4.0",
+    "zustand": "4.3.8"
+  },
+  "devDependencies": {
+    "@types/react": "18.2.7",
+    "@types/react-dom": "18.2.4",
+    "@vitejs/plugin-react": "4.0.0",
+    "eslint": "8.38.0",
+    "typescript": "5.0.4",
+    "vite": "4.3.9",
+    "vitest": "0.31.0",
+    "@testing-library/react": "14.0.0",
+    "@testing-library/user-event": "14.4.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

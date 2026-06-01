@@ -1,0 +1,58 @@
+{
+  "ref": "refs/heads/main",
+  "before": "a3f1b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0",
+  "after": "b4c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0",
+  "repository": {
+    "name": "my-spa",
+    "full_name": "myorg/my-spa",
+    "private": false,
+    "html_url": "https://github.com/myorg/my-spa",
+    "default_branch": "main"
+  },
+  "pusher": {
+    "name": "deployer",
+    "email": "deployer@example.com"
+  },
+  "commits": [
+    {
+      "id": "b4c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0",
+      "message": "feat: add real-time notifications via WebSocket",
+      "timestamp": "2026-05-26T18:00:00Z",
+      "author": {
+        "name": "deployer",
+        "email": "deployer@example.com"
+      },
+      "added": [
+        "src/hooks/useWebSocket.ts",
+        "src/components/NotificationBell.tsx",
+        "src/components/NotificationBell.test.tsx"
+      ],
+      "removed": [],
+      "modified": [
+        "src/App.tsx",
+        "src/styles/notifications.css",
+        "package.json",
+        "CHANGELOG.md"
+      ]
+    }
+  ],
+  "head_commit": {
+    "id": "b4c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0",
+    "message": "feat: add real-time notifications via WebSocket",
+    "timestamp": "2026-05-26T18:00:00Z",
+    "author": {
+      "name": "deployer",
+      "email": "deployer@example.com"
+    },
+    "added": [
+      "src/hooks/useWebSocket.ts",
+      "src/components/NotificationBell.tsx"
+    ],
+    "removed": [],
+    "modified": [
+      "src/App.tsx",
+      "package.json",
+      "CHANGELOG.md"
+    ]
+  }
+}

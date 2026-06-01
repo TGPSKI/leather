@@ -1,0 +1,144 @@
+# Validates *.skill.yaml files.
+#
+# Runtime validation: internal/schema.ValidateSkillYAML (top-level fields only)
+version: "1"
+type: object
+additionalProperties: false
+required:
+  - name
+  - tools
+properties:
+
+  version:
+    type: string
+    description: |
+      Schema version reserved for forward compatibility. Default: "1".
+    default: "1"
+
+  name:
+    type: string
+    description: |
+      Unique skill identifier. Referenced by agents via skills: [name].
+      Must be unique across all loaded skills; duplicates are a load error.
+    pattern: '^[a-z][a-z0-9-]*$'
+    examples:
+      - github-issue-manager
+      - skeptic-scanner
+
+  system_prompt_append:
+    type: string
+    description: |
+      Text appended (with two newlines) to the agent system prompt whenever
+      this skill is loaded. Declare tool availability and usage rules here.
+
+  extract:
+    type: array
+    description: |
+      Optional list of post-tool-result extraction patterns. After each tool call
+      succeeds, matching patterns store captured text into turn-level variables
+      accessible as {{key}} in subsequent turn prompts.
+    items:
+      type: object
+      additionalProperties: false
+      required: [tool, pattern, store]
+      properties:
+        tool:
+          type: string
+          description: Name of the tool whose output to scan.
+        pattern:
+          type: string
+          description: |
+            Go regexp applied to the tool result content. Capture group 1 value
+            is stored. Pattern is compiled at skill-load time; invalid patterns
+            are a load error.
+        store:
+          type: string
+          description: |
+            Variable key. After a match, accessible as {{store}} in later turn
+            prompts via the same {{key}} substitution used for lifecycle parameters.
+
+  tools:
+    type: array
+    minItems: 1
+    description: Tool definitions bundled with this skill.
+    items:
+      type: object
+      additionalProperties: false
+      required: [name, description, type]
+      properties:
+
+        name:
+          type: string
+          description: |
+            Unique tool name. Returned by the LLM in tool_calls[].name.
+            Must be unique across all loaded skills.
+          pattern: '^[a-z][a-z0-9_]*$'
+
+        description:
+          type: string
+          description: |
+            Shown to the LLM as the tool's purpose. Be specific — the model uses
+            this to decide when and how to call the tool.
+
+        type:
+          type: string
+          enum: [http, mcp, sh]
+          description: | 
+            Tool execution backend. 
+              "http" calls a REST endpoint; 
+              "mcp" calls a local MCP server process; 
+              "sh" executes a shell command.
+
+        parameters:
+          type: object
+          description: |
+            JSON Schema describing the tool's input parameters. Passed verbatim
+            to the LLM in the tools[] array. Example:
+          properties:
+            repo: 
+              type: string
+              description: "owner/repo"
+            required: [repo]
+
+        http:
+          type: object
+          additionalProperties: false
+          required: [url]
+          description: HTTP configuration for type=http tools.
+          properties:
+            method:
+              type: string
+              enum: [GET, POST, PUT, PATCH, DELETE]
+              default: GET
+            url:
+              $ref: "common-1.schema.yaml#/definitions/templateStr"
+              description: |
+                Endpoint URL. Supports Go template variables from the LLM's tool
+                call arguments. Example: "https://api.github.com/repos/{{.repo}}/issues"
+            headers:
+              type: object
+              additionalProperties:
+                type: string
+              description: |
+                HTTP headers. Values support {{env:VAR_NAME}} for secrets.
+                Auth header values are never logged.
+            body:
+              type: object
+              additionalProperties:
+                type: string
+              description: |
+                JSON body fields populated from tool call arguments.
+                Serialized as {"key": "rendered_value"}.
+
+        mcp:
+          type: object
+          additionalProperties: false
+          required: [server, tool]
+          description: MCP configuration for type=mcp tools.
+          properties:
+            server:
+              type: string
+              description: Name of the MCP server (must match a key in mcp-servers.yaml).
+            tool:
+              type: string
+              description: MCP tool name to invoke on the server.

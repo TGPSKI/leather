@@ -1,0 +1,9 @@
+name: event
+description: Convert an incoming demo event into a one-paragraph operator-facing summary.
+agent: event
+hide_types:
+  - demo.event
+queue: default
+page_size_bytes: 3800
+max_attempts: 2
+timeout_seconds: 60

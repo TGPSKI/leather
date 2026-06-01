@@ -1,0 +1,18 @@
+agent: content-drift
+
+# Demo variant: fires every minute.
+# Production: change schedule to "0 10 * * 5" for a weekly Friday 10:00 check.
+
+max_tokens: 6144
+tool_rounds: 8
+tags: [content-drift, documentation, maintenance, spa]
+
+parameters:
+  repo_path: "sample"    # ← replace with the path to your SPA project
+
+output:
+  - type: artifact
+
+instances:
+  - name: content-drift-demo
+    schedule: "* * * * *"

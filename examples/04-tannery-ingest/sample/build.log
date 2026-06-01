@@ -1,0 +1,12 @@
+$ go build ./...
+$ go test ./...
+ok  	github.com/example/app/cmd	0.012s
+ok  	github.com/example/app/internal/config	0.008s
+FAIL	github.com/example/app/internal/db	0.034s
+--- FAIL: TestMigrate_UpDown (0.031s)
+    migrate_test.go:87: migration failed: pq: column "tenant_id" of relation "users" does not exist
+FAIL
+FAIL	github.com/example/app/internal/api	0.019s
+--- FAIL: TestHandleSignup (0.017s)
+    api_test.go:142: unexpected status 500, body: {"error":"db unavailable"}
+make: *** [Makefile:12: test] Error 1

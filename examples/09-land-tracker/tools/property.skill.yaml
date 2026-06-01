@@ -1,0 +1,35 @@
+name: property
+system_prompt_append: |
+  You have four tools for property tracking. Use them in sequence:
+    read_url_list → get the list of URLs to monitor
+    read_state    → get last known property details (returns {} on first run)
+    fetch_page    → fetch each URL and extract price/status data (one call per URL)
+    write_state   → persist the updated state JSON
+
+  Tool output is capped at 6000 bytes. Focus on: price ($X,XXX,XXX format),
+  status (for sale / pending / under contract / sold / etc.), and acreage.
+tools:
+  - name: read_url_list
+    description: Read property URLs from a text file (one per line; # lines ignored). Requires path.
+    type: mcp
+    mcp:
+      server: shell
+      tool: read_url_list
+  - name: fetch_page
+    description: Fetch a property listing page. Returns title, Open Graph meta, JSON-LD, and price/status text. Requires url.
+    type: mcp
+    mcp:
+      server: shell
+      tool: fetch_page
+  - name: read_state
+    description: Read stored property state JSON. Returns {} if no prior state exists. Requires path.
+    type: mcp
+    mcp:
+      server: shell
+      tool: read_state
+  - name: write_state
+    description: Write updated property state JSON to disk. Requires path and content (compact JSON).
+    type: mcp
+    mcp:
+      server: shell
+      tool: write_state

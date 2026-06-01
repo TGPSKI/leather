@@ -1,0 +1,40 @@
+{
+  "action": "synchronize",
+  "number": 42,
+  "pull_request": {
+    "number": 42,
+    "title": "feat(decoder): tune beam search params + bump eval baseline",
+    "body": "Tunes beam_width from 5 to 8 on the CTC decoder. WER on the clean-speech dev set drops from 8.2% to 7.9%.\n\nAlso bumps the eval baseline WER target in `evals/config/baseline.yaml` from 8.2 to 7.9 to match the new expected ceiling. README benchmark table updated to reflect the improvement.\n\nTested manually against 50 samples from LibriSpeech test-clean. Full eval suite needed to confirm no regressions on noisy-speech or accented-speech sets.",
+    "head": {
+      "sha": "a3f92b1c4e8d5f2a",
+      "ref": "feat/beam-search-tune",
+      "label": "acme-ai:feat/beam-search-tune"
+    },
+    "base": {
+      "ref": "main",
+      "label": "acme-ai:main"
+    },
+    "additions": 47,
+    "deletions": 12,
+    "changed_files": 4,
+    "merged": false,
+    "draft": false,
+    "html_url": "https://github.com/acme-ai/voice-engine/pull/42",
+    "user": {
+      "login": "alice-dev",
+      "type": "User"
+    }
+  },
+  "repository": {
+    "id": 789123,
+    "name": "voice-engine",
+    "full_name": "acme-ai/voice-engine",
+    "private": true,
+    "html_url": "https://github.com/acme-ai/voice-engine",
+    "description": "Real-time speech generation with STT/TTS eval pipeline"
+  },
+  "sender": {
+    "login": "alice-dev",
+    "type": "User"
+  }
+}

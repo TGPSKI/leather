@@ -1,0 +1,18 @@
+diff --git a/src/voice/synthesizer.py b/src/voice/synthesizer.py
+index 1234abc..5678def 100644
+--- a/src/voice/synthesizer.py
++++ b/src/voice/synthesizer.py
+@@ -42,7 +42,11 @@ class Synthesizer:
+     def synthesize(self, text: str, voice_id: str) -> bytes:
+-        embedding = self.encoder.encode(text)
+-        return self.vocoder.generate(embedding, voice_id)
++        # New: apply prosody hints before encoding for more natural cadence.
++        hints = self.prosody.extract(text)
++        embedding = self.encoder.encode(text, prosody=hints)
++        audio = self.vocoder.generate(embedding, voice_id)
++        return self.post.normalize(audio)
+
+diff --git a/src/voice/models.py b/src/voice/models.py
+@@ -10,3 +14,12 @@ class VoiceConfig:
+     sample_rate: int = 22050
++    prosody_mode: str = "auto"   # auto|off|aggressive

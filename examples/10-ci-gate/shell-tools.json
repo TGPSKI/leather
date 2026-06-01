@@ -1,0 +1,60 @@
+{
+  "tools": [
+    {
+      "name": "get_pr_files",
+      "description": "List files changed in a GitHub PR with per-file line stats (additions, deletions, status). Returns one line per file.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "if [ \"${LEATHER_DEMO_MODE:-dry}\" = live ]; then gh pr view \"$1\" --repo \"$2\" --json files --jq '.files[] | \"\\(.filename)  +\\(.additions) -\\(.deletions)  [\\(.status)]\"'; else f=\"sample/dry/pr-${1}-files.txt\"; [ -f \"$f\" ] || f=\"sample/dry/pr-default-files.txt\"; cat \"$f\"; fi",
+        "--",
+        "{{pr_number}}",
+        "{{repo}}"
+      ],
+      "timeout_seconds": 20,
+      "output_cap_bytes": 4000
+    },
+    {
+      "name": "get_pr_diff",
+      "description": "Fetch the unified diff for a GitHub PR (first 4 KB). Use to inspect actual code changes before deciding. Output is truncated — reason from what is visible.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "if [ \"${LEATHER_DEMO_MODE:-dry}\" = live ]; then gh pr diff \"$1\" --repo \"$2\" 2>&1 | head -c 4000; else f=\"sample/dry/pr-${1}-diff.txt\"; [ -f \"$f\" ] || f=\"sample/dry/pr-default-diff.txt\"; head -c 4000 \"$f\"; fi",
+        "--",
+        "{{pr_number}}",
+        "{{repo}}"
+      ],
+      "timeout_seconds": 30,
+      "output_cap_bytes": 4000
+    },
+    {
+      "name": "post_pr_comment",
+      "description": "Post a comment on a GitHub PR. Use this to post the /test-{sha} CI trigger and your decision rationale.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "if [ \"${LEATHER_DEMO_MODE:-dry}\" = live ]; then gh pr comment \"$1\" --repo \"$2\" --body \"$3\"; else printf 'dry-mode: would post comment on PR #%s in %s:\\n%s\\n' \"$1\" \"$2\" \"$3\"; fi",
+        "--",
+        "{{pr_number}}",
+        "{{repo}}",
+        "{{body}}"
+      ],
+      "timeout_seconds": 15
+    },
+    {
+      "name": "add_pr_label",
+      "description": "Add a label to a GitHub PR. Use 'eval-requested' for FULL_EVAL decisions and 'eval-skip' for SKIP decisions.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "if [ \"${LEATHER_DEMO_MODE:-dry}\" = live ]; then gh pr edit \"$1\" --repo \"$2\" --add-label \"$3\"; else printf 'dry-mode: would add label %s to PR #%s in %s\\n' \"$3\" \"$1\" \"$2\"; fi",
+        "--",
+        "{{pr_number}}",
+        "{{repo}}",
+        "{{label}}"
+      ],
+      "timeout_seconds": 15
+    }
+  ]
+}

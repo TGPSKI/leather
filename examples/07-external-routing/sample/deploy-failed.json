@@ -1,0 +1,10 @@
+{
+  "id": "evt-2024-001",
+  "state": "failure",
+  "service": "checkout-api",
+  "environment": "prod-us-east-1",
+  "stage": "smoke-tests",
+  "error": "503 from /healthz after 30s (3 retries)",
+  "rollback": "automatic",
+  "commit": "a1b2c3d4"
+}

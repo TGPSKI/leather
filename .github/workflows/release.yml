@@ -1,0 +1,208 @@
+name: Release
+
+# Triggered when a semver tag is pushed (e.g. v0.1.0, v0.1.1, v1.0.0).
+# Builds the `leather` and `shell-mcp` binaries for the supported target
+# triples, packages them as tarballs with SHA-256 checksums, and uploads
+# them to a GitHub Release for the matching tag.
+#
+# Project policy: stdlib-only Go. No goreleaser, no cgo, no third-party
+# build tooling. Plain `go build` driven by the existing Makefile.
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build a release for (e.g. v0.1.0)."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────
+  # Build one tarball per target. Output naming:
+  #   leather_<version>_<os>_<arch>.tar.gz
+  # Each tarball contains: leather, shell-mcp, LICENSE, README.md, CHANGELOG.md.
+  # ───────────────────────────────────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.label }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux-amd64
+            goos: linux
+            goarch: amd64
+          - label: linux-arm64
+            goos: linux
+            goarch: arm64
+          - label: darwin-amd64
+            goos: darwin
+            goarch: amd64
+          - label: darwin-arm64
+            goos: darwin
+            goarch: arm64
+
+    env:
+      CGO_ENABLED: "0"
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+
+    steps:
+      - name: Checkout
+        # actions/checkout v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Set up Go
+        # actions/setup-go v6.4.0
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Resolve version
+        id: ver
+        run: |
+          VERSION="${{ inputs.tag || github.ref_name }}"
+          # Strip a leading "v" for the artifact filename; keep the
+          # full "vX.Y.Z" string for the -ldflags injection so
+          # `leather version` prints it verbatim.
+          VERSION_NUM="${VERSION#v}"
+          COMMIT="$(git rev-parse --short HEAD)"
+          {
+            echo "version=${VERSION}"
+            echo "version_num=${VERSION_NUM}"
+            echo "commit=${COMMIT}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build binaries
+        run: |
+          set -eu
+          # Match the Makefile build invocation: stdlib-only, static
+          # binary via netgo+osusergo build tags and -extldflags '-static'.
+          # -s -w and -trimpath are release-only additions (strip symbols,
+          # reproducible paths) that the dev `make build` target omits.
+          LDFLAGS="-s -w -X main.version=${{ steps.ver.outputs.version }} -X main.commit=${{ steps.ver.outputs.commit }} -extldflags '-static'"
+          BUILD_TAGS="netgo osusergo"
+          go build -trimpath -tags "${BUILD_TAGS}" -ldflags "${LDFLAGS}" -o ./leather   ./cmd/leather
+          go build -trimpath -tags "${BUILD_TAGS}" -ldflags "${LDFLAGS}" -o ./shell-mcp ./cmd/shell-mcp
+
+      - name: Package tarball
+        id: pkg
+        run: |
+          set -eu
+          NAME="leather_${{ steps.ver.outputs.version_num }}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          STAGE="dist/${NAME}"
+          mkdir -p "${STAGE}"
+          cp leather shell-mcp "${STAGE}/"
+          cp LICENSE README.md CHANGELOG.md "${STAGE}/"
+          tar -C dist -czf "dist/${NAME}.tar.gz" "${NAME}"
+          ( cd dist && sha256sum "${NAME}.tar.gz" > "${NAME}.tar.gz.sha256" )
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        # actions/upload-artifact v4.4.3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+        with:
+          name: ${{ steps.pkg.outputs.name }}
+          path: |
+            dist/${{ steps.pkg.outputs.name }}.tar.gz
+            dist/${{ steps.pkg.outputs.name }}.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  # ───────────────────────────────────────────────────────────────────────
+  # Publish the GitHub Release once every target has built.
+  # Release notes are pulled from the matching ## [version] section of
+  # CHANGELOG.md when available; otherwise GitHub auto-generates them.
+  # ───────────────────────────────────────────────────────────────────────
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: ver
+        run: |
+          VERSION="${{ inputs.tag || github.ref_name }}"
+          VERSION_NUM="${VERSION#v}"
+          {
+            echo "version=${VERSION}"
+            echo "version_num=${VERSION_NUM}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download all artifacts
+        # actions/download-artifact v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        run: |
+          set -eu
+          VERSION_NUM="${{ steps.ver.outputs.version_num }}"
+          NOTES_FILE="$(mktemp)"
+          # Match a heading like "## [0.1.0]" or "## [0.1.0] - 2026-05-31"
+          # and capture everything up to the next "## [" heading.
+          awk -v ver="${VERSION_NUM}" '
+            $0 ~ "^## \\[" ver "\\]" { capture=1; next }
+            capture && /^## \[/      { exit }
+            capture                  { print }
+          ' CHANGELOG.md > "${NOTES_FILE}" || true
+          if [ ! -s "${NOTES_FILE}" ]; then
+            echo "No CHANGELOG entry for ${VERSION_NUM}; GitHub will auto-generate notes."
+            echo "auto=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "auto=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "path=${NOTES_FILE}" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          NOTES_AUTO: ${{ steps.notes.outputs.auto }}
+          NOTES_PATH: ${{ steps.notes.outputs.path }}
+        run: |
+          set -eu
+          ASSETS=( dist/*.tar.gz dist/*.tar.gz.sha256 )
+
+          if gh release view "${VERSION}" >/dev/null 2>&1; then
+            echo "Release ${VERSION} exists; uploading assets (clobber)."
+            gh release upload "${VERSION}" "${ASSETS[@]}" --clobber
+          else
+            EXTRA=()
+            if [ "${NOTES_AUTO}" = "true" ]; then
+              EXTRA+=( --generate-notes )
+            else
+              EXTRA+=( --notes-file "${NOTES_PATH}" )
+            fi
+            gh release create "${VERSION}" "${ASSETS[@]}" \
+              --title "${VERSION}" \
+              --verify-tag \
+              "${EXTRA[@]}"
+          fi

@@ -1,0 +1,11 @@
+{
+  "action": "opened",
+  "repository": {"full_name": "acme/checkout"},
+  "issue": {
+    "number": 118,
+    "title": "Intermittent 503 on /healthz after deploy",
+    "user": {"login": "oncall-b"},
+    "labels": [{"name": "incident"}, {"name": "priority-high"}],
+    "body": "Observed 3 failures in 10 minutes after rollout in us-east-1."
+  }
+}

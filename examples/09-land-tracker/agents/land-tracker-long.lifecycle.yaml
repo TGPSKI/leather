@@ -1,0 +1,38 @@
+agent: land-tracker
+# Shared defaults for all instances below.
+# model: omitted — inherits from config.yaml / LEATHER_MODEL env var.
+max_tokens: 8192
+tool_rounds: 12
+tags: [land, property-tracking]
+
+parameters:
+  url_list_path: .state/properties.txt
+  state_path: .state/property-state.json
+
+output:
+  - type: notify
+    backend: telegram-ops
+
+# Four runs per day at irregular times.  Randomised minutes and hours avoid
+# the uniform-interval fingerprint that CDN bot-detectors flag.
+# Each instance checks all URLs in the list and writes the shared state file;
+# runs are spaced ~5 h apart so they never overlap.
+#
+# FUTURE IMPROVEMENT: split into a two-agent pipeline
+#   1. land-fetcher  — cron instances (these) fetch one URL at a time via
+#                      queue_input: property-urls, re-enqueue the URL after
+#                      each fetch so all URLs rotate through naturally.
+#   2. land-notifier — schedule: "* * * * *" + queue_input: property-changes
+#                      dequeues one change event and sends the Telegram alert.
+#   This separates the CDN-sensitive fetch cadence from the notification path
+#   and lets a leather http_poll worker (or shell worker when added) drive
+#   fetches without holding an LLM slot.
+instances:
+  - name: land-tracker-morning
+    schedule: "23 7 * * *"    # 07:23 daily
+  - name: land-tracker-midday
+    schedule: "47 12 * * *"   # 12:47 daily
+  - name: land-tracker-afternoon
+    schedule: "11 16 * * *"   # 16:11 daily
+  - name: land-tracker-evening
+    schedule: "38 21 * * *"   # 21:38 daily

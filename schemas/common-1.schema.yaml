@@ -1,0 +1,43 @@
+# common-1.schema.yaml — shared type definitions for leather schema files
+# Referenced via $ref in other schema files. For documentation and IDE integration only.
+# Runtime validation is implemented in internal/schema/schema.go.
+version: "1"
+definitions:
+
+  duration:
+    type: string
+    description: |
+      Go duration string: decimal numbers with unit suffix.
+      Valid units: ns, us, ms, s, m, h.
+      Examples: "30s", "5m", "1h30m", "100ms"
+    pattern: '^[0-9]+(\.[0-9]+)?(ns|us|ms|s|m|h)([0-9]+(\.[0-9]+)?(ns|us|ms|s|m|h))*$'
+
+  cronExpr:
+    type: string
+    description: |
+      5-field cron (minute hour dom month dow) or 6-field with leading seconds field
+      (second minute hour dom month dow), or the special value "once".
+      Examples: "0 9 * * 1" (Monday 9 AM), "*/5 * * * *" (every 5 min),
+                "15/30 * * * * *" (every 15 s starting at :15), "once"
+    pattern: '^(once|(\S+ ){4,5}\S+)$'
+
+  templateStr:
+    type: string
+    description: |
+      Go text/template string. Supported variables depend on context:
+      - In lifecycle prompt: {{.agent_name}}, {{.schedule}}, {{.now}}, {{.tags}}
+      - In queue-driven prompts: any field from QueueItem.Payload
+      - In output route paths: {{.date}} (YYYY-MM-DD), {{.agent}}
+      - In URL/header values: {{env:VAR_NAME}} for environment variable expansion
+      Unknown variables render as empty string (missingkey=zero).
+
+  modelRef:
+    type: string
+    description: |
+      LLM model name accepted by the configured endpoint.
+      Examples: "llama3", "llama3:70b", "mistral", "phi3"
+
+  logLevel:
+    type: string
+    enum: [debug, info, warn, error]
+    description: Structured log verbosity level.

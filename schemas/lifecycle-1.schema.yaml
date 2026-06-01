@@ -1,0 +1,215 @@
+# Validates *.lifecycle.yaml files. Supports both the flat form (single
+# agent instance) and the list form (an "instances:" array with top-level
+# scalar fields as defaults). See docs/GUIDE.md for authoring details.
+#
+# Runtime validation: internal/schema.ValidateLifecycleYAML
+version: "1"
+type: object
+additionalProperties: false
+required:
+  - agent
+properties:
+
+  version:
+    type: string
+    description: |
+      Schema version reserved for forward compatibility. Default: "1".
+    default: "1"
+
+  agent:
+    type: string
+    description: |
+      Required. Must match the "name:" field of a loaded *.agent.md file.
+    pattern: '^[a-z][a-z0-9-]*$'
+
+  name:
+    type: string
+    description: |
+      Optional job name for this instance. Defaults to the agent name.
+      Required when "instances:" list form is used — each instance needs a unique name.
+
+  schedule:
+    $ref: "common-1.schema.yaml#/definitions/cronExpr"
+    description: Required in flat form. Serves as default in list form.
+
+  model:
+    $ref: "common-1.schema.yaml#/definitions/modelRef"
+
+  prompt:
+    $ref: "common-1.schema.yaml#/definitions/templateStr"
+    description: |
+      User message sent at each execution. Supports built-in variables:
+      {{.agent_name}}, {{.schedule}}, {{.now}}, {{.tags}}.
+      When queue_input is set, QueueItem.Payload fields are also available.
+      Mutually exclusive with prompts: (multi-turn form).
+
+  prompts:
+    type: array
+    items:
+      $ref: "common-1.schema.yaml#/definitions/templateStr"
+    description: |
+      Multi-turn user prompt chain. Each entry is sent as a separate user turn,
+      enabling deterministic multi-step interactions (e.g. paginate-then-summarize).
+      Mutually exclusive with prompt: (single-turn form). Supports the same
+      template variables as prompt:.
+
+  enabled:
+    type: boolean
+    default: true
+    description: Set to false to skip this instance.
+
+  disable:
+    type: ["array", "boolean"]
+    default: false
+    items:
+      type: string
+    description: |
+      Boolean: Disable all instances in this file when true.
+      String array: Disable specific instances by name.
+  
+  max_tokens:
+    type: integer
+    minimum: 1
+    description: Overrides config.yaml max_tokens for this instance.
+
+  timeout:
+    $ref: "common-1.schema.yaml#/definitions/duration"
+    description: Per-request LLM timeout. Overrides config.yaml llm_timeout.
+
+  temperature:
+    type: number
+    minimum: 0
+    maximum: 2
+
+  tags:
+    type: array
+    items:
+      type: string
+    description: Tags appended to (not replacing) agent-level tags.
+
+  skills:
+    type: array
+    items:
+      type: string
+    description: Overrides (replaces) agent-level skills for this instance.
+
+  tool_rounds:
+    type: integer
+    minimum: 1
+
+  toolsets:
+    type: array
+    items:
+      type: string
+    description: |
+      Names of *.toolset.yaml bundles to load. Additive with agent-level toolsets.
+
+  queue_input:
+    type: string
+    description: Named queue; overrides any queue_input declared in the agent file.
+
+  queue_batch_size:
+    type: integer
+    minimum: 1
+    description: |
+      Maximum items dequeued from queue_input per scheduler tick. Default: 1.
+
+  queue_max_attempts:
+    type: integer
+    minimum: 0
+    description: |
+      Maximum delivery attempts per queue item before DLQ promotion.
+      0 = disabled (items are not retried). Default: 0.
+
+  cache:
+    type: object
+    additionalProperties: false
+    description: Response caching settings for this instance.
+    properties:
+      enabled:
+        type: boolean
+        default: false
+      ttl:
+        $ref: "common-1.schema.yaml#/definitions/duration"
+        description: Cache entry lifetime. Zero / omitted means entries never expire.
+
+  output:
+    type: array
+    description: Destinations where the agent response is sent after each successful run.
+    items:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [file, queue, http, notify]
+        path:
+          $ref: "common-1.schema.yaml#/definitions/templateStr"
+          description: "Required for type=file. Supports {{.date}}, {{.agent}}."
+        queue:
+          type: string
+          description: Required for type=queue. Target queue name.
+        url:
+          type: string
+          description: "Required for type=http. Supports {{env:VAR}} expansion."
+        method:
+          type: string
+          enum: [GET, POST, PUT, PATCH, DELETE]
+          default: POST
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: "HTTP headers. Values support {{env:VAR}} expansion."
+        backend:
+          type: string
+          description: "Required for type=notify. Named notify backend from config.yaml."
+
+  hooks:
+    type: object
+    additionalProperties: false
+    description: |
+      Shell commands executed at lifecycle events. Commands run via sh -c with a
+      10 s timeout. Failures are non-fatal (logged as warnings).
+    properties:
+      pre_run:
+        type: string
+        description: Command executed before the LLM call.
+      post_success:
+        type: string
+        description: Command executed after a successful run.
+      post_error:
+        type: string
+        description: Command executed after a failed run.
+
+  instances:
+    type: array
+    description: |
+      List form: defines multiple named instances. Top-level scalar fields serve
+      as defaults that each instance may override. Tags are additive.
+    items:
+      type: object
+      additionalProperties: false
+      required: [name, schedule]
+      properties:
+        name:        {type: string}
+        schedule:    {$ref: "common-1.schema.yaml#/definitions/cronExpr"}
+        model:       {$ref: "common-1.schema.yaml#/definitions/modelRef"}
+        prompt:      {$ref: "common-1.schema.yaml#/definitions/templateStr"}
+        prompts:
+          type: array
+          items: {$ref: "common-1.schema.yaml#/definitions/templateStr"}
+          description: Multi-turn prompt chain (mutually exclusive with prompt).
+        enabled:     {type: boolean}
+        disable:     {type: boolean}
+        max_tokens:  {type: integer, minimum: 1}
+        timeout:     {$ref: "common-1.schema.yaml#/definitions/duration"}
+        temperature: {type: number, minimum: 0, maximum: 2}
+        tags:        {type: array, items: {type: string}}
+        skills:      {type: array, items: {type: string}}
+        toolsets:    {type: array, items: {type: string}}
+        tool_rounds: {type: integer, minimum: 1}
+        queue_input: {type: string}
+        queue_batch_size:   {type: integer, minimum: 1}
+        queue_max_attempts: {type: integer, minimum: 0}

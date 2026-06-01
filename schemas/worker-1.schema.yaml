@@ -1,0 +1,78 @@
+# worker-1.schema.yaml — validates *.worker.yaml declarative HTTP poll worker files
+#
+# Workers poll an HTTP endpoint on a fixed interval and push each response item
+# to a named file queue. A running agent with queue_input set consumes the queue.
+#
+# Runtime validation: internal/schema.ValidateWorkerYAML
+version: "1"
+type: object
+additionalProperties: false
+required:
+  - name
+  - type
+  - interval
+  - url
+  - output
+properties:
+
+  version:
+    type: string
+    description: |
+      Schema version reserved for forward compatibility. Default: "1".
+    default: "1"
+
+  name:
+    type: string
+    description: |
+      Unique worker identifier. Used in log output and state tracking.
+    pattern: '^[a-z][a-z0-9-]*$'
+    examples:
+      - skeptic-issue-poller
+
+  type:
+    type: string
+    enum: [http_poll]
+    description: Worker execution backend. Only "http_poll" is currently supported.
+
+  interval:
+    $ref: "common-1.schema.yaml#/definitions/duration"
+    description: |
+      How often to poll the URL. Minimum recommended: 30s to avoid rate limits.
+      Examples: "1m", "5m", "1h"
+
+  url:
+    type: string
+    format: uri
+    description: |
+      URL to poll. Supports {{env:VAR_NAME}} for dynamic values.
+      The response must be a JSON array; each element becomes a candidate queue item.
+    examples:
+      - "https://api.github.com/repos/{{env:SKEPTIC_REPO}}/issues?state=open"
+
+  headers:
+    type: object
+    additionalProperties:
+      type: string
+    description: |
+      HTTP headers sent with every poll request.
+      Values support {{env:VAR_NAME}} expansion. Auth values are never logged.
+    examples:
+      - Authorization: "Bearer {{env:GITHUB_TOKEN}}"
+
+  output:
+    type: object
+    additionalProperties: false
+    required: [queue]
+    description: Where to send each polled item.
+    properties:
+      queue:
+        type: string
+        description: |
+          Named queue (JSONL file under --state-dir). Created automatically.
+          Consumed by an agent with a matching queue_input: field.
+      dedup_key:
+        type: string
+        description: |
+          jq-style field selector for deduplication. Items whose extracted value
+          matches a recently seen value are dropped.
+          Example: ".number" deduplicates GitHub issues by issue number.

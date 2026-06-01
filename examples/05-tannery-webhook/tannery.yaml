@@ -1,0 +1,24 @@
+hide_dir: .state/hides
+artifact_dir: .state/artifacts
+curing_dir: curings
+
+webhooks:
+  - name: demo
+    path: /webhooks/demo
+    source: demo
+    secret: "{{env:LEATHER_WEBHOOK_SECRET}}"
+    max_body_bytes: 65536
+
+routes:
+  - name: demo-events
+    match:
+      source: demo
+    hide_kind: demo.event
+    curing: event
+    queue: default
+
+queues:
+  default:
+    concurrency: 1
+    max_attempts: 2
+    max_depth: 50

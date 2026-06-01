@@ -1,0 +1,7 @@
+name: summarize
+description: Second pass — turn triage notes into a one-paragraph reviewer summary.
+agent: summarize
+queue: summarize-in
+page_size_bytes: 3800
+max_attempts: 2
+timeout_seconds: 120

@@ -1,0 +1,22 @@
+agent: dep-audit
+
+# Demo variant: fires every minute.
+# Production: change schedule to "0 9 * * 1" for a weekly Monday 09:00 audit.
+
+max_tokens: 6144
+tool_rounds: 8
+tags: [dep-audit, security, maintenance, spa]
+
+parameters:
+  repo_path: "sample"    # ← replace with the path to your SPA project
+                         #   tip: run `npm install` in that directory first
+                         #   for npm_outdated to show real package data
+
+output:
+  - type: artifact
+  - type: notify
+    backend: telegram-ops
+
+instances:
+  - name: dep-audit-demo
+    schedule: "* * * * *"

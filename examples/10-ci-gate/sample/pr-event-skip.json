@@ -1,0 +1,40 @@
+{
+  "action": "opened",
+  "number": 43,
+  "pull_request": {
+    "number": 43,
+    "title": "docs: update README benchmarks and contributing guide",
+    "body": "Updates the benchmark table in the README to reflect the latest eval results from main. Adds a Contributing section with setup instructions for new engineers. No code changes.",
+    "head": {
+      "sha": "b7c1a3e2f9d0",
+      "ref": "docs/update-readme",
+      "label": "acme-ai:docs/update-readme"
+    },
+    "base": {
+      "ref": "main",
+      "label": "acme-ai:main"
+    },
+    "additions": 38,
+    "deletions": 11,
+    "changed_files": 2,
+    "merged": false,
+    "draft": false,
+    "html_url": "https://github.com/acme-ai/voice-engine/pull/43",
+    "user": {
+      "login": "bob-eng",
+      "type": "User"
+    }
+  },
+  "repository": {
+    "id": 789123,
+    "name": "voice-engine",
+    "full_name": "acme-ai/voice-engine",
+    "private": true,
+    "html_url": "https://github.com/acme-ai/voice-engine",
+    "description": "Real-time speech generation with STT/TTS eval pipeline"
+  },
+  "sender": {
+    "login": "bob-eng",
+    "type": "User"
+  }
+}

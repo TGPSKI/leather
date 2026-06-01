@@ -1,0 +1,11 @@
+name: decision
+description: Single-use fan-in join — waits for all 3 analysis results in one per-event queue then decides FULL_EVAL or SKIP.
+agent: decision
+queue_prefix: analysis
+hide_types: []
+page_size_bytes: 8000
+collect_size: 3
+max_attempts: 2
+timeout_seconds: 120
+output:
+  queue: comments-in

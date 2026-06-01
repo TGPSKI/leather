@@ -1,0 +1,14 @@
+{
+  "id": "evt-2024-001",
+  "type": "deploy.failed",
+  "service": "checkout-api",
+  "region": "us-east-1",
+  "commit": "a1b2c3d4",
+  "actor": "ci-bot",
+  "started_at": "2024-08-14T17:42:11Z",
+  "failed_at": "2024-08-14T17:43:09Z",
+  "stage": "smoke-tests",
+  "error": "503 from /healthz after 30s (3 retries)",
+  "rollback": "automatic",
+  "notes": "Previous deploy of checkout-api at 17:11Z succeeded; intervening change is a redis pool size bump."
+}

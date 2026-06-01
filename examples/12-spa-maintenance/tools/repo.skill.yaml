@@ -1,0 +1,52 @@
+name: repo
+system_prompt_append: |
+  You have tools for inspecting a local project repository.
+    read_package_json → read package.json and return its full contents
+    npm_outdated      → list npm packages with newer versions available
+    npm_audit         → run security scan and summarize vulnerabilities
+    git_log           → get recent commits with file change stats (needs git repo)
+    read_file         → read any file by its full or relative path
+  Paths can be absolute or relative to the leather working directory.
+  If npm_outdated shows no output or an error, node_modules may not be installed —
+  report this and fall back to reading package.json directly.
+tools:
+  - name: read_package_json
+    description: |
+      Read package.json from a directory. Returns the full file contents including
+      name, version, scripts, dependencies, and devDependencies.
+    type: mcp
+    mcp:
+      server: shell
+      tool: read_package_json
+  - name: npm_outdated
+    description: |
+      List outdated npm packages. Returns a table of package name, current version,
+      wanted version, and latest version. Requires node_modules to be installed.
+    type: mcp
+    mcp:
+      server: shell
+      tool: npm_outdated
+  - name: npm_audit
+    description: |
+      Run npm security audit. Returns a summary of vulnerabilities grouped by
+      severity (critical, high, moderate, low).
+    type: mcp
+    mcp:
+      server: shell
+      tool: npm_audit
+  - name: git_log
+    description: |
+      Get the last N git commits with file change counts. Requires repo_path to
+      be inside a git repository and count to be a positive integer.
+    type: mcp
+    mcp:
+      server: shell
+      tool: git_log
+  - name: read_file
+    description: |
+      Read any file by its full or relative path. Returns up to 4000 bytes of
+      content. Use for README.md, CHANGELOG.md, config files, etc.
+    type: mcp
+    mcp:
+      server: shell
+      tool: read_file

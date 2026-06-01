@@ -1,0 +1,20 @@
+agent: site-health
+
+# Demo variant: fires every minute so all three agents run in the ~90 second window.
+# Production: change schedule to "0 8 * * *" for a daily 08:00 check.
+
+max_tokens: 4096
+tool_rounds: 6
+tags: [site-health, monitoring, spa]
+
+parameters:
+  site_url: "https://example.com"    # ← replace with your deployed site URL
+
+output:
+  - type: artifact
+  - type: notify
+    backend: telegram-ops
+
+instances:
+  - name: site-health-demo
+    schedule: "* * * * *"

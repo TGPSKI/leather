@@ -1,0 +1,9 @@
+name: log-summary
+description: Summarize a build log into a short failure / cause / next-step report.
+agent: log-summary
+hide_types:
+  - build.log
+queue: default
+page_size_bytes: 3800
+max_attempts: 2
+timeout_seconds: 120

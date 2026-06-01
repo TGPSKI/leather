@@ -1,0 +1,11 @@
+name: pr-diff
+description: Analyse the unified diff for risk signals.
+agent: pr-diff
+queue_prefix: pr-diff
+hide_types:
+  - github.pull_request
+page_size_bytes: 4000
+max_attempts: 2
+timeout_seconds: 120
+output:
+  queue: "analysis/{{correlation_id}}"

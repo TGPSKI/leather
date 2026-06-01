@@ -1,0 +1,9 @@
+name: fail-demo
+description: Intentionally fails processing to demonstrate retry and DLQ promotion.
+agent: always-timeout
+hide_types:
+  - demo.failure
+queue: fail-in
+page_size_bytes: 3800
+max_attempts: 2
+timeout_seconds: 120

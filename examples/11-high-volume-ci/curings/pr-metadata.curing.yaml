@@ -1,0 +1,11 @@
+name: pr-metadata
+description: Extract file list and concern paths from a PR webhook event.
+agent: pr-metadata
+queue_prefix: pr-meta
+hide_types:
+  - github.pull_request
+page_size_bytes: 4000
+max_attempts: 2
+timeout_seconds: 120
+output:
+  queue: "analysis/{{correlation_id}}"

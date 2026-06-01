@@ -1,0 +1,8 @@
+name: pr-comments
+description: Post PR comment and label based on the decision report.
+agent: pr-comments
+queue: comments-in
+hide_types: []
+page_size_bytes: 4000
+max_attempts: 2
+timeout_seconds: 120

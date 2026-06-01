@@ -1,0 +1,5 @@
+diff --git a/src/voice/engine.py b/src/voice/engine.py
+@@ -10,3 +10,5 @@
++    # FULL_EVAL profile 0: nontrivial code change
++    self.runtime.configure(mode="profile-0")
++    return self.runtime.synthesize(text)

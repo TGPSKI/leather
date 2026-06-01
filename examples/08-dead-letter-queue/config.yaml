@@ -1,0 +1,23 @@
+agent_dir: agents
+state_dir: .state
+log_level: info
+
+llm_timeout: 120s
+max_tokens: 8192
+completion_reserve: 1024
+summarize_threshold: 0.85
+
+api: true
+api_addr: 127.0.0.1:7749
+
+scheduler_tick: 1s
+max_concurrent_jobs: 2
+persist_runs: true
+
+notify:
+  backends:
+    - name: telegram-fractal
+      type: telegram
+      chat_id: "YOUR_TELEGRAM_CHAT_ID"
+      token:
+        pass: telegram/YOUR_BOT

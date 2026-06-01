@@ -1,0 +1,20 @@
+=URL=
+{{URL}}
+=TITLE=
+40 Acres - Stone Mountain Ranch | Off-grid Cabin | Listed by Tall Pines Realty
+=META=
+40 Acres in Madison County — power on-grid, year-round creek, owner-financed.
+A rare opportunity with established perimeter fencing and a cleared building pad.
+=LISTING_DATA=
+"price":189000
+"acres":40
+"marketStatus":1
+"streetAddress":"4421 Pine Hollow Rd"
+"addressLocality":"Madison County, NC"
+=LATEST_EVENT=
+"date":"2026-05-12"
+"eventTitle":"Price reduced"
+=STATUS_KEYWORDS=
+For Sale
+$189,000 • 40 acres
+Price Reduced

@@ -1,0 +1,13 @@
+hide_dir: .state/hides
+artifact_dir: .state/artifacts
+curing_dir: curings
+
+queues:
+  triage-in:
+    concurrency: 1
+    max_attempts: 2
+    max_depth: 50
+  summarize-in:
+    concurrency: 1
+    max_attempts: 2
+    max_depth: 50

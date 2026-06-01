@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref (saves runner minutes on busy PRs).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Fast-feedback gate. Runs on every push and PR.
+  # ─────────────────────────────────────────────────────────────────────────
+  ci:
+    name: Build & Test (linux/amd64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    env:
+      LEATHER_TEST_BUILD: "1"
+
+    steps:
+      - name: Checkout
+        # actions/checkout v6.0.2 (Node.js 24)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Set up Go
+        # actions/setup-go v6.4.0 (Node.js 24)
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          go-version-file: go.mod
+          # Project is stdlib-only — there is no go.sum, so the built-in
+          # module cache restore would always miss. Disable to avoid the
+          # spurious "Dependencies file is not found" warning.
+          cache: false
+
+      - name: Install golangci-lint
+        # golangci/golangci-lint-action v9.2.1 (Node.js 24).
+        # NOTE: the pinned action version does not recognize
+        # `install-only: true` (logged as "Unexpected input(s)"); it will
+        # always perform a full lint pass. We therefore let the action be
+        # the single canonical lint step and skip `make lint` below.
+        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: Format + vet + mod verify
+        run: make check
+
+      - name: Unit tests (race)
+        run: make test-race
+
+      - name: Integration tests
+        run: make integration
+
+      - name: Build binary
+        run: make build
+
+      - name: Build shell-mcp binary
+        run: make build-shell-mcp
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Cross-platform full-scope tests.
+  # Triggers:
+  #   - PR carrying the `full-test` label
+  #   - manual `workflow_dispatch`
+  #   - any push to `main`
+  # ─────────────────────────────────────────────────────────────────────────
+  full-scope:
+    name: Full-scope (${{ matrix.label }})
+    needs: ci
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.labels.*.name, 'full-test')) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux/arm64
+            os: ubuntu-24.04-arm
+          - label: macos/arm64
+            os: macos-14
+          # ── Windows stub ────────────────────────────────────────────────
+          # Not implemented yet. The Makefile assumes POSIX tools (gofmt
+          # pipelines via `find`, bash test helpers under tests/mcp/, the
+          # `examples/` smoke targets) so `make check` and the
+          # integration tests will not run cleanly on windows-latest
+          # without a refactor. To enable: port the Makefile shell
+          # helpers, add `.exe` suffix handling in `build`/`build-shell-mcp`,
+          # and uncomment the entry below.
+          # - label: windows/amd64
+          #   os: windows-latest
+    runs-on: ${{ matrix.os }}
+
+    env:
+      LEATHER_TEST_BUILD: "1"
+
+    steps:
+      - name: Checkout
+        # actions/checkout v6.0.2 (Node.js 24)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Set up Go
+        # actions/setup-go v6.4.0 (Node.js 24)
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Show toolchain
+        run: |
+          go version
+          uname -a || true
+
+      - name: Format + vet + mod verify
+        run: make check
+
+      - name: Unit tests (race)
+        run: make test-race
+
+      - name: Integration tests
+        run: make integration
+
+      - name: Build binary
+        run: make build
+
+      - name: Build shell-mcp binary
+        run: make build-shell-mcp
+
+      - name: Benchmarks (smoke)
+        # Quick benchmark pass — surfaces perf regressions on alternate
+        # architectures (arm64) without saving a baseline. Failures here
+        # don't fail the job; this is purely informational.
+        run: go test -bench=. -benchmem -benchtime=1s -run='^$' ./... || true

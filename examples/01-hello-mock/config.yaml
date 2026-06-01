@@ -1,0 +1,3 @@
+agent_dir: agents
+state_dir: .state
+log_level: info

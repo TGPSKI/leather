@@ -1,0 +1,11 @@
+name: triage
+description: First pass — classify the input and extract structured highlights.
+agent: triage
+hide_types:
+  - pr.thread
+queue: triage-in
+page_size_bytes: 3800
+max_attempts: 2
+timeout_seconds: 120
+output:
+  queue: summarize-in

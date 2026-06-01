@@ -1,0 +1,21 @@
+package cli
+
+const usage = `leather — local agent orchestrator
+
+Usage:
+  leather <command> [flags]
+
+Commands:
+  serve       run the scheduler loop (primary operating mode)
+  chat        interactive chat session with session context management
+  run         execute a single agent definition once and exit
+  validate    parse and validate agent definition files; report errors
+  test-agent  run an agent with a mock LLM and print the turn transcript
+  status      show scheduler state, job history, token budget usage
+  ingest      store raw bytes as a hide and optionally enqueue for curing
+  replay      replay a captured snapshot or runs directory via the API
+  version     print build version information
+  help        print this message
+
+Use "leather <command> --help" for per-command flag details.
+`

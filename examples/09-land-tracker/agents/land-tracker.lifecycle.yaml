@@ -1,0 +1,34 @@
+agent: land-tracker
+# Demo / testing variant: all 4 instances fire within a 15-minute window on
+# every hour.  Use this lifecycle when you want to watch a full cycle without
+# waiting 6+ hours between runs.
+#
+# Gaps: :01 → :06 → :10 → :14  (5 min, 4 min, 4 min)
+# Irregular spacing avoids the uniform-interval bot-detection flag that
+# a naive "*/4 * * * *" pattern would trigger.  Each fetch takes ~30–45 s;
+# the 4-minute gaps give the prior request time to clear before the next one
+# primes a new cookie session from the CDN.
+#
+# Switch back to land-tracker-long.lifecycle.yaml for production runs.
+# model: omitted — inherits from config.yaml / LEATHER_MODEL env var.
+max_tokens: 8192
+tool_rounds: 12
+tags: [land, property-tracking, demo]
+
+parameters:
+  url_list_path: .state/properties.txt
+  state_path: .state/property-state.json
+
+output:
+  - type: notify
+    backend: telegram-ops
+
+instances:
+  - name: land-tracker-demo-1
+    schedule: "1 * * * *"    # :01 every hour
+  - name: land-tracker-demo-2
+    schedule: "6 * * * *"    # :06 every hour
+  - name: land-tracker-demo-3
+    schedule: "10 * * * *"   # :10 every hour
+  - name: land-tracker-demo-4
+    schedule: "14 * * * *"   # :14 every hour

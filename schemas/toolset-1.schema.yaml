@@ -1,0 +1,43 @@
+# Validates *.toolset.yaml files.
+#
+# Runtime validation: internal/schema.ValidateToolsetYAML
+# VS Code: add to .vscode/settings.json yaml.schemas for inline diagnostics.
+version: "1"
+type: object
+additionalProperties: false
+required:
+  - name
+  - tools
+properties:
+
+  version:
+    type: string
+    description: |
+      Schema version reserved for forward compatibility. Default: "1".
+    default: "1"
+
+  name:
+    type: string
+    description: |
+      Unique toolset identifier. Referenced by agents via toolsets: [name].
+      Must be unique across all loaded toolsets; duplicates are a load error.
+    pattern: '^[a-z][a-z0-9-]*$'
+    examples:
+      - release-read
+      - github-triage
+
+  description:
+    type: string
+    description: Free-form human-readable description shown in logs and listings.
+
+  tools:
+    type: array
+    minItems: 1
+    items:
+      type: string
+    description: |
+      Tool names included in this toolset. Each name must match a tool defined
+      in a loaded *.skill.yaml file. Cross-references are resolved at
+      tool-loader time; unknown names cause a validation error.
+    examples:
+      - [list_releases, get_release_by_tag, list_tags]

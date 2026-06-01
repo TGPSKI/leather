@@ -1,0 +1,62 @@
+# Validates mcp-servers.yaml. Servers are listed under the "servers:" key
+# and referenced by name via "mcp.server:" in *.skill.yaml tool definitions.
+#
+# Runtime validation: internal/schema.ValidateMCPServersYAML (per-item flat fields)
+version: "1"
+type: object
+additionalProperties: false
+required:
+  - servers
+properties:
+
+  version:
+    type: string
+    description: |
+      Schema version reserved for forward compatibility. Default: "1".
+    default: "1"
+
+  servers:
+    type: array
+    minItems: 1
+    description: List of MCP server definitions.
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - command
+      properties:
+
+        name:
+          type: string
+          description: Unique server identifier. Referenced via mcp.server in skill tool definitions.
+          pattern: '^[a-z][a-z0-9-]*$'
+
+        command:
+          type: string
+          description: Shell command to start the MCP server (stdio transport, JSON-RPC 2.0).
+
+        transport:
+          type: string
+          enum: [stdio]
+          default: stdio
+          description: Transport protocol. Only stdio is supported.
+
+        env:
+          type: array
+          description: Environment variables to inject into the server process.
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - name
+            properties:
+              name:
+                type: string
+                description: Environment variable name, e.g. GITHUB_PERSONAL_ACCESS_TOKEN.
+              pass:
+                type: string
+                description: Unix pass-store path to resolve, e.g. github-pat.
+              env:
+                type: string
+                description: Fallback environment variable name when pass is absent or fails.

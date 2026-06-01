@@ -1,0 +1,25 @@
+diff --git a/README.md b/README.md
+index 1111aaa..2222bbb 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,7 @@
+ A small voice-synthesis library.
+
+-## Install
++## Installation
+
+ ```bash
+ pip install voicelib
+@@ -42,3 +42,15 @@ See `docs/usage.md` for full API details.
++
++## Contributing
++
++Pull requests welcome. Please run `make test` before opening a PR.
+
+diff --git a/docs/usage.md b/docs/usage.md
+@@ -8,4 +8,9 @@ Quick start:
+     synth = Synthesizer()
+     audio = synth.synthesize("hello", "voice-1")
++
++Note: prosody hints are applied automatically when text contains punctuation
++such as `!` or `?`. Pass `prosody="off"` to disable.

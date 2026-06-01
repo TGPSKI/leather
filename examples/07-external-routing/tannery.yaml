@@ -1,0 +1,49 @@
+hide_dir: .state/hides
+artifact_dir: .state/artifacts
+curing_dir: curings
+
+webhooks:
+  - name: github
+    path: /webhooks/github
+    source: github
+    secret: "{{env:LEATHER_WEBHOOK_SECRET}}"
+    max_body_bytes: 65536
+
+routes:
+  - name: review-comments
+    match:
+      source: github
+      event_type: pull_request_review_comment
+    hide_kind: github.pull_request_review_comment
+    curing: review-comment
+    queue: review-in
+
+  - name: issues
+    match:
+      source: github
+      event_type: issues
+    hide_kind: github.issues
+    curing: issue-event
+    queue: issue-in
+
+  - name: deploy-alerts
+    match:
+      source: github
+      event_type: deployment_status
+    hide_kind: github.deployment_status
+    curing: escalation
+    queue: escalation-in
+
+queues:
+  review-in:
+    concurrency: 1
+    max_attempts: 2
+    max_depth: 50
+  issue-in:
+    concurrency: 1
+    max_attempts: 2
+    max_depth: 50
+  escalation-in:
+    concurrency: 1
+    max_attempts: 2
+    max_depth: 50

@@ -1,0 +1,10 @@
+name: issue-event
+description: Route GitHub issue events to a short issue summary.
+agent: issue-event
+hide_types:
+  - github.issues
+  - github.untyped_event
+queue: issue-in
+page_size_bytes: 3800
+max_attempts: 2
+timeout_seconds: 120

@@ -1,0 +1,11 @@
+agent_dir: agents
+tool_dir: tools
+mcp_servers_file: mcp-servers.yaml
+state_dir: .state
+log_level: info
+persist_runs: true
+
+llm_timeout: 60s
+max_tokens: 8192
+completion_reserve: 1024
+summarize_threshold: 0.85

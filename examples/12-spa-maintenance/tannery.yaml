@@ -1,0 +1,25 @@
+hide_dir: .state/hides
+artifact_dir: .state/artifacts
+curing_dir: curings
+
+webhooks:
+  - name: github
+    path: /webhooks/github
+    source: github
+    secret: "{{env:GITHUB_WEBHOOK_SECRET}}"
+    max_body_bytes: 262144   # 256 KB — enough for any push payload
+
+routes:
+  - name: push-deploy-check
+    match:
+      source: github
+      event_type: push
+    hide_kind: github.push
+    curing: deploy-check
+    queue: deploy-check-in
+
+queues:
+  deploy-check-in:
+    concurrency: 2
+    max_attempts: 3
+    max_depth: 20

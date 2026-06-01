@@ -1,0 +1,26 @@
+name: repo
+system_prompt_append: |
+  You can inspect a local git repository through the `shell` MCP server.
+  - Call git_status first to orient yourself.
+  - Use git_log with n <= 10 unless asked otherwise.
+  - Each tool call returns at most 4000 bytes; plan accordingly.
+  Be concise. Use bullet lists.
+tools:
+  - name: git_status
+    description: Branch and working-tree status. Requires path.
+    type: mcp
+    mcp:
+      server: shell
+      tool: git_status
+  - name: git_log
+    description: Recent commits (oneline). Requires path; optional n (default 10).
+    type: mcp
+    mcp:
+      server: shell
+      tool: git_log
+  - name: git_branch
+    description: List local branches. Requires path.
+    type: mcp
+    mcp:
+      server: shell
+      tool: git_branch

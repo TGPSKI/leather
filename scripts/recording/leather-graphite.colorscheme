@@ -1,0 +1,67 @@
+# Leather Graphite — Konsole color scheme.
+#
+# Mirrors the palette from the old examples/vhs/_leather-style.tape so
+# svg-term-cli renders example demos in the exact Leather brand colors.
+#
+# Background: #232323 (neutral dark)
+# Foreground: #E8E6E3 (off-white)
+# Accents:    teal #38D0C8, violet #8B5CF6, cyan #35B8F0
+#
+# Konsole .colorscheme format: each color is a section with Color=R,G,B
+# (0–255). All 18 sections must be present (Color0..Color7 plus their
+# Intense variants, plus Background and Foreground) — the svg-term-cli
+# parser silently mis-reads any that are missing.
+
+[Background]
+Color=35,35,35
+
+[Foreground]
+Color=232,230,227
+
+[Color0]
+Color=38,36,44
+
+[Color0Intense]
+Color=110,106,118
+
+[Color1]
+Color=255,107,122
+
+[Color1Intense]
+Color=255,132,144
+
+[Color2]
+Color=16,168,137
+
+[Color2Intense]
+Color=34,199,165
+
+[Color3]
+Color=217,184,108
+
+[Color3Intense]
+Color=240,213,138
+
+[Color4]
+Color=53,184,240
+
+[Color4Intense]
+Color=84,199,255
+
+[Color5]
+Color=139,92,246
+
+[Color5Intense]
+Color=167,139,250
+
+[Color6]
+Color=56,208,200
+
+[Color6Intense]
+Color=107,232,223
+
+[Color7]
+Color=232,230,227
+
+[Color7Intense]
+Color=255,255,255

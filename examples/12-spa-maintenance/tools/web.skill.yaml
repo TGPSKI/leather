@@ -1,0 +1,23 @@
+name: web
+system_prompt_append: |
+  You have HTTP and TLS tools for website health checking.
+  Use check_http with the full URL including scheme (e.g. https://example.com).
+  Use check_tls with just the hostname — no scheme, no path (e.g. example.com).
+  If either tool returns an error or empty output, report it explicitly — never guess.
+tools:
+  - name: check_http
+    description: |
+      Check HTTP status, response time (ms), and response size for a URL. Follows
+      redirects. Returns: status=<code> time_ms=<N> size_bytes=<N>.
+    type: mcp
+    mcp:
+      server: shell
+      tool: check_http
+  - name: check_tls
+    description: |
+      Check TLS certificate expiry for a hostname. Returns the notAfter date line
+      from the certificate (e.g. notAfter=Jun 15 00:00:00 2026 GMT).
+    type: mcp
+    mcp:
+      server: shell
+      tool: check_tls

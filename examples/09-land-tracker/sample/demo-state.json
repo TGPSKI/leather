@@ -1,0 +1,30 @@
+{
+  "https://www.land.com/property/14.34-acres-in-calaveras-county-california/22610206/": {
+    "address": "Calaveras County, CA",
+    "price": "$249,900",
+    "status": "for sale",
+    "acreage": "14.34 acres",
+    "last_checked": "2025-01-15 08:00:00"
+  },
+  "https://www.land.com/property/18.32-acres-in-stanislaus-county-california/25237444/": {
+    "address": "Stanislaus County, CA",
+    "price": "$312,000",
+    "status": "for sale",
+    "acreage": "18.32 acres",
+    "last_checked": "2025-01-15 08:00:00"
+  },
+  "https://www.land.com/property/22368-jerusalem-grade-lower-lake-california-95457/25130122/": {
+    "address": "22368 Jerusalem Grade, Lower Lake, CA 95457",
+    "price": "$189,000",
+    "status": "for sale",
+    "acreage": "unknown",
+    "last_checked": "2025-01-15 08:00:00"
+  },
+  "https://www.land.com/property/16605-buckeye-rd-nevada-city-california-95959/25520602/": {
+    "address": "16605 Buckeye Rd, Nevada City, CA 95959",
+    "price": "$425,000",
+    "status": "for sale",
+    "acreage": "unknown",
+    "last_checked": "2025-01-15 08:00:00"
+  }
+}

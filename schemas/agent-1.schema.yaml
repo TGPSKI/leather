@@ -1,0 +1,92 @@
+# Validates *.agent.md YAML front matter. The document body below the
+# closing --- is the system prompt and is not validated here.
+#
+# Runtime validation: internal/schema.ValidateAgentFrontmatter
+# VS Code: add to .vscode/settings.json yaml.schemas for inline diagnostics.
+version: "1"
+type: object
+additionalProperties: false
+required:
+  - name
+properties:
+
+  version:
+    type: string
+    description: |
+      Schema version reserved for forward compatibility. Default: "1".
+      Currently informational only; future leather releases may use it to
+      select alternate parser behavior.
+    default: "1"
+
+  name:
+    type: string
+    description: |
+      Unique agent identifier. Used as the default job name and as the lookup
+      key when a *.lifecycle.yaml references this agent via the "agent:" field.
+    pattern: '^[a-z][a-z0-9-]*$'
+    examples:
+      - skeptic-triage
+      - release-notes
+
+  schedule:
+    $ref: "common-1.schema.yaml#/definitions/cronExpr"
+    description: |
+      Cron schedule or "once". Optional at the file level — a paired *.lifecycle.yaml
+      may supply the schedule. Required before an agent can run without a lifecycle file.
+
+  model:
+    $ref: "common-1.schema.yaml#/definitions/modelRef"
+    description: |
+      LLM model to use. Falls back to config.yaml global model if omitted.
+
+  skills:
+    type: array
+    items:
+      type: string
+    description: |
+      Names of *.skill.yaml skill bundles to load. Each name must match a loaded
+      skill's "name:" field. Cross-reference validated at runtime by the tool loader.
+    examples:
+      - [github-issue-manager]
+
+  tool_rounds:
+    type: integer
+    minimum: 1
+    maximum: 20
+    description: |
+      Maximum tool-call cycles per run. Overrides config.yaml max_tool_rounds.
+      Default: 5.
+
+  tags:
+    type: array
+    items:
+      type: string
+    description: Arbitrary string tags for filtering and observability.
+
+  max_tokens:
+    type: integer
+    minimum: 1
+    description: Maximum context tokens for this agent. Overrides config.yaml max_tokens.
+
+  timeout:
+    $ref: "common-1.schema.yaml#/definitions/duration"
+    description: Per-request LLM timeout. Overrides config.yaml llm_timeout.
+
+  temperature:
+    type: number
+    minimum: 0
+    maximum: 2
+    description: LLM sampling temperature. 0 = deterministic. Overrides config.yaml temperature.
+
+  enabled:
+    type: boolean
+    default: true
+    description: Set to false to skip this agent at load time.
+
+  queue_input:
+    type: string
+    description: |
+      Named queue (JSONL file under --state-dir) this agent drains. When set,
+      the runtime treats each queue item as the user prompt for one run and
+      makes its payload fields available to template variables.
+      May also be set in a paired *.lifecycle.yaml, which takes precedence.

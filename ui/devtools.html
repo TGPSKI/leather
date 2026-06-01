@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leather DevTools</title>
+  <link rel="stylesheet" href="js/devtools/style.css">
+</head>
+<body class="dt-standalone-body">
+<div id="devtools-root"></div>
+
+<script src="js/leather-common.js"></script>
+<script src="js/devtools/icons.js"></script>
+<script src="js/devtools/common.js"></script>
+<script src="js/devtools/store.js"></script>
+<script src="js/devtools/api.js"></script>
+<script>
+  // T1.11: load demo data bundle only when explicitly opted in via ?demo=1
+  // or #demo=1. Production users should never see fabricated traces.
+  (function () {
+    var q = (window.location.search || "").indexOf("demo=1") >= 0;
+    var h = (window.location.hash || "").indexOf("demo=1") >= 0;
+    if (q || h) {
+      var s = document.createElement("script");
+      s.src = "js/devtools/demo.js";
+      s.async = false;
+      document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling);
+    }
+  })();
+</script>
+<script src="js/devtools/stream.js"></script>
+<script src="js/devtools/router.js"></script>
+<script src="js/devtools/tree.js"></script>
+<script src="js/devtools/timeline.js"></script>
+<script src="js/devtools/inspector.js"></script>
+<script src="js/devtools/footer.js"></script>
+<script src="js/devtools/flow.js"></script>
+<script src="js/devtools/index.js"></script>
+</body>
+</html>

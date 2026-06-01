@@ -1,0 +1,9 @@
+name: review-comment
+description: Route GitHub PR review comment events to a concise triage note.
+agent: review-comment
+hide_types:
+  - github.pull_request_review_comment
+queue: review-in
+page_size_bytes: 3800
+max_attempts: 2
+timeout_seconds: 120

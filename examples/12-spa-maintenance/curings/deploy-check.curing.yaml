@@ -1,0 +1,11 @@
+name: deploy-check
+description: Verify that a SPA deployment succeeded after a GitHub push to main.
+agent: deploy-check
+hide_types:
+  - github.push
+queue: deploy-check-in
+page_size_bytes: 8192
+max_attempts: 3
+timeout_seconds: 60
+output:
+  artifact: true

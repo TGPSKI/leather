@@ -1,0 +1,154 @@
+# Validates tannery.yaml workspace configuration. See docs/GUIDE.md and
+# docs/OPERATIONS.md for what a tannery is and how its fields map to runtime
+# behaviour.
+#
+# Runtime validation: internal/schema.ValidateTanneryYAML
+# VS Code: add to .vscode/settings.json yaml.schemas for inline diagnostics.
+version: "1"
+type: object
+additionalProperties: false
+properties:
+
+  version:
+    type: string
+    description: |
+      Schema version reserved for forward compatibility. Default: "1".
+    default: "1"
+
+  hide_dir:
+    type: string
+    description: |
+      Directory (relative to the tannery root) where raw hide payloads are stored.
+      Default: ".state/hides"
+
+  curing_dir:
+    type: string
+    description: |
+      Directory (relative to the tannery root) holding *.curing.yaml definitions.
+      Default: "curings"
+
+  artifact_dir:
+    type: string
+    description: |
+      Directory (relative to the tannery root) where finalized artifacts are written.
+      Default: ".state/artifacts"
+
+  routes:
+    type: array
+    description: |
+      Ordered list of routing rules. Each incoming hide is matched against the first
+      route whose match: block accepts it; the hide is then enqueued for the named curing.
+    items:
+      type: object
+      additionalProperties: false
+      required: [name, curing]
+      properties:
+        name:
+          type: string
+          description: Route identifier (used in logs and metrics).
+          pattern: '^[a-z][a-z0-9-]*$'
+        hide_kind:
+          type: string
+          description: |
+            Optional filter on the hide's declared kind (e.g. "github.pull_request",
+            "demo.event"). When set, only hides with this exact kind match the route.
+        curing:
+          type: string
+          description: Name of the *.curing.yaml definition to run for matched hides.
+        queue:
+          type: string
+          description: |
+            Named queue (see queues:) that receives the curing job. Mutually
+            exclusive with queue_pattern:; exactly one is required.
+        queue_pattern:
+          type: string
+          description: |
+            Template that derives the target queue name per hide (e.g.
+            "events.{{.source}}"). Mutually exclusive with queue:. Useful when
+            one route fans out to multiple per-source queues.
+        match:
+          type: object
+          additionalProperties: false
+          required: [source]
+          description: |
+            Optional inbound-event filter. When present, source: is required and
+            event_type: may narrow the match further. Source values typically come
+            from webhook handlers (e.g. "github", "demo") or ingestion sources.
+          properties:
+            source:
+              type: string
+              description: Inbound event source identifier (matches webhook source:).
+              examples:
+                - github
+                - demo
+            event_type:
+              type: string
+              description: |
+                Optional event-type filter within the source (e.g. "pull_request",
+                "issues"). Omitted = accept any event_type from the source.
+
+  queues:
+    type: object
+    description: |
+      Named queues used by routes. Each entry sets per-queue execution limits.
+      Queue names referenced by routes: must exist here.
+    additionalProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        concurrency:
+          type: integer
+          minimum: 1
+          description: Maximum concurrent curing jobs drained from this queue. Default: 1.
+        max_attempts:
+          type: integer
+          minimum: 0
+          description: |
+            Maximum delivery attempts per item before it is moved to the dead-letter
+            position. 0 disables retries (single attempt). Default: 1.
+        max_depth:
+          type: integer
+          minimum: 0
+          description: |
+            Soft upper bound on queued items. New enqueues beyond this depth are
+            rejected with a backpressure error. 0 = unlimited.
+
+  webhooks:
+    type: array
+    description: |
+      Inbound HTTP webhook endpoints exposed by `leather serve`. Each entry binds
+      a URL path to an event source and (optionally) a shared HMAC secret.
+    items:
+      type: object
+      additionalProperties: false
+      required: [name, path, source]
+      properties:
+        name:
+          type: string
+          description: Webhook identifier (used in logs and metrics).
+          pattern: '^[a-z][a-z0-9-]*$'
+        path:
+          type: string
+          description: |
+            URL path served by leather serve. Must start with "/" and be unique
+            across all webhooks.
+          pattern: '^/.*'
+          examples:
+            - /webhooks/github
+            - /webhooks/demo
+        source:
+          type: string
+          description: |
+            Event source identifier emitted into each generated hide. Routes
+            reference this via match.source.
+        secret:
+          type: string
+          description: |
+            Optional HMAC shared secret used to verify the inbound signature.
+            Supports {{env:VAR_NAME}} expansion. Never logged.
+        max_body_bytes:
+          type: integer
+          minimum: 0
+          description: |
+            Maximum accepted request body size in bytes. Larger requests are
+            rejected with 413. 0 = use the runtime default.

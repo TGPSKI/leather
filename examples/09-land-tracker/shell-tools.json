@@ -1,0 +1,37 @@
+{
+  "output_cap_bytes": 6000,
+  "tools": [
+    {
+      "name": "read_url_list",
+      "description": "Read property URLs from a text file, one per line. Lines starting with # are comments and are ignored. Requires: path.",
+      "command": "bash",
+      "args": ["-c", "grep -v '^[[:space:]]*#' -- \"$1\" | grep -v '^[[:space:]]*$' || true", "--", "{{path}}"],
+      "required": ["path"],
+      "timeout": 5
+    },
+    {
+      "name": "fetch_page",
+      "description": "Fetch a property listing page and extract structured data: page title, Open Graph meta tags, JSON-LD blocks, and price/status text snippets. Requires: url.",
+      "command": "bash",
+      "args": ["scripts/fetch-property.sh", "{{url}}"],
+      "required": ["url"],
+      "timeout": 35
+    },
+    {
+      "name": "read_state",
+      "description": "Read the stored property state JSON from disk. Returns {} if the file does not exist. Requires: path.",
+      "command": "bash",
+      "args": ["-c", "cat -- \"$1\" 2>/dev/null || echo '{}'", "--", "{{path}}"],
+      "required": ["path"],
+      "timeout": 5
+    },
+    {
+      "name": "write_state",
+      "description": "Persist updated property state JSON to disk. Requires: path (output file), content (compact JSON string).",
+      "command": "bash",
+      "args": ["-c", "mkdir -p \"$(dirname \"$1\")\" && printf '%s' \"$2\" > \"$1\" && echo 'state saved'", "--", "{{path}}", "{{content}}"],
+      "required": ["path", "content"],
+      "timeout": 5
+    }
+  ]
+}

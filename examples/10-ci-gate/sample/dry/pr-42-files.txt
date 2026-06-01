@@ -1,0 +1,3 @@
+src/voice/synthesizer.py  +42 -8  [modified]
+src/voice/models.py  +12 -3  [modified]
+tests/voice/test_synthesizer.py  +24 -0  [added]

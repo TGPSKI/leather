@@ -1,0 +1,96 @@
+{
+  "tools": [
+    {
+      "name": "check_http",
+      "description": "Check HTTP status, response time, and size for a URL. Follows redirects. Returns: status=<code> time_ms=<N> size_bytes=<N>.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "if [ \"${LEATHER_DEMO_MODE:-dry}\" = live ]; then curl -o /dev/null -w 'status=%{http_code} time_ms=%{time_starttransfer_ms} size_bytes=%{size_download}' -sL --max-time 15 \"$1\" 2>&1 || echo 'status=error time_ms=0 size_bytes=0'; else printf 'status=200 time_ms=142 size_bytes=24096  # dry-mode fixture for %s\\n' \"$1\"; fi",
+        "--",
+        "{{url}}"
+      ],
+      "timeout_seconds": 20,
+      "output_cap_bytes": 300
+    },
+    {
+      "name": "check_tls",
+      "description": "Check TLS certificate expiry for a hostname. Returns the notAfter date line (e.g. notAfter=Jun 15 00:00:00 2026 GMT).",
+      "command": "bash",
+      "args": [
+        "-c",
+        "if [ \"${LEATHER_DEMO_MODE:-dry}\" = live ]; then echo | openssl s_client -connect \"$1\":443 -servername \"$1\" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null || echo 'notAfter=unknown (TLS check failed)'; else echo 'notAfter=Sep 30 23:59:59 2026 GMT  # dry-mode fixture'; fi",
+        "--",
+        "{{hostname}}"
+      ],
+      "timeout_seconds": 15,
+      "output_cap_bytes": 200
+    },
+    {
+      "name": "read_package_json",
+      "description": "Read and return the contents of package.json from a project directory.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "cat \"$1/package.json\" 2>/dev/null || echo 'ERROR: package.json not found at '$1",
+        "--",
+        "{{repo_path}}"
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 4000
+    },
+    {
+      "name": "npm_outdated",
+      "description": "List outdated npm packages. Returns table of package name, current, wanted, and latest versions. Requires node_modules (run npm install first).",
+      "command": "bash",
+      "args": [
+        "-c",
+        "if [ \"${LEATHER_DEMO_MODE:-dry}\" = live ]; then cd \"$1\" && npm outdated 2>&1 || true; else printf 'Package          Current  Wanted   Latest  Location\\nreact            18.2.0   18.3.1   19.0.0  node_modules/react\\nlodash           4.17.20  4.17.21  4.17.21 node_modules/lodash\\n# dry-mode fixture for %s\\n' \"$1\"; fi",
+        "--",
+        "{{repo_path}}"
+      ],
+      "timeout_seconds": 60,
+      "output_cap_bytes": 4000
+    },
+    {
+      "name": "npm_audit",
+      "description": "Run npm security audit and return a summary of vulnerabilities by severity.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "if [ \"${LEATHER_DEMO_MODE:-dry}\" = live ]; then cd \"$1\" && npm audit --summary 2>&1 || true; else printf '0 vulnerabilities (0 low, 0 moderate, 0 high, 0 critical)  # dry-mode fixture\\n'; fi",
+        "--",
+        "{{repo_path}}"
+      ],
+      "timeout_seconds": 60,
+      "output_cap_bytes": 2000
+    },
+    {
+      "name": "git_log",
+      "description": "Get the last N git commits with file change counts. repo_path must be inside a git repository.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "cd \"$1\" && git log --oneline --stat -\"$2\" 2>/dev/null || echo 'ERROR: not a git repository or git not installed'",
+        "--",
+        "{{repo_path}}",
+        "{{count}}"
+      ],
+      "timeout_seconds": 15,
+      "output_cap_bytes": 3000
+    },
+    {
+      "name": "read_file",
+      "description": "Read the content of a file by its full or relative path. Returns up to 4000 bytes.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "cat \"$1\" 2>/dev/null | head -c 4000 || echo 'ERROR: file not found: '$1",
+        "--",
+        "{{path}}"
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 4000
+    }
+  ]
+}

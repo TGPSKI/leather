@@ -1,0 +1,20 @@
+agent_dir: agents
+state_dir: .state
+log_level: info
+
+# LLM endpoint and model come from LEATHER_LLM_ENDPOINT / LEATHER_MODEL env vars.
+# Defaults: http://localhost:11434 + llama3 (override in the parent Makefile).
+llm_timeout: 60s
+
+max_tokens: 4096
+completion_reserve: 512
+summarize_threshold: 0.85
+
+scheduler_tick: 1s
+max_concurrent_jobs: 2
+
+persist_runs: true
+
+# Enable the local HTTP API so the DevTools UI (printed at startup) is reachable.
+api: true
+api_addr: 127.0.0.1:7749

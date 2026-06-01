@@ -1,0 +1,14 @@
+# Build output
+/leather
+/shell-mcp
+.agents/skills/agents-doc-lifecycle/agents-doc-lifecycle
+
+# Test / coverage artifacts
+*.out
+bench-baseline.txt
+
+# 
+.agentsignore/
+reviews/
+dev/
+recordings/

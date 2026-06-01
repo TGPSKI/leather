@@ -1,0 +1,25 @@
+name: github-read
+system_prompt_append: |
+  You have two GitHub read tools. Extract pr_number and repo from the
+  webhook payload in your input before calling them:
+
+    get_pr_files  → list changed files with per-file line stats
+    get_pr_diff   → fetch unified diff (first 4000 bytes)
+
+  If a tool fails, reason from the webhook payload and still produce
+  your structured output — tool failures do not block the pipeline.
+
+tools:
+  - name: get_pr_files
+    description: List files changed in a PR with per-file line stats.
+    type: mcp
+    mcp:
+      server: shell
+      tool: get_pr_files
+
+  - name: get_pr_diff
+    description: Fetch the unified diff for a PR (first 4000 bytes).
+    type: mcp
+    mcp:
+      server: shell
+      tool: get_pr_diff

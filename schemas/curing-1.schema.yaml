@@ -1,0 +1,122 @@
+# curing-1.schema.yaml — validates *.curing.yaml curing pipeline definitions
+#
+# A curing is an N-agent workflow that transforms one or more buffered hides
+# into a stabilized artifact. The file declares which agent runs the curing,
+# which hide kinds it accepts, queue/backpressure settings, and where any
+# resulting artifact or notification should be routed.
+#
+# Runtime validation: internal/schema.ValidateCuringYAML
+# VS Code: add to .vscode/settings.json yaml.schemas to enable inline diagnostics.
+version: "1"
+type: object
+additionalProperties: false
+required:
+  - name
+  - agent
+properties:
+
+  version:
+    type: string
+    description: |
+      Schema version reserved for forward compatibility. Default: "1".
+    default: "1"
+
+  name:
+    type: string
+    description: |
+      Unique curing identifier. Referenced by tannery routes via "curing:" and
+      by artifacts in their lineage records.
+    pattern: '^[a-z][a-z0-9-]*$'
+    examples:
+      - event
+      - triage
+      - summarize
+
+  description:
+    type: string
+    description: Free-form human-readable description shown in logs and listings.
+
+  agent:
+    type: string
+    description: |
+      Name of the agent (matches an *.agent.md "name:" field) that executes this
+      curing. Resolved at load time; missing agents cause a validation error.
+
+  queue:
+    type: string
+    description: |
+      Named queue to drain. Mutually exclusive with queue_prefix:. One of the
+      two must be set when the curing is invoked from a tannery route, but both
+      are optional in standalone curing files.
+
+  queue_prefix:
+    type: string
+    description: |
+      Drain every queue whose name starts with this prefix. Mutually exclusive
+      with queue:. Useful for fan-in curings that aggregate items from multiple
+      per-source queues into a single workflow.
+
+  collect_size:
+    type: integer
+    minimum: 1
+    description: |
+      Number of queue items to collect into a single curing run. When set, the
+      worker batches items from the source queue(s) before invoking the agent.
+      Default: 1 (one item per run).
+
+  collect_by:
+    type: string
+    description: |
+      Field name from QueueItem.Payload used as the batching key when
+      collect_size > 1. Items sharing the same key value are grouped into the
+      same curing run. When omitted, batching is order-only (no grouping).
+
+  hide_types:
+    type: array
+    items:
+      type: string
+    description: |
+      Optional allow-list of hide kinds this curing accepts. When set, items whose
+      hide kind is not listed are skipped. When omitted, all hide kinds are eligible.
+    examples:
+      - [demo.event]
+      - [github.pull_request, github.issues]
+
+  page_size_bytes:
+    type: integer
+    minimum: 1
+    description: |
+      Page size in bytes for cut/pagination of buffered hides delivered to the
+      agent. Defaults to the runtime hide_page_size.
+
+  max_attempts:
+    type: integer
+    minimum: 0
+    description: |
+      Maximum delivery attempts per queued item before it is moved to the
+      dead-letter position. 0 disables retries (single attempt).
+
+  timeout_seconds:
+    type: integer
+    minimum: 0
+    description: |
+      Per-run wall-clock budget for the curing. 0 = no curing-level timeout
+      (the runtime/agent timeout still applies).
+
+  output:
+    type: object
+    additionalProperties: false
+    description: |
+      Optional routing of the finalized artifact. When omitted, artifacts are
+      written to the tannery artifact_dir only.
+    properties:
+      notify:
+        type: string
+        description: |
+          Name of a configured notify channel (see config.yaml notify:) that
+          receives the artifact payload when the curing succeeds.
+      queue:
+        type: string
+        description: |
+          Named queue that receives the artifact as a new queue item, enabling
+          chained curings or follow-on agent runs.

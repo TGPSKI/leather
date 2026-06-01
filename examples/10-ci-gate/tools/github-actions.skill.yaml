@@ -1,0 +1,24 @@
+name: github-actions
+system_prompt_append: |
+  You have two GitHub action tools:
+
+    post_pr_comment → post a comment on the PR
+    add_pr_label    → add a label to the PR
+
+  Extract PR_NUMBER and REPO from the decision report in your input.
+  If a tool fails, log the error but still produce your completion output.
+
+tools:
+  - name: post_pr_comment
+    description: Post a comment on a GitHub PR.
+    type: mcp
+    mcp:
+      server: shell
+      tool: post_pr_comment
+
+  - name: add_pr_label
+    description: Add a label to a GitHub PR.
+    type: mcp
+    mcp:
+      server: shell
+      tool: add_pr_label

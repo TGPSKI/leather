@@ -1,0 +1,18 @@
+hide_dir: .state/hides
+artifact_dir: .state/artifacts
+curing_dir: curings
+
+routes:
+  - name: build-log
+    match:
+      source: ci
+      event_type: build.log
+    hide_kind: build.log
+    curing: log-summary
+    queue: default
+
+queues:
+  default:
+    concurrency: 1
+    max_attempts: 2
+    max_depth: 100

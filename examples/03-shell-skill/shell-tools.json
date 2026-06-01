@@ -1,0 +1,27 @@
+{
+  "output_cap_bytes": 4000,
+  "tools": [
+    {
+      "name": "git_status",
+      "description": "Branch and working-tree status for a repo. Requires: path.",
+      "command": "git",
+      "args": ["-C", "{{path}}", "status", "--short", "--branch"],
+      "required": ["path"]
+    },
+    {
+      "name": "git_log",
+      "description": "Recent commits, one per line (hash + subject). Requires: path. Optional: n (default 10).",
+      "command": "git",
+      "args": ["-C", "{{path}}", "log", "--oneline", "-{{n}}"],
+      "required": ["path"],
+      "defaults": { "n": "10" }
+    },
+    {
+      "name": "git_branch",
+      "description": "List local branches. Requires: path.",
+      "command": "git",
+      "args": ["-C", "{{path}}", "branch", "--list"],
+      "required": ["path"]
+    }
+  ]
+}

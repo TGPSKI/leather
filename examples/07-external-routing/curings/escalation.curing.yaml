@@ -1,0 +1,11 @@
+name: escalation
+description: Route deployment-status failures and notify Telegram ops.
+agent: escalation
+hide_types:
+  - github.deployment_status
+queue: escalation-in
+page_size_bytes: 3800
+max_attempts: 2
+timeout_seconds: 120
+output:
+  notify: telegram-ops

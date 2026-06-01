@@ -1,0 +1,16 @@
+agent_dir: agents
+state_dir: .state
+log_level: info
+
+llm_timeout: 120s
+max_tokens: 8192
+completion_reserve: 1024
+summarize_threshold: 0.85
+
+scheduler_tick: 1s
+max_concurrent_jobs: 2
+persist_runs: true
+
+# Enable the local HTTP API so the DevTools UI (printed at startup) is reachable.
+api: true
+api_addr: 127.0.0.1:7749

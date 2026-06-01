@@ -1,0 +1,42 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - unused
+  exclusions:
+    rules:
+      # Defer close / best-effort cleanup: ignoring errors is conventional.
+      - linters: [errcheck]
+        source: "defer .+\\.Close\\(\\)"
+      - linters: [errcheck]
+        source: "defer os\\.Remove"
+      - linters: [errcheck]
+        source: "defer os\\.RemoveAll"
+      # fmt.Fprint* to stderr/stdout: write errors are unrecoverable anyway.
+      - linters: [errcheck]
+        source: "fmt\\.Fprint"
+      # os.Setenv in tests.
+      - linters: [errcheck]
+        source: "os\\.Setenv"
+      # Best-effort os.Remove (non-defer) and os.WriteFile in tests.
+      - linters: [errcheck]
+        path: "_test\\.go"
+        source: "os\\.(Remove|WriteFile|RemoveAll)"
+      # Non-defer out.Close() in error paths.
+      - linters: [errcheck]
+        source: "out\\.Close\\(\\)"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes:
+        - github.com/tgpski/leather

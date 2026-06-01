@@ -1,0 +1,46 @@
+hide_dir: .state/hides
+artifact_dir: .state/artifacts
+curing_dir: curings
+
+webhooks:
+  - name: github
+    path: /webhooks/github
+    source: github
+    secret: "{{env:GITHUB_WEBHOOK_SECRET}}"
+    max_body_bytes: 524288   # 512 KB — GitHub payloads can be large
+
+# Fan-out: all three routes match pull_request and share the same hide_id.
+# Each route uses queue_pattern so each event gets its own isolated single-use
+# input queue (e.g. pr-meta-01JXABC123) instead of sharing a static queue.
+routes:
+  - name: pr-metadata
+    match:
+      source: github
+      event_type: pull_request
+    hide_kind: github.pull_request
+    curing: pr-metadata
+    queue_pattern: "pr-meta/{{hide_id}}"
+
+  - name: pr-diff
+    match:
+      source: github
+      event_type: pull_request
+    hide_kind: github.pull_request
+    curing: pr-diff
+    queue_pattern: "pr-diff/{{hide_id}}"
+
+  - name: pr-context
+    match:
+      source: github
+      event_type: pull_request
+    hide_kind: github.pull_request
+    curing: pr-context
+    queue_pattern: "pr-ctx/{{hide_id}}"
+
+queues:
+  # Only the serial tail queue is static — one at a time, ordered delivery.
+  comments-in:
+    concurrency: 1
+    max_attempts: 2
+    max_depth: 50
+

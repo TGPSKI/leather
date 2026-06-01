@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>leather</title>
+  <link rel="stylesheet" href="js/devtools/style.css">
+  <style>
+    /* ── Design tokens (GitHub dark) ────────────────────────────── */
+    :root {
+      --bg:        #0d1117;
+      --panel:     #161b22;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #7d8590;
+      --accent:    #58a6ff;
+      --green:     #3fb950;
+      --red:       #f85149;
+      --yellow:    #d29922;
+      --purple:    #bc8cff;
+      --orange:    #ffa657;
+      --surface2:  #21262d;
+      --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    /* ── Reset & base ────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text);
+                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                              Helvetica, Arial, sans-serif; font-size: 14px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Top bar ─────────────────────────────────────────────────── */
+    #topbar {
+      display: flex; align-items: center; gap: 16px;
+      padding: 0 20px; height: 48px;
+      background: var(--panel); border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+    }
+    #topbar .logo { font-weight: 700; font-size: 16px; color: var(--text); letter-spacing: -0.5px; }
+    #topbar .logo span { color: var(--accent); }
+
+    /* ── Tab navigation ──────────────────────────────────────────── */
+    #tabs { display: flex; gap: 4px; flex: 1; }
+    .tab-btn {
+      background: none; border: none; cursor: pointer;
+      padding: 6px 14px; border-radius: 6px;
+      color: var(--muted); font-size: 13px; font-weight: 500;
+      transition: color .15s, background .15s;
+    }
+    .tab-btn:hover { color: var(--text); background: rgba(255,255,255,.05); }
+    .tab-btn.active { color: var(--text); background: rgba(88,166,255,.15); }
+
+    /* ── Refresh controls (top-bar right) ───────────────────────── */
+    #refresh-controls { display: flex; align-items: center; gap: 10px; }
+    #server-url {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); padding: 4px 8px; font-size: 12px; width: 200px;
+      font-family: var(--font-mono);
+    }
+    #refresh-select {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); padding: 4px 8px; font-size: 12px; cursor: pointer;
+    }
+    #refresh-now {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); padding: 4px 10px; font-size: 12px; cursor: pointer;
+    }
+    #refresh-now:hover { background: rgba(255,255,255,.06); }
+    #last-updated { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    #conn-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--muted);
+      flex-shrink: 0; transition: background .3s;
+    }
+    #conn-dot.ok  { background: var(--green); }
+    #conn-dot.err { background: var(--red); }
+
+    /* ── Main content ────────────────────────────────────────────── */
+    #content { padding: 20px; max-width: 1400px; margin: 0 auto; }
+    #content.devtools-mode { max-width: none; width: 100%; padding: 10px 12px; }
+
+    /* ── Tab panels ──────────────────────────────────────────────── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Stat cards ──────────────────────────────────────────────── */
+    .stat-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px; margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      padding: 16px 18px;
+    }
+    .stat-card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+    .stat-card .value { font-size: 26px; font-weight: 700; margin-top: 4px; line-height: 1; }
+    .stat-card .sub   { color: var(--muted); font-size: 11px; margin-top: 4px; }
+
+    /* ── Section header ──────────────────────────────────────────── */
+    .section-title {
+      font-size: 13px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .6px;
+      margin: 24px 0 10px;
+    }
+
+    /* ── Table ───────────────────────────────────────────────────── */
+    .lt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .lt-table th {
+      text-align: left; padding: 8px 12px;
+      color: var(--muted); font-weight: 500; font-size: 11px;
+      text-transform: uppercase; letter-spacing: .4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .lt-table td {
+      padding: 8px 12px; border-bottom: 1px solid rgba(48,54,61,.6);
+      vertical-align: middle;
+    }
+    .lt-table tr:last-child td { border-bottom: none; }
+    .lt-table tbody tr:hover td { background: rgba(255,255,255,.02); }
+
+    /* ── Badges ──────────────────────────────────────────────────── */
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 12px;
+      font-size: 11px; font-weight: 600; letter-spacing: .2px;
+    }
+    .badge-success { background: rgba(63,185,80,.15); color: var(--green); }
+    .badge-error   { background: rgba(248,81,73,.15);  color: var(--red);   }
+    .badge-running { background: rgba(88,166,255,.15); color: var(--accent);}
+    .badge-pending { background: rgba(125,133,144,.15);color: var(--muted); }
+    .badge-skipped { background: rgba(210,153,34,.15); color: var(--yellow);}
+
+    /* ── Panel wrapper ───────────────────────────────────────────── */
+    .panel {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* ── Chart container ─────────────────────────────────────────── */
+    .chart-wrap { padding: 16px; position: relative; }
+
+    /* ── Agents tab: selector chips ──────────────────────────────── */
+    #agent-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: baseline; }
+    .chip-group { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+    .chip-group-label {
+      color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+      padding: 2px 4px; white-space: nowrap; border-right: 1px solid var(--border);
+      margin-right: 2px; align-self: center;
+    }
+    .agent-chip {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
+      padding: 4px 14px; font-size: 12px; cursor: pointer; color: var(--muted);
+      transition: all .15s;
+    }
+    .agent-chip:hover  { border-color: var(--accent); color: var(--text); }
+    .agent-chip.active { border-color: var(--accent); color: var(--accent);
+                         background: rgba(88,166,255,.1); }
+
+    /* ── Timeline controls ───────────────────────────────────────── */
+    #timeline-controls { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+    #timeline-window {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); padding: 4px 8px; font-size: 12px; cursor: pointer;
+    }
+    #timeline-svg-wrap {
+      overflow-x: auto;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px; outline: none; cursor: grab;
+    }
+    #timeline-svg-wrap:active { cursor: grabbing; }
+    #timeline-svg-wrap:focus { box-shadow: 0 0 0 2px rgba(88,166,255,.4); }
+    #timeline-key-hint { color: var(--muted); font-size: 11px; margin-top: 8px; }
+    #timeline-info {
+      font-family: var(--font-mono); font-size: 11px; color: var(--muted);
+      padding: 5px 2px; min-height: 20px; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* ── Config tab ──────────────────────────────────────────────── */
+    .config-section { margin-bottom: 24px; }
+    .config-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
+      color: var(--muted); padding: 8px 0 6px; border-bottom: 1px solid var(--border);
+      margin-bottom: 0;
+    }
+    .config-row {
+      display: grid; grid-template-columns: 220px 1fr;
+      padding: 7px 4px; border-bottom: 1px solid rgba(48,54,61,.4);
+    }
+    .config-row:last-child { border-bottom: none; }
+    .config-key   { color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
+    .config-value { color: var(--text);  font-family: var(--font-mono); font-size: 12px; }
+
+
+    /* ── Run detail card (expandable in agents table) ───────────── */
+    .run-row { cursor: pointer; }
+    .run-row:hover td { background: rgba(88,166,255,.04) !important; }
+    .run-row.expanded td { background: rgba(88,166,255,.06) !important; }
+    .run-detail-row td { padding: 0 !important; border-bottom: none !important; }
+    .run-detail-card {
+      background: rgba(0,0,0,.2); border-top: 1px solid var(--border);
+      padding: 14px 16px; display: grid; gap: 12px;
+    }
+    .run-detail-section .rds-label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: .5px;
+      color: var(--muted); margin-bottom: 4px; font-weight: 600;
+    }
+    .run-detail-section .rds-content {
+      font-family: var(--font-mono); font-size: 12px; line-height: 1.55;
+      white-space: pre-wrap; word-break: break-word;
+      color: var(--text); max-height: 200px; overflow-y: auto;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+      padding: 8px 10px;
+    }
+
+    /* ── Recent runs table ────────────────────────────────────────── */
+    .run-stripe-bar { display: inline-block; width: 3px; height: 1.1em;
+                      border-radius: 2px; margin-right: 7px; vertical-align: middle; }
+
+    /* ── Empty state ─────────────────────────────────────────────── */
+    .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
+
+    /* ── Setup tab ────────────────────────────────────────────────── */
+    #tab-setup.active { display: block; padding-top: 16px; }
+    .setup-section { max-width: 740px; margin-bottom: 28px; }
+    .setup-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
+      color: var(--muted); padding: 8px 0 10px; border-bottom: 1px solid var(--border);
+      margin-bottom: 2px;
+    }
+    .setup-row {
+      display: grid; grid-template-columns: 160px 1fr;
+      align-items: center; padding: 7px 4px;
+      border-bottom: 1px solid rgba(48,54,61,.4); gap: 12px;
+    }
+    .setup-row:last-child { border-bottom: none; }
+    .setup-label { color: var(--muted); font-size: 12px; font-family: var(--font-mono); }
+    .setup-controls { display: flex; align-items: center; gap: 8px; }
+    .mode-grid { display: flex; gap: 12px; padding: 12px 4px; flex-wrap: wrap; }
+    .mode-option {
+      display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px 18px; flex: 1; min-width: 200px; max-width: 280px;
+      transition: border-color .15s, background .15s;
+    }
+    .mode-option:has(input:checked) { border-color: var(--accent); background: rgba(88,166,255,.07); }
+    .mode-option input[type=radio] { margin-top: 3px; accent-color: var(--accent); flex-shrink: 0; }
+    .mode-option-body { display: flex; flex-direction: column; gap: 4px; }
+    .mode-option-title { font-weight: 600; font-size: 13px; color: var(--text); }
+    .mode-option-desc  { font-size: 12px; color: var(--muted); line-height: 1.4; }
+    #setup-local-section { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    /* ── Local / Load tab (file chips and drop zone) ─────────────── */
+    .load-toolbar {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.45rem 0.7rem; background: var(--panel);
+      border: 1px solid var(--border); border-radius: 8px; flex-wrap: wrap;
+    }
+    .load-toolbar-group { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .load-toolbar-title { font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--muted); margin-right: 0.1rem; }
+    .load-chip {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 0.22rem 0.55rem; border-radius: 999px; cursor: pointer;
+      font-size: 0.74rem; white-space: nowrap; transition: background 0.15s;
+    }
+    .load-chip:hover { background: #30363d; border-color: var(--accent); }
+    .load-chip.info  { cursor: default; border-color: rgba(88,166,255,0.5);
+      color: #9ecbff; background: rgba(56,139,253,0.1); }
+    .load-chip.danger { border-color: rgba(248,81,73,0.5); }
+    .load-chip.danger:hover { background: rgba(248,81,73,0.15); border-color: var(--red); }
+    .load-toolbar-drop {
+      flex: 1; min-width: 180px; border: 2px dashed var(--border); border-radius: 8px;
+      padding: 0.32rem 0.7rem; text-align: center; color: var(--muted);
+      font-size: 0.72rem; cursor: pointer; transition: border-color 0.15s;
+    }
+    .load-toolbar-drop:hover, .load-toolbar-drop.drag-over { border-color: var(--accent); }
+    .load-toolbar-drop code {
+      font-size: 0.68rem; background: rgba(110,118,129,0.15);
+      padding: 0.08rem 0.28rem; border-radius: 3px;
+    }
+    .file-chip-bar { display: flex; align-items: center; gap: 0.35rem;
+      padding: 0.3rem 0.7rem; flex-wrap: wrap; min-height: 0; }
+    .file-chip-bar:empty { display: none; }
+    .file-chip {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: 0.15rem 0.45rem; border-radius: 999px;
+      font-size: 0.68rem; white-space: nowrap; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .file-chip:hover { background: rgba(248,81,73,0.12); border-color: rgba(248,81,73,0.4); }
+    .file-chip .fc-x { color: var(--muted); font-size: 0.78rem; line-height: 1; margin-left: 0.1rem; }
+    .file-chip:hover .fc-x { color: var(--red); }
+    .file-chip.fc-json     { border-color: rgba(63,185,80,0.4);  }
+    .file-chip.fc-jsonl    { border-color: rgba(88,166,255,0.4); }
+    .file-chip.fc-snapshot { border-color: rgba(210,153,34,0.4); }
+    .local-hint {
+      color: var(--muted); font-size: 0.82rem; padding: 0.5rem 0.7rem;
+      line-height: 1.6;
+    }
+    .local-hint strong { color: var(--text); }
+
+    /* ── Mono text ───────────────────────────────────────────────── */
+    .mono { font-family: var(--font-mono); font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ─────────────────────────────────────────────────── -->
+<div id="topbar">
+  <div class="logo">lea<span>ther</span></div>
+
+  <nav id="tabs">
+    <button class="tab-btn" data-tab="setup">Setup</button>
+    <button class="tab-btn active" data-tab="overview">Overview</button>
+    <button class="tab-btn" data-tab="timeline">Timeline</button>
+    <button class="tab-btn" data-tab="agents">Agents</button>
+    <button class="tab-btn" data-tab="config">Config</button>
+  </nav>
+
+  <div id="refresh-controls">
+    <a href="devtools.html" target="_blank" class="lt-devtools-link" style="color:var(--accent);font-size:12px;white-space:nowrap;text-decoration:none">DevTools ↗</a>
+    <span id="last-updated" style="color:var(--muted);font-size:12px;white-space:nowrap">–</span>
+    <div id="conn-dot" title="API connection status"></div>
+    <button id="btn-download-snapshot" title="Download current snapshot as JSON" style="padding:3px 10px;font-size:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;cursor:pointer">⬇ Snapshot</button>
+  </div>
+</div>
+
+<!-- ── Replay banner (hidden in normal mode) ──────────────────── -->
+<div id="replay-banner" style="display:none;background:#2d2a04;border-bottom:1px solid #c9a000;padding:6px 20px;font-size:12px;align-items:center;gap:12px">
+  <span id="replay-banner-icon" style="color:#f0c000;font-weight:700">⏪ Replay</span>
+  <span id="replay-banner-msg" style="color:#a0a0a0"></span>
+  <button id="lt-banner-clear" style="display:none;margin-left:auto;padding:2px 10px;font-size:11px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:3px;cursor:pointer" title="Clear local files and resume live polling">× Back to live</button>
+  <span id="replay-live-controls" style="margin-left:auto;display:none;align-items:center;gap:6px">
+    <button id="replay-btn-slower" style="padding:2px 8px;font-size:11px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer">½×</button>
+    <button id="replay-btn-1x" style="padding:2px 8px;font-size:11px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer">1×</button>
+    <button id="replay-btn-faster" style="padding:2px 8px;font-size:11px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer">2×</button>
+    <button id="replay-btn-pause" style="padding:2px 10px;font-size:11px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer">⏸ Pause</button>
+    <span id="replay-speed-display" style="color:#f0c000;min-width:32px;text-align:right">1×</span>
+  </span>
+</div>
+
+<!-- ── Main content ────────────────────────────────────────────── -->
+<div id="content">
+
+  <!-- Overview tab -->
+  <div id="tab-overview" class="tab-panel active">
+    <div class="stat-grid" id="stat-cards">
+      <div class="stat-card"><div class="label">Uptime</div><div class="value" id="sc-uptime">–</div></div>
+      <div class="stat-card"><div class="label">Total Runs</div><div class="value" id="sc-runs">–</div></div>
+      <div class="stat-card"><div class="label">Total Tokens</div><div class="value" id="sc-tokens">–</div></div>
+      <div class="stat-card"><div class="label">Error Rate</div><div class="value" id="sc-errrate">–</div></div>
+      <div class="stat-card"><div class="label">Version</div><div class="value" id="sc-version" style="font-size:16px">–</div><div class="sub" id="sc-commit"></div></div>
+    </div>
+
+    <div class="section-title">Agents</div>
+    <div class="panel">
+      <table class="lt-table" id="agents-table">
+        <thead><tr>
+          <th>Name</th><th>Status</th><th>Last Run</th><th>Next Run</th>
+          <th>Runs</th><th>Errors</th><th>Avg Tokens</th>
+        </tr></thead>
+        <tbody id="agents-table-body">
+          <tr><td colspan="7" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-title" style="margin-top:28px">Recent Runs</div>
+    <div id="recent-runs-wrap" class="panel">
+      <p class="empty">Loading…</p>
+    </div>
+  </div>
+
+  <!-- Timeline tab -->
+  <div id="tab-timeline" class="tab-panel">
+    <div id="timeline-controls">
+      <span style="color:var(--muted);font-size:12px">Window:</span>
+      <select id="timeline-window">
+        <option value="900" selected>Last 15m</option>
+        <option value="3600">Last 1h</option>
+        <option value="21600">Last 6h</option>
+        <option value="86400">Last 24h</option>
+        <option value="0">All</option>
+      </select>
+    </div>
+    <div id="timeline-svg-wrap" tabindex="0">
+      <svg id="timeline-svg" style="display:block;min-width:600px"></svg>
+    </div>
+    <div id="timeline-key-hint">↑ ↓ select lane &nbsp;·&nbsp; ← → select run &nbsp;·&nbsp; Esc clear &nbsp;·&nbsp; drag to pan</div>
+    <div id="timeline-info"></div>
+  </div>
+
+  <!-- Agents tab -->
+  <div id="tab-agents" class="tab-panel">
+    <div id="agent-chips"></div>
+    <div id="agent-detail">
+      <p class="empty">Select an agent above.</p>
+    </div>
+  </div>
+
+  <!-- Config tab -->
+  <div id="tab-config" class="tab-panel">
+    <div id="config-display">
+      <p class="empty">Loading…</p>
+    </div>
+  </div>
+
+  <!-- Setup tab: connection, mode selector, local file loading -->
+  <div id="tab-setup" class="tab-panel">
+
+    <!-- Connection -->
+    <div class="setup-section">
+      <div class="setup-section-title">Connection</div>
+      <div class="setup-row">
+        <span class="setup-label">server_url</span>
+        <div class="setup-controls">
+          <input id="server-url" type="text" value="http://127.0.0.1:7749" placeholder="API base URL"
+                 style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:12px;width:240px;font-family:var(--font-mono)">
+        </div>
+      </div>
+      <div class="setup-row">
+        <span class="setup-label">refresh</span>
+        <div class="setup-controls">
+          <select id="refresh-select" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:12px;cursor:pointer">
+            <option value="0">Off</option>
+            <option value="5000">5s</option>
+            <option value="10000" selected>10s</option>
+            <option value="30000">30s</option>
+            <option value="60000">1m</option>
+            <option value="300000">5m</option>
+          </select>
+          <button id="refresh-now" style="background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 10px;font-size:12px;cursor:pointer">↺ Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mode -->
+    <div class="setup-section">
+      <div class="setup-section-title">Mode</div>
+      <div class="mode-grid">
+        <label class="mode-option">
+          <input type="radio" name="setup-mode" value="live" checked>
+          <div class="mode-option-body">
+            <span class="mode-option-title">Live</span>
+            <span class="mode-option-desc">Poll the server API — all tabs update in real time</span>
+          </div>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="setup-mode" value="local">
+          <div class="mode-option-body">
+            <span class="mode-option-title">Local</span>
+            <span class="mode-option-desc">Load from files offline — no running server needed</span>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Local file import (shown when mode = local) -->
+    <div id="setup-local-section" style="display:none">
+      <div class="load-toolbar">
+        <div class="load-toolbar-group">
+          <span class="load-toolbar-title">Import</span>
+          <button class="load-chip" id="lt-btn-files">Files</button>
+          <button class="load-chip" id="lt-btn-folder">Folder</button>
+        </div>
+        <div class="load-toolbar-drop" id="lt-drop-zone">
+          Drop <code>jobs.json</code> <code>.jsonl</code> <code>snapshot.json</code>
+        </div>
+        <div class="load-toolbar-group">
+          <span class="load-toolbar-title">Loaded</span>
+          <span class="load-chip info" id="lt-loaded-count">0 files</span>
+        </div>
+        <div class="load-toolbar-group">
+          <button class="load-chip danger" id="lt-btn-unload">Unload</button>
+        </div>
+      </div>
+      <input type="file" id="lt-file-input" accept=".json,.jsonl" multiple hidden />
+      <input type="file" id="lt-folder-input" webkitdirectory directory multiple hidden />
+      <div class="file-chip-bar" id="lt-file-list"></div>
+      <p class="local-hint" id="lt-hint">
+        Load <strong>jobs.json</strong> and one or more <strong>*.jsonl</strong> run logs, or
+        drop a <strong>snapshot.json</strong> downloaded from a live server.
+        All tabs update instantly.
+      </p>
+    </div>
+
+  </div>
+
+</div><!-- /#content -->
+
+
+<!-- ── Scripts ─────────────────────────────────────────────────── -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="js/leather-common.js"></script>
+<script src="js/leather-api.js"></script>
+<script src="js/leather-replay.js"></script>
+<script src="js/leather-overview.js"></script>
+<script src="js/leather-timeline.js"></script>
+<script src="js/leather-agents.js"></script>
+<script src="js/leather-config.js"></script>
+<script src="js/leather-local.js"></script>
+<script>
+  // ── Tab switching ──────────────────────────────────────────────
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      const content = document.getElementById('content');
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+      if (content) {
+        if (tab === 'devtools') content.classList.add('devtools-mode');
+        else content.classList.remove('devtools-mode');
+      }
+      // Notify JS modules of the tab change.
+      document.dispatchEvent(new CustomEvent('lttabchange', { detail: { tab } }));
+      // Redraw D3 timeline when switching to it (needs width).
+      if (tab === 'timeline') window.dispatchEvent(new Event('resize'));
+    });
+  });
+
+  // ── Bootstrap ─────────────────────────────────────────────────
+  LtReplay.init();
+  LtLocal.init();
+  // ── Setup tab: mode selector ──────────────────────────────────
+  (function _initModeSelector() {
+    const localSection = document.getElementById('setup-local-section');
+
+    // Radio change: Live clears files + resumes polling; Local reveals file browser.
+    document.querySelectorAll('input[name="setup-mode"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        const mode = document.querySelector('input[name="setup-mode"]:checked').value;
+        if (mode === 'local') {
+          if (localSection) localSection.style.display = 'flex';
+        } else {
+          if (localSection) localSection.style.display = 'none';
+          LtLocal.clear();
+        }
+      });
+    });
+
+    // Keep radio buttons in sync with actual data state (e.g. files loaded elsewhere).
+    document.addEventListener('ltdataupdate', e => {
+      const isLocal = !!(e.detail && e.detail.status && e.detail.status.local_mode);
+      const liveRadio  = document.querySelector('input[name="setup-mode"][value="live"]');
+      const localRadio = document.querySelector('input[name="setup-mode"][value="local"]');
+      if (!liveRadio || !localRadio) return;
+      liveRadio.checked  = !isLocal;
+      localRadio.checked =  isLocal;
+      if (localSection) localSection.style.display = isLocal ? 'flex' : 'none';
+    });
+  })();
+  document.addEventListener('ltdataupdate', e => LtReplay.onStatus(e.detail && e.detail.status));
+  LtPoller.init(
+    document.getElementById('server-url'),
+    document.getElementById('refresh-select'),
+    document.getElementById('refresh-now'),
+    document.getElementById('last-updated'),
+    document.getElementById('conn-dot')
+  );
+</script>
+</body>
+</html>

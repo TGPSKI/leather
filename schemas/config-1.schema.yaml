@@ -1,0 +1,361 @@
+# config-1.schema.yaml — validates ~/.leather/config.yaml (the global leather config file)
+#
+# Config is loaded from (highest priority first):
+#   1. CLI flags
+#   2. LEATHER_* environment variables
+#   3. This YAML config file
+#   4. Built-in defaults
+#
+# All fields are optional; omitted fields fall back to env vars or built-in defaults.
+# CLI flags always win when set.
+version: "1"
+type: object
+additionalProperties: false
+properties:
+
+  version:
+    type: string
+    description: |
+      Schema version reserved for forward compatibility. Default: "1".
+    default: "1"
+
+  agent_dir:
+    type: string
+    description: |
+      Directory scanned for *.agent.md and *.lifecycle.yaml files.
+      Default: ~/.leather/agents/
+      CLI: --agent-dir  Env: LEATHER_AGENT_DIR
+
+  tool_dir:
+    type: string
+    description: |
+      Directory scanned for *.skill.yaml skill files.
+      Default: ~/.leather/tools/
+      CLI: --tool-dir  Env: LEATHER_TOOL_DIR
+
+  worker_dir:
+    type: string
+    description: |
+      Directory scanned for *.worker.yaml worker definitions.
+      Default: ~/.leather/workers/
+      CLI: --worker-dir  Env: LEATHER_WORKER_DIR
+
+  cache_dir:
+    type: string
+    description: |
+      Directory for SHA-256 keyed response cache files (mode 0600).
+      Default: ~/.leather/.cache/
+      CLI: --cache-dir  Env: LEATHER_CACHE_DIR
+
+  state_dir:
+    type: string
+    description: |
+      Directory for job state persistence and file queues.
+      Default: ~/.leather/.state/
+      CLI: --state-dir  Env: LEATHER_STATE_DIR
+
+  model:
+    $ref: "common-1.schema.yaml#/definitions/modelRef"
+    description: |
+      Global default LLM model. Overridden by lifecycle or agent model field.
+      CLI: --model  Env: LEATHER_MODEL
+
+  temperature:
+    type: number
+    minimum: 0
+    maximum: 2
+    description: |
+      Global default sampling temperature. Default: 0.7
+      CLI: --temperature  Env: LEATHER_TEMPERATURE
+
+  log_level:
+    $ref: "common-1.schema.yaml#/definitions/logLevel"
+    description: |
+      Log verbosity. Default: info
+      CLI: --log-level  Env: LEATHER_LOG_LEVEL
+
+  log_format:
+    type: string
+    enum: [text, json]
+    description: |
+      Log output format. Default: text
+      CLI: --log-format  Env: LEATHER_LOG_FORMAT
+
+  log_file:
+    type: string
+    description: |
+      Write full structured logs to this file path (teed with stderr unless --pretty).
+      CLI: --log-file  Env: LEATHER_LOG_FILE
+
+  max_tokens:
+    type: integer
+    minimum: 1
+    description: |
+      Maximum context tokens per session. Default: 8192
+      CLI: --max-tokens  Env: LEATHER_MAX_TOKENS
+
+  completion_reserve:
+    type: integer
+    minimum: 1
+    description: |
+      Tokens reserved for model completion output. Default: 1024
+      CLI: --completion-reserve  Env: LEATHER_COMPLETION_RESERVE
+
+  summarize_threshold:
+    type: number
+    minimum: 0
+    maximum: 1
+    description: |
+      Fraction of max_tokens that triggers context summarization. Default: 0.85
+      CLI: --summarize-threshold  Env: LEATHER_SUMMARIZE_THRESHOLD
+
+  llm_endpoint:
+    type: string
+    format: uri
+    description: |
+      Base URL of the OpenAI-compatible LLM endpoint. Default: http://localhost:11434
+      CLI: --llm-endpoint  Env: LEATHER_LLM_ENDPOINT
+
+  llm_api_key:
+    description: |
+      Bearer token sent as `Authorization: Bearer <key>` on every request to
+      llm_endpoint. Empty disables auth (default for local Ollama / vLLM).
+
+      Two forms are accepted:
+
+        # inline scalar (suitable for --llm-api-key / LEATHER_LLM_API_KEY)
+        llm_api_key: "sk-..."
+
+        # operator form with pass-store and env fallback
+        llm_api_key:
+          pass: openai/api-key
+          env:  OPENAI_API_KEY
+
+      Resolution order: --llm-api-key flag > LEATHER_LLM_API_KEY env >
+      inline YAML value > `pass show <path>` > os.Getenv(env). The resolved
+      key is never written to structured logs.
+
+      CLI: --llm-api-key  Env: LEATHER_LLM_API_KEY
+    oneOf:
+      - type: string
+      - type: object
+        additionalProperties: false
+        properties:
+          pass: { type: string, description: "Unix pass-store path." }
+          env:  { type: string, description: "Environment variable name (fallback when pass empty)." }
+
+  llm_timeout:
+    $ref: "common-1.schema.yaml#/definitions/duration"
+    description: |
+      Timeout for a single LLM call. Default: 60s
+      CLI: --llm-timeout  Env: LEATHER_LLM_TIMEOUT
+
+  scheduler_tick:
+    $ref: "common-1.schema.yaml#/definitions/duration"
+    description: |
+      Scheduler wake-up interval. Default: 1m
+      CLI: --scheduler-tick  Env: LEATHER_SCHEDULER_TICK
+
+  max_concurrent_jobs:
+    type: integer
+    minimum: 1
+    description: |
+      Maximum simultaneous scheduler job handlers. Default: 4
+      CLI: --max-concurrent-jobs  Env: LEATHER_MAX_CONCURRENT_JOBS
+
+  max_tool_rounds:
+    type: integer
+    minimum: 1
+    description: |
+      Default maximum tool-call cycles per agent run. Default: 5
+      CLI: --max-tool-rounds  Env: LEATHER_MAX_TOOL_ROUNDS
+
+  api:
+    type: boolean
+    description: |
+      Enable HTTP status API when running serve. Default: false
+      CLI: --api  Env: LEATHER_API
+
+  api_addr:
+    type: string
+    description: |
+      Bind address for the HTTP API. Default: 127.0.0.1:7749
+      CLI: --api-addr  Env: LEATHER_API_ADDR
+
+  pretty:
+    type: boolean
+    description: |
+      Render agent turns to console; suppress structured log from console. Default: false
+      CLI: --pretty  Env: LEATHER_PRETTY
+
+  pretty_mode:
+    type: string
+    enum: [messages, all]
+    description: |
+      Selects which events the pretty renderer prints.
+      "messages" — only assistant/user/tool-result content (default).
+      "all"      — adds tool-call boundaries, turn separators, and timing.
+      CLI: --pretty-mode  Env: LEATHER_PRETTY_MODE
+
+  stats:
+    type: boolean
+    description: |
+      Show per-turn token counts and a summary at shutdown. Default: false
+      CLI: --stats  Env: LEATHER_STATS
+
+  tokens_per_turn:
+    type: boolean
+    description: |
+      Print prompt/completion token counts after each LLM call. Default: false
+      CLI: --tokens-per-turn  Env: LEATHER_TOKENS_PER_TURN
+
+  show_vars:
+    type: boolean
+    description: |
+      Print resolved runtime variable map at the start of each run. Default: false
+      CLI: --show-vars  Env: LEATHER_SHOW_VARS
+
+  loop:
+    type: integer
+    minimum: 0
+    description: |
+      Re-run the same job N times in succession. 0 = run once. Useful with
+      `leather run` for soak testing. Default: 0
+      CLI: --loop  Env: LEATHER_LOOP
+
+  persist_runs:
+    type: boolean
+    description: |
+      Write RunRecords to JSONL files in run_history_dir after each run. Default: false
+      CLI: --persist-runs  Env: LEATHER_PERSIST_RUNS
+
+  run_history_dir:
+    type: string
+    description: |
+      Directory for per-agent *.jsonl run log files.
+      Default: <state_dir>/runs
+      CLI: --run-history-dir  Env: LEATHER_RUN_HISTORY_DIR
+
+  run_max_bytes:
+    type: integer
+    minimum: 1
+    description: |
+      Rotate per-agent JSONL run log when it exceeds this size in bytes. Default: 10485760 (10 MB)
+      CLI: --run-max-bytes  Env: LEATHER_RUN_MAX_BYTES
+
+  run_duration:
+    $ref: "common-1.schema.yaml#/definitions/duration"
+    description: |
+      Exit cleanly after this wall-clock duration. 0 / omitted = unlimited.
+      CLI: --run-duration  Env: LEATHER_RUN_DURATION
+
+  max_jobs:
+    type: integer
+    minimum: 0
+    description: |
+      Exit cleanly after this many completed jobs. 0 / omitted = unlimited.
+      CLI: --max-jobs  Env: LEATHER_MAX_JOBS
+
+  default_toolsets:
+    type: array
+    items:
+      type: string
+    description: |
+      Names of *.toolset.yaml bundles loaded for every agent that does not
+      explicitly declare a toolsets: list.
+      CLI: --default-toolsets  Env: LEATHER_DEFAULT_TOOLSETS
+
+  mcp_servers_file:
+    type: string
+    description: |
+      Path to mcp-servers.yaml. Default: <state_dir>/mcp-servers.yaml
+      CLI: --mcp-servers-file  Env: LEATHER_MCP_SERVERS_FILE
+
+  tannery:
+    type: string
+    description: |
+      Path to a tannery.yaml file. When set, leather serve activates the
+      event-driven curing service alongside the scheduler.
+      CLI: --tannery  Env: LEATHER_TANNERY
+
+  hide_enabled:
+    type: boolean
+    description: |
+      Enable the hide buffer for oversized tool results. When false, large
+      tool results pass through unchanged. Default: true
+      CLI: --hide-enabled  Env: LEATHER_HIDE_ENABLED
+
+  hide_page_size:
+    type: integer
+    minimum: 1
+    description: |
+      Page size in bytes for hide cuts delivered to agents. Default: 4096
+      CLI: --hide-page-size  Env: LEATHER_HIDE_PAGE_SIZE
+
+  replay_file:
+    type: string
+    description: |
+      JSONL replay capture file. When set on `leather run`, the run is
+      written here as a sequence of replay events.
+      CLI: --replay-file  Env: LEATHER_REPLAY_FILE
+
+  replay_live_dir:
+    type: string
+    description: |
+      Directory for live replay files written during `leather serve`. Each
+      run produces one JSONL file; consumers tail the directory for live
+      observability. Default: <state_dir>/replays
+      CLI: --replay-live-dir  Env: LEATHER_REPLAY_LIVE_DIR
+
+  replay_speed:
+    type: number
+    minimum: 0
+    description: |
+      Playback speed multiplier for `leather replay`. 1.0 = real time,
+      2.0 = 2× faster, 0 = no delay between events. Default: 1.0
+      CLI: --replay-speed  Env: LEATHER_REPLAY_SPEED
+
+  notify:
+    type: object
+    additionalProperties: false
+    description: Messaging backend configuration for type=notify output routes.
+    properties:
+      backends:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [name, type]
+          properties:
+            name:
+              type: string
+              description: Backend reference name used in output route "backend:" fields.
+            type:
+              type: string
+              enum: [telegram, signal]
+            chat_id:
+              type: string
+              description: Telegram chat ID (required for type=telegram).
+            from:
+              type: string
+              description: Signal sender number in E.164 format (required for type=signal).
+            to:
+              type: string
+              description: Signal recipient E.164 number (required for type=signal unless group_id is set).
+            group_id:
+              type: string
+              description: Signal group ID. Mutually exclusive with to (type=signal).
+            api_url:
+              type: string
+              description: "signal-cli REST API base URL. Default: http://127.0.0.1:8080"
+            token:
+              type: object
+              additionalProperties: false
+              description: Secret resolution config for bot token or API key.
+              properties:
+                pass:
+                  type: string
+                  description: "Unix pass-store path, e.g. leather/telegram/bot-token"
+                env:
+                  type: string
+                  description: "Environment variable name fallback."

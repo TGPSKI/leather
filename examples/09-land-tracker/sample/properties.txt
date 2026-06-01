@@ -1,0 +1,9 @@
+# Land purchase watchlist
+# One URL per line. Lines starting with # are ignored.
+# Copy this file to .state/properties.txt and add your own URLs.
+# The tracker reads from .state/properties.txt at runtime.
+
+https://www.land.com/property/14.34-acres-in-calaveras-county-california/22610206/
+https://www.land.com/property/18.32-acres-in-stanislaus-county-california/25237444/
+https://www.land.com/property/22368-jerusalem-grade-lower-lake-california-95457/25130122/
+https://www.land.com/property/16605-buckeye-rd-nevada-city-california-95959/25520602/

@@ -1,0 +1,5 @@
+{
+  "event": "demo.failure",
+  "service": "checkout-api",
+  "reason": "intentional timeout to exercise DLQ"
+}

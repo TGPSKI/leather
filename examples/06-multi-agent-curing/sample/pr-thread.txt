@@ -1,0 +1,304 @@
+PR #4821: Bump redis pool size from 8 to 64 and add connection health monitoring in checkout-api
+
+Author: @rwilson
+Branch: feat/redis-pool-bump -> main
+Repository: acme-corp/checkout-api
+Files changed: 6 (+187 -34)
+  internal/cache/redis.go
+  internal/cache/redis_test.go
+  internal/cache/health.go          [new file]
+  internal/cache/health_test.go     [new file]
+  internal/middleware/redis_guard.go
+  config/defaults.yaml
+
+Labels: performance, infra, needs-review
+Milestone: Q2-2026-reliability
+Created: 2026-05-14 09:12 UTC
+
+---
+
+DESCRIPTION
+
+Under p99 load tests, the checkout-api was saturating the Redis connection
+pool during peak traffic windows. With the default pool size of 8, concurrent
+goroutines were blocking on connection acquisition for up to 340ms, which
+cascaded into checkout timeouts and cart abandonment spikes.
+
+Root cause analysis:
+  - Each checkout flow makes 3-5 Redis calls (session read, inventory lock,
+    cart merge, promo validation, rate-limit check).
+  - At peak load, ~250 concurrent checkout goroutines require up to 1250
+    Redis connections simultaneously.
+  - With pool=8, queue depth hit 242 waiters at 13:47 UTC on 2026-05-12
+    (Black Friday simulation, 3x normal traffic).
+  - p99 checkout latency spiked from 180ms to 1420ms during the window.
+
+This PR does three things:
+  1. Bumps pool_size from 8 to 64.
+  2. Adds a health monitor goroutine that logs pool saturation warnings when
+     the wait queue exceeds 50% of pool capacity (configurable threshold).
+  3. Adds a circuit-breaker middleware that returns HTTP 503 with
+     Retry-After: 2 when the queue depth exceeds a hard ceiling of 200.
+
+Load test results (staging, 3x traffic multiplier):
+  Before: p50=82ms p95=390ms p99=1420ms  errors=1.3%
+  After:  p50=79ms p95=195ms p99=310ms   errors=0.04%
+
+Redis cluster impact:
+  pool=64 x 12 app instances = 768 total connections
+  Current cluster max_clients=10000
+  Peak observed connections before this PR: ~96 (pool=8 x 12 instances)
+  After: estimated peak ~768 (7.7% of cluster max_clients)
+
+Connection lifecycle:
+  - idle_timeout set to 4 minutes (was 0 / never)
+  - max_connection_age set to 30 minutes to prevent stale connections
+  - health check interval: 60 seconds (new; pings idle connections)
+
+---
+
+CHANGED FILES SUMMARY
+
+internal/cache/redis.go
+  - PoolSize: 8 -> 64
+  - Added IdleTimeout, MaxConnAge fields to Config struct
+  - Added WaitQueueDepth() method (reads pool stats)
+
+internal/cache/redis_test.go
+  - Updated default pool size assertion: was 8, now 64
+  - Added table-driven tests for WaitQueueDepth under simulated contention
+
+internal/cache/health.go [NEW]
+  - HealthMonitor struct with Start(ctx) / Stop() methods
+  - Polls pool stats every 30s; logs Warning at 50% saturation, Error at 80%
+  - Emits prometheus-compatible /metrics counters: redis_pool_wait_total,
+    redis_pool_saturation_ratio
+
+internal/cache/health_test.go [NEW]
+  - TestHealthMonitor_EmitsWarningAtThreshold
+  - TestHealthMonitor_StopsCleanly
+
+internal/middleware/redis_guard.go
+  - RedisGuard middleware: checks WaitQueueDepth before each request
+  - Returns 503 + Retry-After: 2 when depth > Config.HardCeiling (default 200)
+
+config/defaults.yaml
+  - redis.pool_size: 64
+  - redis.idle_timeout: 4m
+  - redis.max_connection_age: 30m
+  - redis.health_check_interval: 60s
+  - redis.saturation_warning_threshold: 0.5
+  - redis.saturation_error_threshold: 0.8
+  - redis.circuit_breaker_ceiling: 200
+
+---
+
+DIFF (condensed)
+
+diff --git a/internal/cache/redis.go b/internal/cache/redis.go
+@@ -12,7 +12,10 @@ type Config struct {
+-    PoolSize int // default 8
++    PoolSize                   int           // default 64
++    IdleTimeout                time.Duration // default 4m
++    MaxConnAge                 time.Duration // default 30m
++    SaturationWarningThreshold float64       // default 0.5
++    SaturationErrorThreshold   float64       // default 0.8
++    CircuitBreakerCeiling      int           // default 200
+
+ func DefaultConfig() Config {
+-    return Config{PoolSize: 8}
++    return Config{
++        PoolSize:                   64,
++        IdleTimeout:                4 * time.Minute,
++        MaxConnAge:                 30 * time.Minute,
++        SaturationWarningThreshold: 0.5,
++        SaturationErrorThreshold:   0.8,
++        CircuitBreakerCeiling:      200,
++    }
+ }
+
++func (c *Client) WaitQueueDepth() int {
++    stats := c.pool.Stats()
++    return int(stats.Waits)
++}
+
+diff --git a/internal/cache/health.go b/internal/cache/health.go
++package cache
++
++type HealthMonitor struct {
++    client   *Client
++    cfg      Config
++    interval time.Duration
++    stop     chan struct{}
++}
++
++func NewHealthMonitor(client *Client, cfg Config) *HealthMonitor {
++    return &HealthMonitor{
++        client:   client,
++        cfg:      cfg,
++        interval: 30 * time.Second,
++        stop:     make(chan struct{}),
++    }
++}
++
++func (m *HealthMonitor) Start(ctx context.Context, log *logging.Logger) {
++    go func() {
++        ticker := time.NewTicker(m.interval)
++        defer ticker.Stop()
++        for {
++            select {
++            case <-ctx.Done():
++                return
++            case <-m.stop:
++                return
++            case <-ticker.C:
++                depth := m.client.WaitQueueDepth()
++                ratio := float64(depth) / float64(m.cfg.PoolSize)
++                switch {
++                case ratio >= m.cfg.SaturationErrorThreshold:
++                    log.Error("redis pool critical saturation",
++                        "depth", depth, "ratio", ratio)
++                case ratio >= m.cfg.SaturationWarningThreshold:
++                    log.Warn("redis pool saturation warning",
++                        "depth", depth, "ratio", ratio)
++                }
++            }
++        }
++    }()
++}
+
+---
+
+REVIEW COMMENTS
+
+@alopez [2026-05-14 10:03]
+Have we measured the impact on Redis CPU? 64 connections per app instance
+times 12 instances = 768 connections, which is within cluster limits but I
+want to make sure we're not hitting per-connection overhead on the Redis side.
+Also: is there a risk that increasing pool size just shifts the bottleneck
+to Redis CPU rather than our wait queue?
+
+@rwilson [2026-05-14 10:28]
+Good question. I ran a Redis CPU profile during the 3x load test:
+  Before (pool=8):  Redis CPU 12% average, 41% peak (spike from reconnects)
+  After (pool=64):  Redis CPU 9% average, 23% peak
+The reduced reconnect churn (reconnects drop from ~400/min to ~15/min)
+actually lowered overall Redis CPU despite more simultaneous connections.
+The key insight is that short-lived connections are more expensive than
+persistent idle ones when the cluster is IO-bound.
+
+@alopez [2026-05-14 10:45]
+Solid data. Reconnect churn reduction makes sense. Approved on the pool
+size change. Still want to review the circuit breaker middleware carefully.
+
+@kchen [2026-05-14 11:02]
+LGTM on internal/cache/redis.go and the health monitor. One question on
+internal/middleware/redis_guard.go: where does the middleware sit in the
+handler chain? If it runs before auth, we might be leaking information
+about our Redis state to unauthenticated clients via the 503 response body.
+
+@rwilson [2026-05-14 11:19]
+Good catch. Currently it sits after AuthMiddleware in the chain:
+
+  router.Use(LoggingMiddleware)
+  router.Use(AuthMiddleware)
+  router.Use(RedisGuardMiddleware)   // here
+  router.Use(RateLimitMiddleware)
+
+So 503s only reach authenticated sessions. But I agree we should make
+the response body opaque. Currently it returns:
+  {"error": "redis pool saturated, retry in 2s"}
+Changing to a generic:
+  {"error": "service temporarily unavailable"}
+
+@mpark [2026-05-14 11:34]
+On the WaitQueueDepth() implementation: pool.Stats().Waits returns a
+cumulative counter, not a point-in-time gauge. So on the first call after
+startup you get 0, but after the first saturation event it grows
+monotonically and never resets. The circuit breaker will then be permanently
+tripped once you have ever had 200 cumulative waits in the process lifetime,
+which could be minutes into a normal deploy.
+
+Is this intentional? If not, you need to track the delta between successive
+readings, or use a different stats field.
+
+@rwilson [2026-05-14 11:52]
+@mpark - critical bug, thank you. You are absolutely right. pool.Stats()
+exposes:
+  - Hits:         cumulative connections served from pool (not waited)
+  - Misses:       cumulative connections that needed a new connection
+  - Timeouts:     cumulative timed-out waits
+  - Waits:        cumulative wait events (exactly as you described)
+  - WaitDuration: cumulative duration of all waits
+
+None of these are point-in-time gauges. The correct approach is to compute
+a sliding delta:
+
+  func (c *Client) WaitQueueDepth() int {
+      stats := c.pool.Stats()
+      current := stats.Waits
+      prev := atomic.SwapInt64(&c.lastWaits, current)
+      return int(current - prev)
+  }
+
+This gives the number of new wait events since the last poll, which is a
+reasonable proxy for current queue depth when sampled frequently.
+
+However, this is still not ideal because it is rate-dependent. If we poll
+every 30s, a burst of 300 waits in 1 second will look the same as a slow
+accumulation over 30s. For the circuit breaker we probably want a different
+signal: maybe pool.Stats().IdleConns == 0 as a simple "pool is empty" check.
+
+Will push a fix for this in the next commit.
+
+@mpark [2026-05-14 12:08]
+The delta approach is better but as you note, still bursty. For the hard
+ceiling I suggest:
+  saturated := stats.TotalConns >= int32(cfg.PoolSize) && stats.IdleConns == 0
+This is deterministic and correct: the pool is at capacity AND all connections
+are in use. No timing dependency.
+
+@rwilson [2026-05-14 12:31]
+Updated. New implementation:
+
+  func (c *Client) IsSaturated() bool {
+      stats := c.pool.Stats()
+      return stats.TotalConns >= int32(c.cfg.PoolSize) &&
+             stats.IdleConns == 0
+  }
+
+Circuit breaker now calls IsSaturated() instead of comparing WaitQueueDepth
+to a ceiling. Pushed as 3f8a22b.
+
+@kchen [2026-05-14 12:44]
+LGTM on 3f8a22b. The IsSaturated() approach is clean and obviously correct.
+
+@alopez [2026-05-14 13:00]
+One last thing: the health monitor logs "redis pool critical saturation" as
+an Error but the circuit breaker will already be returning 503 at that point.
+Is the error log actionable? I would suggest the monitor only log Warning
+(human awareness) and let alerting on the HTTP 503 rate be the signal for
+paging.
+
+@rwilson [2026-05-14 13:15]
+Agree. Changed both thresholds to Warning level; added a comment that
+HTTP 503 rate is the canonical alert signal. Updated in 7c1d441.
+
+@ci-bot [2026-05-14 13:18]
+All checks passed.
+  - unit tests: 847 passed, 0 failed (coverage: 81.3%, delta: +2.1%)
+  - integration tests: 34 passed, 0 failed
+  - lint: clean
+  - security scan: no findings
+  - load test (staging, 3x): p99=310ms, error_rate=0.04% pass
+
+@alopez [2026-05-14 13:22]
+Approved. Ship it.
+
+@kchen [2026-05-14 13:23]
+Approved.
+
+@mpark [2026-05-14 13:25]
+Approved. Nice catch on the cumulative-vs-gauge bug everyone. Good review.
+
+MERGE STATUS: Approved (3/3 required reviewers). Ready to merge.
