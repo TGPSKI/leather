@@ -1,8 +1,8 @@
 # leather
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/tgpski/leather.svg)](https://pkg.go.dev/github.com/tgpski/leather)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/TGPSKI/leather)](https://go.dev/)
-[![License](https://img.shields.io/github/license/TGPSKI/leather)](LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/TGPSKI/leather?v=2)](https://go.dev/)
+[![License](https://img.shields.io/github/license/TGPSKI/leather?v=2)](LICENSE)
 
 **Local agent infrastructure in one stdlib-only Go binary.**
 
