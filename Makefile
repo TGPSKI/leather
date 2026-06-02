@@ -1,4 +1,4 @@
-.PHONY: build test test-race check lint ci integration \
+.PHONY: build install test test-race check lint ci integration \
 		bench bench-save bench-compare \
 		cover clean help \
         build-shell-mcp \
@@ -11,6 +11,9 @@ GO_ENV   := CGO_ENABLED=0
 
 build: 
 	$(GO_ENV) go build -tags 'netgo osusergo' -ldflags "$(LDFLAGS)" -o ./leather ./cmd/leather
+
+install:
+	$(GO_ENV) go install -tags 'netgo osusergo' -ldflags "$(LDFLAGS)" ./cmd/leather ./cmd/shell-mcp
 
 build-shell-mcp:
 	$(GO_ENV) go build -tags 'netgo osusergo' -ldflags "$(LDFLAGS)" -o ./shell-mcp ./cmd/shell-mcp
@@ -74,6 +77,7 @@ example-%: build
 help:
 	@echo "Targets:"
 	@echo "  build        compile leather binary"
+	@echo "  install      install leather and shell-mcp to GOBIN/GOPATH bin"
 	@echo "  test         go test ./..."
 	@echo "  test-race    go test -race ./..."
 	@echo "  check        gofmt + go vet"
