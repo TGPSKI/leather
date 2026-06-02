@@ -33,6 +33,16 @@ The major v0.2 themes are *day-2 operations*, *codebase hygiene*, and
 - **`leather doctor`** — resolves and prints every effective config
   value with source attribution (file, env, flag). Today `leather
   validate` + `GET /config` cover the essentials.
+- **`leather workflow run`** — a standalone primitive for bounded
+  one-shot tannery workflows. Today CLI workflows require exported env
+  vars, zsh wrapper functions, temporary hide files, manual `ingest`,
+  `serve --max-jobs`, queue counting, and shell-side shutdown logic. The
+  command should accept a curing or route name, caller cwd, structured
+  args/env bindings, and an optional stdin payload; create the initial
+  hide; run the required queues to completion with existing retry/DLQ
+  semantics; print a compact status/artifact summary; and exit with a
+  meaningful code. This gives agent-backed tasks like signed per-file git
+  commits a clear Leather-owned execution path instead of process glue.
 - **`leather init`** — scaffolds a new project layout (config + an
   example agent + a `Makefile`). Today the recommended workflow is
   `cp -r examples/01-hello-mock my-project`.
@@ -113,4 +123,4 @@ the v0.1.x line.
 
 ---
 
-_Last reviewed: 2026-05-31_
+_Last reviewed: 2026-06-02_
