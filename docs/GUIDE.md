@@ -370,8 +370,7 @@ commands — use `bash -c` with positional args instead:
 - `string` args in `exec.argv` are passed as single elements — no quoting needed.
 - `string` args in `exec.shell` are shell-quoted automatically.
 - `int` and `bool` args are interpolated as-is (no quoting).
-- `{{env.VAR}}` reads from the server process environEditing 1 file
-ment.
+- `{{env.VAR}}` reads from the server process environment.
 
 ### Naming convention
 
