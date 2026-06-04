@@ -9,9 +9,9 @@
 #
 
 .PHONY: help all clean reset ensure-bin ensure-shell-mcp \
-	01 02 03 04 05 06 07 08 08-requeue 09 10 11 12 \
+	01 02 03 04 05 06 07 08 08-requeue 09 10 11 12 13 14 15 \
 	09-live 10-live 11-live 12-live \
-    validate-02 summary view
+	validate-02 validate-13 validate-14 validate-15 summary view
 
 # Resolve absolute path to the leather binary at repo root.
 ROOT     := $(abspath ..)
@@ -28,6 +28,8 @@ endif
 # Sensible defaults; override via env on the command line.
 LEATHER_LLM_ENDPOINT ?= http://localhost:11434
 LEATHER_MODEL        ?= llama3
+LEATHER_RPI_LLM_ENDPOINT ?= http://localhost:8080
+LEATHER_RPI_MODEL        ?= qwen3:1.7b
 
 export LEATHER_LLM_ENDPOINT LEATHER_MODEL
 
@@ -48,6 +50,9 @@ help:
 	@echo "  10   ci-gate             GitHub PR webhook -> decide FULL_EVAL or SKIP (voice eval pipeline)"
 	@echo "  11   high-volume-ci      25-100 webhooks with variable timing + parallel bursts (load experiment)"
 	@echo "  12   spa-maintenance      scheduled site-health + dep-audit + content-drift + deploy-check webhook"
+	@echo "  13   rpi-hailo-canary    local Hailo/OpenAI endpoint canary"
+	@echo "  14   rpi-hailo-digest    local status snapshot -> scheduled digest"
+	@echo "  15   rpi-hailo-ingest    local status snapshot -> hide -> curing -> artifact"
 	@echo ""
 	@echo "Live-mode variants (real APIs; require auth / network — see per-example READMEs):"
 	@echo "  09-live  10-live  11-live  12-live"
@@ -55,11 +60,13 @@ help:
 	@echo ""
 	@echo "  smoke                    smoke check: build + run example 01 (no LLM)"
 	@echo "  all                      validate every example config with LLM"
+	@echo "  validate-13 validate-14 validate-15 validate RPi/Hailo examples without running the endpoint"
 	@echo "  reset                    wipe per-example runtime state (.state/ dirs)"
 	@echo "  summary                  print runtime overview of last run (.state/ rollup)"
 	@echo "  view EX=NN               start a live viewer (DevTools UI) against example NN's .state"
 	@echo ""
 	@echo "LLM endpoint: $$LEATHER_LLM_ENDPOINT  model: $$LEATHER_MODEL"
+	@echo "RPi endpoint: $$LEATHER_RPI_LLM_ENDPOINT  model: $$LEATHER_RPI_MODEL"
 	@echo ""
 
 ensure-bin:
@@ -169,6 +176,24 @@ ensure-shell-mcp:
 	@echo "==> 12-spa-maintenance (scheduled health + dep-audit + content-drift + deploy-check)  [dry mode]"
 	@LEATHER_DEMO_MODE=dry bash 12-spa-maintenance/scripts/run-demo.sh
 
+13: ensure-bin
+	@echo "==> 13-rpi-hailo-endpoint-canary (requires Hailo proxy at http://localhost:8080)"
+	@cd 13-rpi-hailo-endpoint-canary && $(MAKE) LEATHER="$(LEATHER)" \
+	  LEATHER_LLM_ENDPOINT="$(LEATHER_RPI_LLM_ENDPOINT)" \
+	  LEATHER_MODEL="$(LEATHER_RPI_MODEL)" run
+
+14: ensure-bin
+	@echo "==> 14-rpi-hailo-local-status-digest (requires Hailo proxy at http://localhost:8080)"
+	@cd 14-rpi-hailo-local-status-digest && $(MAKE) LEATHER="$(LEATHER)" \
+	  LEATHER_LLM_ENDPOINT="$(LEATHER_RPI_LLM_ENDPOINT)" \
+	  LEATHER_MODEL="$(LEATHER_RPI_MODEL)" run
+
+15: ensure-bin
+	@echo "==> 15-rpi-hailo-local-status-ingest (requires Hailo proxy at http://localhost:8080)"
+	@cd 15-rpi-hailo-local-status-ingest && $(MAKE) LEATHER="$(LEATHER)" \
+	  LEATHER_LLM_ENDPOINT="$(LEATHER_RPI_LLM_ENDPOINT)" \
+	  LEATHER_MODEL="$(LEATHER_RPI_MODEL)" run
+
 12-live: ensure-bin ensure-shell-mcp
 	@echo "==> 12-spa-maintenance  [LIVE mode — real HTTP/TLS checks against configured URLs]"
 	@LEATHER_DEMO_MODE=live bash 12-spa-maintenance/scripts/run-demo.sh
@@ -182,9 +207,14 @@ ensure-shell-mcp:
 # so we only run full validate against examples that ship a *.lifecycle.yaml.
 
 validate-02: ensure-bin; @cd 02-scheduled-agent && $(LEATHER) validate --config config.yaml
+validate-13: ensure-bin; @cd 13-rpi-hailo-endpoint-canary && $(LEATHER) validate --config config.yaml
+validate-14: ensure-bin; @cd 14-rpi-hailo-local-status-digest && $(MAKE) LEATHER="$(LEATHER)" \
+	  LEATHER_LLM_ENDPOINT="$(LEATHER_RPI_LLM_ENDPOINT)" \
+	  LEATHER_MODEL="$(LEATHER_RPI_MODEL)" validate
+validate-15: ensure-bin; @cd 15-rpi-hailo-local-status-ingest && $(LEATHER) validate --config config.yaml --tannery tannery.yaml
 
 # `smoke` is the cheap CI smoke: builds + runs the no-LLM example end-to-end.
-smoke: ensure-bin 01 validate-02
+smoke: ensure-bin 01 validate-02 validate-13 validate-14 validate-15
 	@echo ""; echo "examples: smoke checks passed"
 
 all: 01 02 03 04 05 06 07 08 08-requeue 09 10 11 12

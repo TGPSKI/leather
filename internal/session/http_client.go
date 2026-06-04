@@ -121,19 +121,91 @@ func (c *HTTPClient) Complete(ctx context.Context, modelName string, messages []
 		})
 	}
 
+	content := choice.Message.Content
+	// Fallback for models (e.g. Qwen/Hermes) that emit tool calls as
+	// <tool_call>{json}</tool_call> blocks in the content channel instead of
+	// the API tool_calls array. Only engage when the API array is empty so we
+	// never double-count properly-structured calls. Truncated trailing blocks
+	// (finish_reason=length) are skipped; the model continues on the next round.
+	if len(toolCalls) == 0 {
+		if parsed, cleaned := parseTextToolCalls(content); len(parsed) > 0 {
+			toolCalls = parsed
+			content = cleaned
+		}
+	}
+
 	totalTokens := apiResp.Usage.TotalTokens
 	if sum := apiResp.Usage.PromptTokens + apiResp.Usage.CompletionTokens; totalTokens < sum {
 		totalTokens = sum
 	}
 
 	return model.LLMResponse{
-		Content:          choice.Message.Content,
+		Content:          content,
 		FinishReason:     choice.FinishReason,
 		PromptTokens:     apiResp.Usage.PromptTokens,
 		CompletionTokens: apiResp.Usage.CompletionTokens,
 		TotalTokens:      totalTokens,
 		ToolCalls:        toolCalls,
 	}, nil
+}
+
+// parseTextToolCalls extracts Hermes/Qwen-style tool calls emitted as text:
+//
+//	<tool_call>
+//	{"name": "tool_name", "arguments": {...}}
+//	</tool_call>
+//
+// It returns the parsed calls and the content with every recognised block
+// removed. Blocks that are truncated (no closing tag) or whose JSON does not
+// parse into a named call are skipped, leaving the surrounding text intact.
+// Synthetic IDs are assigned because the text format carries none.
+func parseTextToolCalls(content string) ([]model.ToolCall, string) {
+	const openTag, closeTag = "<tool_call>", "</tool_call>"
+	if !strings.Contains(content, openTag) {
+		return nil, content
+	}
+	var calls []model.ToolCall
+	var cleaned strings.Builder
+	rest := content
+	idx := 0
+	for {
+		open := strings.Index(rest, openTag)
+		if open < 0 {
+			cleaned.WriteString(rest)
+			break
+		}
+		// Locate the matching close tag for this block.
+		afterOpen := rest[open+len(openTag):]
+		close := strings.Index(afterOpen, closeTag)
+		if close < 0 {
+			// Truncated final block — drop the dangling opener and stop.
+			cleaned.WriteString(rest[:open])
+			break
+		}
+		payload := afterOpen[:close]
+		var raw struct {
+			Name      string         `json:"name"`
+			Arguments map[string]any `json:"arguments"`
+		}
+		if err := json.Unmarshal([]byte(strings.TrimSpace(payload)), &raw); err == nil && raw.Name != "" {
+			idx++
+			calls = append(calls, model.ToolCall{
+				ID:        fmt.Sprintf("textcall_%d", idx),
+				Name:      raw.Name,
+				Arguments: raw.Arguments,
+			})
+			// Drop the block from content (text before the opener is preserved).
+			cleaned.WriteString(rest[:open])
+		} else {
+			// Unparseable block — keep it verbatim so nothing is silently lost.
+			cleaned.WriteString(rest[:open+len(openTag)+close+len(closeTag)])
+		}
+		rest = afterOpen[close+len(closeTag):]
+	}
+	if len(calls) == 0 {
+		return nil, content
+	}
+	return calls, strings.TrimSpace(cleaned.String())
 }
 
 // CountTokens estimates the token count for messages using a character-based

@@ -1,0 +1,3 @@
+.state/
+sample/status.snapshot.txt
+*.log

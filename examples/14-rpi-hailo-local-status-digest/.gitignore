@@ -1,0 +1,4 @@
+.state/
+.snapshot/
+agents/local-status.lifecycle.yaml
+*.log

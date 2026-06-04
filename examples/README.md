@@ -18,6 +18,9 @@ isolation from a fresh clone with **a single `make` target**.
 | [10](10-ci-gate/) | `10-ci-gate` | yes | **Advanced** — GitHub webhook → agent gates an expensive CI pipeline via PR analysis and `gh` tool calls |
 | [11](11-high-volume-ci/) | `11-high-volume-ci` | yes | **Advanced** — high-volume burst of CI webhooks using `queue_pattern` single-use queues |
 | [12](12-spa-maintenance/) | `12-spa-maintenance` | yes | **Advanced** — scheduled SPA health-check agent with artifact persistence |
+| [13](13-rpi-hailo-endpoint-canary/) | `13-rpi-hailo-endpoint-canary` | yes | **RPi/Hailo** — local OpenAI-compatible endpoint canary for Hailo-Ollama |
+| [14](14-rpi-hailo-local-status-digest/) | `14-rpi-hailo-local-status-digest` | yes | **RPi/Hailo** — local status snapshot → scheduled digest |
+| [15](15-rpi-hailo-local-status-ingest/) | `15-rpi-hailo-local-status-ingest` | yes | **RPi/Hailo** — local status snapshot → hide → curing → artifact |
 
 ## Prerequisites
 
@@ -27,6 +30,10 @@ Webhook examples (`04`–`08`, `10`–`12`): also `openssl` (for HMAC signing).
 
 Advanced (`09`–`12`): also `jq`.  Examples 09 and 10 optionally use the `gh`
 CLI and a Telegram bot token; both degrade gracefully if absent.
+
+RPi/Hailo (`13`–`15`): require a Raspberry Pi 5 with AI HAT+ 2, Hailo-Ollama
+on `127.0.0.1:8000`, and the OpenAI compatibility proxy on
+`http://localhost:8080`.
 
 A quick preflight check:
 
@@ -47,6 +54,16 @@ cd examples && make 01
 export LEATHER_LLM_ENDPOINT=http://localhost:11434
 export LEATHER_MODEL=llama3
 cd examples && make 02
+
+# RPi/Hailo examples default to the local Hailo proxy:
+cd examples && make 13
+```
+
+For RPi/Hailo targets, override the hardware endpoint separately from the
+general examples endpoint:
+
+```bash
+LEATHER_RPI_LLM_ENDPOINT=http://pi-host:8080 LEATHER_RPI_MODEL=qwen3:1.7b make 13
 ```
 
 ## Conventions

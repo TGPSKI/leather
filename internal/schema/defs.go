@@ -8,7 +8,7 @@ var AgentFrontmatterSchema = Schema{
 	"name":        {Type: TypeString, Required: true},
 	"schedule":    {Type: TypeCron},
 	"model":       {Type: TypeString},
-	"tool_rounds": {Type: TypeInteger, HasMin: true, IntMin: 1, HasMax: true, IntMax: 20},
+	"tool_rounds": {Type: TypeInteger, HasMin: true, IntMin: 1, HasMax: true, IntMax: 100},
 	"max_tokens":  {Type: TypeInteger, HasMin: true, IntMin: 1},
 	"timeout":     {Type: TypeDuration},
 	"temperature": {Type: TypeNumber},

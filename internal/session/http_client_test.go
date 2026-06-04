@@ -277,3 +277,66 @@ func TestToAPIMessages_Empty(t *testing.T) {
 		t.Errorf("expected empty slice for nil input, got len %d", len(out))
 	}
 }
+
+func TestParseTextToolCalls_MultipleBlocks(t *testing.T) {
+	content := "<tool_call>\n{\"name\": \"git_enqueue_file_commit\", \"arguments\": {\"file\": \"LICENSE\", \"message\": \"Add license\", \"signing_key\": \"ABC\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"git_enqueue_file_commit\", \"arguments\": {\"file\": \"README.md\", \"message\": \"Add readme\", \"signing_key\": \"ABC\"}}\n</tool_call>"
+	calls, cleaned := parseTextToolCalls(content)
+	if len(calls) != 2 {
+		t.Fatalf("want 2 calls, got %d", len(calls))
+	}
+	if calls[0].Name != "git_enqueue_file_commit" || calls[0].Arguments["file"] != "LICENSE" {
+		t.Errorf("call 0 wrong: %+v", calls[0])
+	}
+	if calls[1].Arguments["file"] != "README.md" {
+		t.Errorf("call 1 wrong: %+v", calls[1])
+	}
+	if calls[0].ID == "" || calls[0].ID == calls[1].ID {
+		t.Errorf("IDs must be non-empty and unique: %q %q", calls[0].ID, calls[1].ID)
+	}
+	if strings.Contains(cleaned, "<tool_call>") {
+		t.Errorf("cleaned content still has tool_call blocks: %q", cleaned)
+	}
+}
+
+func TestParseTextToolCalls_TruncatedTrailingBlock(t *testing.T) {
+	// Mirrors the finish_reason=length failure: last block is cut off mid-JSON
+	// with no closing tag. The complete block must parse; the truncated one drops.
+	content := "<tool_call>\n{\"name\": \"git_enqueue_file_commit\", \"arguments\": {\"file\": \"LICENSE\", \"message\": \"Add license\", \"signing_key\": \"ABC\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"git_enqueue_file_commit\", \"arguments\": {\"file\": \"py"
+	calls, _ := parseTextToolCalls(content)
+	if len(calls) != 1 {
+		t.Fatalf("want 1 call (truncated dropped), got %d", len(calls))
+	}
+	if calls[0].Arguments["file"] != "LICENSE" {
+		t.Errorf("wrong call survived: %+v", calls[0])
+	}
+}
+
+func TestParseTextToolCalls_NoBlocks(t *testing.T) {
+	calls, cleaned := parseTextToolCalls("ENQUEUED: 20")
+	if calls != nil {
+		t.Errorf("want nil calls, got %+v", calls)
+	}
+	if cleaned != "ENQUEUED: 20" {
+		t.Errorf("content should be unchanged, got %q", cleaned)
+	}
+}
+
+func TestComplete_TextToolCallFallback(t *testing.T) {
+	body := "<tool_call>\n{\"name\": \"my_tool\", \"arguments\": {\"x\": \"1\"}}\n</tool_call>"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(openAIResponse(body, "length", 10, 20))
+	}))
+	defer srv.Close()
+	c := NewHTTPClient(srv.URL, "", 5*time.Second)
+	resp, err := c.Complete(context.Background(), "m", []model.Message{{Role: "user", Content: "hi"}}, CompletionOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.ToolCalls) != 1 {
+		t.Fatalf("want 1 tool call parsed from content, got %d", len(resp.ToolCalls))
+	}
+	if resp.ToolCalls[0].Name != "my_tool" {
+		t.Errorf("wrong tool: %+v", resp.ToolCalls[0])
+	}
+}
