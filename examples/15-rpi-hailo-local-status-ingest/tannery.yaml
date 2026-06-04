@@ -1,0 +1,17 @@
+hide_dir: .state/hides
+artifact_dir: .state/artifacts
+curing_dir: curings
+
+routes:
+  - name: local-status
+    match:
+      source: local
+    hide_kind: local.status
+    curing: local-status-digest
+    queue: default
+
+queues:
+  default:
+    concurrency: 1
+    max_attempts: 2
+    max_depth: 100

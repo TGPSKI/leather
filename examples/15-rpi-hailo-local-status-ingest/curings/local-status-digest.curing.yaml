@@ -1,0 +1,9 @@
+name: local-status-digest
+description: Turn a deterministic local status snapshot into a compact operational digest.
+agent: local-status
+hide_types:
+  - local.status
+queue: default
+page_size_bytes: 4096
+max_attempts: 2
+timeout_seconds: 120

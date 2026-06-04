@@ -1,0 +1,19 @@
+agent_dir: agents
+state_dir: .state
+model: qwen3:1.7b
+llm_endpoint: http://localhost:8080
+log_level: info
+
+# Intended for a tiny local endpoint behind the Hailo/OpenAI proxy:
+#   export LEATHER_LLM_ENDPOINT=http://localhost:8080
+#   export LEATHER_MODEL=qwen3:1.7b
+llm_timeout: 60s
+
+max_tokens: 2048
+completion_reserve: 256
+summarize_threshold: 0.85
+
+scheduler_tick: 1s
+max_concurrent_jobs: 1
+
+persist_runs: true
