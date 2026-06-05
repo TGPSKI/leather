@@ -234,11 +234,34 @@ When a new `internal/<name>` package is created:
 
 ---
 
+## Shared stdlib leaf utilities
+
+Four zero-dependency leaf packages hold helpers that were previously
+duplicated across the codebase (ROADMAP "Shared library extraction",
+issue #3, phase 1). They import only the stdlib (and, for `jsonstore`,
+`internal/fileutil`), so any package may depend on them without risking
+an import cycle. Prefer these over re-rolling the same logic inline.
+
+| Package | Exports | Use instead of |
+|---|---|---|
+| `internal/fileutil` | `Exists`, `AtomicWriteFile`, `AtomicWriteFileFunc` | hand-rolled `os.CreateTemp`→`Rename` blocks; `os.Stat`+`IsNotExist` checks |
+| `internal/jsonstore` | `Save`, `Load` | `json.Marshal`+atomic write; `os.ReadFile`+`json.Unmarshal` with not-exist handling |
+| `internal/ids` | `TimestampHex`, `RandHex` | inline `"<prefix>_<ts>_<hex>"` IDs; `crypto/rand`→`hex` token blocks |
+| `internal/yamlx` | `ParseBlock`, `ParseFlat`, `StripQuotes`, `SplitKV` | per-package flat-YAML scanners, quote-strippers, and `key: value` splitters |
+
+`jsonstore.Load` returns `(found bool, err error)`: a missing file is
+`(false, nil)`, never an error — callers map `!found` to empty state.
+`yamlx` is line-agnostic today; line-number tracking for schema
+`file:line` violations is the next step (`TODO(#3)` in the package).
+
+---
+
 ## Verification checklist
 
 Before opening a PR:
 
 - [ ] `make ci` passes locally (check + test-race + lint)
+- [ ] New disk persistence / ID / flat-YAML code reuses `internal/{fileutil,jsonstore,ids,yamlx}` rather than re-rolling it
 - [ ] New packages have colocated `_test.go` with coverage for exported API
 - [ ] No `//nolint` directives without a comment explaining the exception
 - [ ] Benchmarks added for any new hot-path code
@@ -248,4 +271,4 @@ Before opening a PR:
 
 ---
 
-_Last reviewed: 2026-05-19_
+_Last reviewed: 2026-06-05_

@@ -26,6 +26,7 @@ the root guide wins and this file is the bug.
 | [AGENTS-UI.md](AGENTS-UI.md) | Browser SPA | `ui/` |
 | [AGENTS-REPLAY.md](AGENTS-REPLAY.md) | Replay subsystem | Replay capture + `/replay/...` API + replay UI |
 | [AGENTS-QUALITY.md](AGENTS-QUALITY.md) | Tests, build, CI, linting | `*_test.go`, `Makefile`, `.github/workflows` |
+| [AGENTS-QUALITY.md](AGENTS-QUALITY.md) | Shared stdlib leaf utilities | `internal/fileutil`, `internal/jsonstore`, `internal/ids`, `internal/yamlx` |
 | [AGENTS-PERFORMANCE.md](AGENTS-PERFORMANCE.md) | Performance posture | Hot paths, benchmark catalog, baseline policy |
 | [AGENTS-SECURITY.md](AGENTS-SECURITY.md) | Security posture | Threat model, secret handling, trust boundaries |
 | [AGENTS-OPERATIONS.md](AGENTS-OPERATIONS.md) | Deployment & operations | Layouts, systemd/launchd, backup/restore, upgrade |

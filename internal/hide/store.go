@@ -9,6 +9,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/tgpski/leather/internal/fileutil"
+	"github.com/tgpski/leather/internal/jsonstore"
 	"github.com/tgpski/leather/internal/safepath"
 )
 
@@ -69,12 +71,8 @@ func (s *Store) Put(kind, source string, content []byte, meta map[string]string)
 	}
 
 	// Write meta second (crash-safe ordering: content exists before metadata).
-	metaBytes, err := json.Marshal(entry)
-	if err != nil {
-		return StoreEntry{}, fmt.Errorf("hide/store.Put: marshal meta %s: %w", id, err)
-	}
 	metaPath := filepath.Join(entryDir, "meta.json")
-	if err := os.WriteFile(metaPath, metaBytes, 0600); err != nil {
+	if err := jsonstore.Save(metaPath, entry, 0600); err != nil {
 		return StoreEntry{}, fmt.Errorf("hide/store.Put: write meta %s: %w", id, err)
 	}
 	return entry, nil
@@ -91,11 +89,8 @@ func (s *Store) Get(id string) (StoreEntry, []byte, error) {
 	}
 
 	// Check directory exists.
-	if _, err := os.Stat(entryDir); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return StoreEntry{}, nil, fmt.Errorf("hide/store.Get %s: %w", id, os.ErrNotExist)
-		}
-		return StoreEntry{}, nil, fmt.Errorf("hide/store.Get %s: %w", id, err)
+	if !fileutil.Exists(entryDir) {
+		return StoreEntry{}, nil, fmt.Errorf("hide/store.Get %s: %w", id, os.ErrNotExist)
 	}
 
 	// Read content.

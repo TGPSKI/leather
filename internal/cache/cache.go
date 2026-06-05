@@ -11,11 +11,12 @@
 package cache
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/tgpski/leather/internal/jsonstore"
 )
 
 // entry is the on-disk JSON representation of a single cache record.
@@ -47,12 +48,9 @@ func NewFileCache(dir string) (*FileCache, error) {
 // Expired entries are deleted lazily. Returns ("", false) on any miss or error.
 func (c *FileCache) Get(key string) (string, bool) {
 	path := c.entryPath(key)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", false
-	}
 	var e entry
-	if err := json.Unmarshal(data, &e); err != nil {
+	// Any read or decode error is treated as a cache miss.
+	if found, err := jsonstore.Load(path, &e); !found || err != nil {
 		return "", false
 	}
 	if e.ExpiresAt != 0 && time.Now().Unix() >= e.ExpiresAt {
@@ -70,18 +68,8 @@ func (c *FileCache) Set(key, value string, ttl time.Duration) error {
 	if ttl > 0 {
 		e.ExpiresAt = time.Now().Add(ttl).Unix()
 	}
-	data, err := json.Marshal(e)
-	if err != nil {
-		return fmt.Errorf("cache/Set: marshal: %w", err)
-	}
-	// Atomic write: write to a temp file then rename.
-	tmp := c.entryPath(key) + ".tmp"
-	if err := os.WriteFile(tmp, data, 0600); err != nil {
-		return fmt.Errorf("cache/Set: write tmp: %w", err)
-	}
-	if err := os.Rename(tmp, c.entryPath(key)); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("cache/Set: rename: %w", err)
+	if err := jsonstore.Save(c.entryPath(key), e, 0600); err != nil {
+		return fmt.Errorf("cache/Set: %w", err)
 	}
 	return nil
 }

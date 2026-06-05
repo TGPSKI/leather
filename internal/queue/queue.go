@@ -10,12 +10,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"io"
 	"os"
-	"strings"
 	"sync"
-	"time"
 
+	"github.com/tgpski/leather/internal/fileutil"
+	"github.com/tgpski/leather/internal/ids"
 	"github.com/tgpski/leather/internal/model"
 )
 
@@ -177,49 +177,22 @@ func (q *FileQueue) load() error {
 	return nil
 }
 
-// save atomically rewrites the backing JSONL file.
+// save atomically rewrites the backing JSONL file via a temp-file rename.
 // Must be called with q.mu held.
 func (q *FileQueue) save() error {
-	dir := dirOf(q.path)
-	if dir != "" {
-		if err := os.MkdirAll(dir, 0700); err != nil {
-			return fmt.Errorf("mkdir: %w", err)
+	return fileutil.AtomicWriteFileFunc(q.path, 0600, func(w io.Writer) error {
+		enc := json.NewEncoder(w)
+		for _, item := range q.items {
+			if err := enc.Encode(item); err != nil {
+				return err
+			}
 		}
-	}
-	// Write to a temp file then rename for atomicity.
-	tmp := q.path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	enc := json.NewEncoder(f)
-	for _, item := range q.items {
-		if err := enc.Encode(item); err != nil {
-			_ = f.Close()
-			_ = os.Remove(tmp)
-			return err
-		}
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, q.path)
-}
-
-// dirOf returns the directory component of path, or "" for bare file names.
-func dirOf(path string) string {
-	idx := strings.LastIndexByte(path, '/')
-	if idx < 0 {
-		return ""
-	}
-	return path[:idx]
+		return nil
+	})
 }
 
 // GenerateItemID generates a unique queue item ID in the form
 // "item_<yyyymmdd>_<HHMM>_<4hex>".
 func GenerateItemID() string {
-	now := time.Now()
-	suffix := rand.Int31n(0x10000) //nolint:gosec
-	return fmt.Sprintf("item_%s_%04x", now.Format("20060102_1504"), suffix)
+	return ids.TimestampHex("item")
 }

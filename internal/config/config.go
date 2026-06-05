@@ -14,6 +14,7 @@ import (
 
 	"github.com/tgpski/leather/internal/model"
 	"github.com/tgpski/leather/internal/secret"
+	"github.com/tgpski/leather/internal/yamlx"
 )
 
 // Load merges configuration from (highest to lowest priority):
@@ -228,7 +229,7 @@ func loadYAMLFile(path string, cfg *model.Config) error {
 
 // applyYAML reads YAML from r and overlays matching keys onto cfg.
 func applyYAML(r io.Reader, cfg *model.Config) error {
-	vals, lists, err := parseYAML(r)
+	vals, lists, err := yamlx.ParseFlat(r)
 	if err != nil {
 		return err
 	}
@@ -632,7 +633,7 @@ func parseNotifyBackendItem(lines []string) model.NotifyBackendConfig {
 			inToken = true
 			continue
 		}
-		k, v, ok := notifySplitKV(line)
+		k, v, ok := yamlx.SplitKV(line)
 		if !ok {
 			continue
 		}
@@ -670,26 +671,6 @@ func parseNotifyBackendItem(lines []string) model.NotifyBackendConfig {
 	return b
 }
 
-// notifySplitKV splits "key: value" returning (key, value, true).
-// Returns ("", "", false) when no colon is present.
-func notifySplitKV(line string) (k, v string, ok bool) {
-	idx := strings.Index(line, ":")
-	if idx < 0 {
-		return "", "", false
-	}
-	k = strings.TrimSpace(line[:idx])
-	v = strings.TrimSpace(line[idx+1:])
-	// Strip inline comments.
-	if ci := strings.Index(v, " #"); ci >= 0 {
-		v = strings.TrimSpace(v[:ci])
-	}
-	// Strip surrounding quotes.
-	if len(v) >= 2 && ((v[0] == '"' && v[len(v)-1] == '"') || (v[0] == '\'' && v[len(v)-1] == '\'')) {
-		v = v[1 : len(v)-1]
-	}
-	return k, v, true
-}
-
 // parseLLMAPIKeyBlock extracts the llm_api_key field from raw YAML source.
 //
 // Two forms are accepted:
@@ -708,7 +689,7 @@ func parseLLMAPIKeyBlock(src string) secret.Ref {
 		if len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
 			continue
 		}
-		k, v, ok := notifySplitKV(line)
+		k, v, ok := yamlx.SplitKV(line)
 		if !ok || k != "llm_api_key" {
 			continue
 		}
@@ -725,7 +706,7 @@ func parseLLMAPIKeyBlock(src string) secret.Ref {
 			if sub[0] != ' ' && sub[0] != '\t' {
 				break
 			}
-			sk, sv, sok := notifySplitKV(sub)
+			sk, sv, sok := yamlx.SplitKV(sub)
 			if !sok {
 				continue
 			}

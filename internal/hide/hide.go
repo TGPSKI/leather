@@ -8,11 +8,11 @@ package hide
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/tgpski/leather/internal/ids"
 	"github.com/tgpski/leather/internal/model"
 )
 
@@ -285,10 +285,7 @@ func (b *HideBuffer) FirstCut() (Cut, error) {
 // generateHideID generates a unique hide identifier from source.
 // Format: "hide_<sanitized>_<yyyymmdd>_<HHMM>_<4-hex>"
 func generateHideID(source string) string {
-	sanitized := sanitizeSource(source)
-	ts := time.Now().Format("20060102_1504")
-	suffix := fmt.Sprintf("%04x", rand.Intn(0x10000)) //nolint:gosec // ID uniqueness only, not security
-	return "hide_" + sanitized + "_" + ts + "_" + suffix
+	return ids.TimestampHex("hide_" + sanitizeSource(source))
 }
 
 // sanitizeSource replaces all characters that are not [a-z0-9_] with '_'.

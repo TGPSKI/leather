@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/config"
 	"github.com/tgpski/leather/internal/model"
+	"github.com/tgpski/leather/internal/yamlx"
 )
 
 // lifecycleRecord is one resolved lifecycle instance parsed from a *.lifecycle.yaml file.
@@ -72,7 +72,7 @@ func loadLifecycleFile(path string) ([]lifecycleRecord, error) {
 func parseLifecycleYAML(src string) ([]lifecycleRecord, error) {
 	src = strings.ReplaceAll(src, "\r\n", "\n")
 
-	topVals, topLists := config.ParseBlock(extractTopLevel(src))
+	topVals, topLists := yamlx.ParseBlock(extractTopLevel(src))
 	agentName := topVals["agent"]
 	if agentName == "" {
 		return nil, fmt.Errorf("missing required field: agent")
@@ -184,7 +184,7 @@ func parseListForm(src, agentName string, topVals map[string]string, topLists ma
 	for i, block := range blocks {
 		rec := base      // inherit top-level defaults; tags will append below
 		rec.JobName = "" // name must come from the instance block
-		iVals, iLists := config.ParseBlock(block)
+		iVals, iLists := yamlx.ParseBlock(block)
 		if err := applyLifecycleFields(iVals, iLists, &rec); err != nil {
 			return nil, fmt.Errorf("instance %d: %w", i, err)
 		}
@@ -465,7 +465,7 @@ func parseParametersBlock(src string) map[string]string {
 			continue
 		}
 
-		k, v, ok := lifecycleSplitKV(trimmed)
+		k, v, ok := yamlx.SplitKV(trimmed)
 		if !ok {
 			continue
 		}
@@ -502,7 +502,7 @@ func parseCacheBlock(src string) (model.CacheConfig, error) {
 			if trimmed == "" {
 				continue
 			}
-			k, v, ok := lifecycleSplitKV(trimmed)
+			k, v, ok := yamlx.SplitKV(trimmed)
 			if !ok {
 				continue
 			}
@@ -607,7 +607,7 @@ func parseOutputRouteItem(lines []string) model.OutputRoute {
 			inHeaders = true
 			continue
 		}
-		k, v, ok := lifecycleSplitKV(trimmed)
+		k, v, ok := yamlx.SplitKV(trimmed)
 		if !ok {
 			continue
 		}
@@ -660,7 +660,7 @@ func parseHooksBlock(src string) model.AgentHooks {
 			if trimmed == "" {
 				continue
 			}
-			k, v, ok := lifecycleSplitKV(trimmed)
+			k, v, ok := yamlx.SplitKV(trimmed)
 			if !ok {
 				continue
 			}
@@ -675,21 +675,4 @@ func parseHooksBlock(src string) model.AgentHooks {
 		}
 	}
 	return h
-}
-
-// lifecycleSplitKV splits "key: value" into (key, value, true).
-// Returns ("", "", false) if the line contains no colon.
-// Surrounding quotes are stripped from value.
-func lifecycleSplitKV(line string) (key, value string, ok bool) {
-	idx := strings.Index(line, ":")
-	if idx < 0 {
-		return "", "", false
-	}
-	key = strings.TrimSpace(line[:idx])
-	value = strings.TrimSpace(line[idx+1:])
-	if len(value) >= 2 && ((value[0] == '"' && value[len(value)-1] == '"') ||
-		(value[0] == '\'' && value[len(value)-1] == '\'')) {
-		value = value[1 : len(value)-1]
-	}
-	return key, value, key != ""
 }
