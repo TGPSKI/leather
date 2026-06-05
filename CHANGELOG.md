@@ -7,6 +7,27 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Shared stdlib leaf utilities** (`internal/fileutil`, `internal/jsonstore`,
+  `internal/ids`, `internal/yamlx`) — four zero-dependency leaf packages that
+  consolidate helpers previously duplicated across the codebase (issue #3,
+  phase 1 of the ROADMAP "Shared library extraction" track):
+  - `fileutil`: `Exists`, `AtomicWriteFile`, `AtomicWriteFileFunc` — atomic
+    temp-rename writes with automatic parent-dir creation and cleanup on failure.
+  - `jsonstore`: `Save` / `Load` — marshal+atomic-write and read+unmarshal with
+    a `(found bool, err error)` return so a missing file is `(false, nil)`.
+  - `ids`: `TimestampHex(prefix)` — `<prefix>_<YYYYMMDD_HHMM>_<hex>` IDs used
+    by artifacts, queue items, and hides; `RandHex(n)` — crypto-random hex for
+    bearer tokens.
+  - `yamlx`: `ParseBlock`, `ParseFlat`, `StripQuotes`, `SplitKV` — the
+    stdlib-only flat-YAML parser moved out of `internal/config` and available
+    to all packages without import cycles.
+- All duplicated inline copies replaced: `internal/scheduler`, `internal/cache`,
+  `internal/queue`, `internal/artifact`, `internal/hide`, `internal/cli`
+  migrated onto the new packages. `internal/config/yaml.go` deleted; its YAML
+  tests moved to `internal/yamlx`.
+
 ## [0.1.3] - 2026-06-05
 
 ### Added
