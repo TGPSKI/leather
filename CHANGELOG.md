@@ -16,10 +16,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   values (`llm_api_key`) are redacted to a 4-char prefix + mask so operators
   can confirm which credential is loaded without exposing the full token.
 - `leather init` subcommand: scaffolds a new project directory with a
-  `config.yaml`, example `agents/my-agent.agent.md`,
+  `.env`, `config.yaml`, example `agents/my-agent.agent.md`,
   `agents/my-agent.lifecycle.yaml`, and a `Makefile`.
   - `--dir <path>` selects the target directory (created if absent; defaults
-    to `.`).
+    to `~/.leather`).
+  - `.env` pre-populates `LEATHER_LLM_ENDPOINT`, `LEATHER_MODEL`,
+    `LEATHER_LLM_API_KEY`, `LEATHER_LOG_LEVEL`, and `LEATHER_AGENT_DIR`
+    with comments for `source .env` / direnv usage.
   - Fails closed on existing files — any collision is reported with a hint to
     use `--overwrite`.
   - `--overwrite` replaces existing files.
