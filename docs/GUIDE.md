@@ -1178,9 +1178,14 @@ my-project/
 
 | Command | Purpose |
 |---|---|
+| `leather init` | Scaffold `~/.leather` with `.env`, `config.yaml`, an example agent, and a `Makefile`. |
+| `leather doctor` | Print every effective config value with source attribution; redacts secrets. |
 | `leather serve` | Start scheduler + HTTP API + optional tannery. |
 | `leather run` | Execute one agent once and exit. |
 | `leather chat` | Interactive multi-turn chat with an agent. |
 | `leather validate` | Parse and schema-check all files; report errors. |
 | `leather ingest` | Write a file as a hide and optionally enqueue it. |
 | `leather status` | Print job history, token usage, scheduler state. |
+| `leather test-agent` | Run an agent against `MockLLM` and print the transcript. |
+| `leather replay` | Replay a snapshot or live session. |
+| `leather version` / `leather help` | The obvious. |

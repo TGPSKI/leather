@@ -286,6 +286,8 @@ make example-01      # runs a mock-LLM example end-to-end
 
 | Command | Purpose |
 |---|---|
+| `leather init` | Scaffold `~/.leather` with `.env`, `config.yaml`, an example agent, and a `Makefile`. |
+| `leather doctor` | Print every effective config value with source attribution; redacts secrets. |
 | `leather serve` | Run scheduler, queue workers, and (when enabled) HTTP API, tannery, or replay. |
 | `leather run`   | Execute one agent definition once and exit. |
 | `leather chat`  | Interactive chat session with token‑budget management. |
