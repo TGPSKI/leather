@@ -43,6 +43,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   Hailo-10H.
 - `make install` target and `LEATHER_RPI_*` env vars in the examples Makefile.
 - GitHub issue template for agent work items.
+- **Agent Skills** `release-prep` and `release-tag` in `.agents/skills/`:
+  - `release-prep` — auto-detects the next semver from git history
+    (PATCH/MINOR/MAJOR categorisation), inserts a CHANGELOG section, updates
+    docs, and commits + pushes to `main`.
+  - `release-tag` — runs four pre-flight gates (clean tree, in sync with
+    origin, CHANGELOG has the version, tag does not already exist), then
+    creates and pushes an annotated tag to trigger the automated release
+    pipeline.
 
 ### Changed
 
@@ -286,5 +294,8 @@ Intentionally out of scope for v0.1.0; tracked for v0.2:
 See [ROADMAP.md](ROADMAP.md) for the full deferred-item list with
 rationales and proposed shapes.
 
-[Unreleased]: https://github.com/tgpski/leather/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/tgpski/leather/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/tgpski/leather/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/tgpski/leather/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/tgpski/leather/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/tgpski/leather/releases/tag/v0.1.0

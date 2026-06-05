@@ -40,6 +40,10 @@ merge their findings.
 and all subagent guides synchronized with the codebase. See
 [.agents/skills/agents-doc-lifecycle/SKILL.md](.agents/skills/agents-doc-lifecycle/SKILL.md).
 
+**Release workflow:** two agent skills automate the release process:
+- [`release-prep`](.agents/skills/release-prep/SKILL.md) — version detection, CHANGELOG, docs update, commit + push.
+- [`release-tag`](.agents/skills/release-tag/SKILL.md) — pre-flight gates, annotated tag push, pipeline trigger.
+
 ---
 
 ## What leather is
