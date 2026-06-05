@@ -2,7 +2,8 @@
 		bench bench-save bench-compare \
 		cover clean help \
         build-shell-mcp \
-        examples examples-smoke examples-all examples-reset example-%
+        examples examples-smoke examples-all examples-reset example-% \
+        link-skills
 
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
@@ -74,6 +75,21 @@ examples-reset:
 example-%: build
 	@$(MAKE) -C examples $*
 
+# Symlink every skill in .agents/skills/ into ~/.claude/skills/ so Claude Code
+# discovers them. Safe to re-run; skips skills that are already linked.
+link-skills:
+	@mkdir -p .claude/skills
+	@for skill in .agents/skills/*/; do \
+		name=$$(basename "$$skill"); \
+		target=.claude/skills/$$name; \
+		if [ ! -e "$$target" ]; then \
+			ln -s "../../$$skill" "$$target"; \
+			echo "linked $$name"; \
+		else \
+			echo "skip  $$name (already exists)"; \
+		fi; \
+	done
+
 help:
 	@echo "Targets:"
 	@echo "  build        compile leather binary"
@@ -95,4 +111,5 @@ help:
 	@echo "  examples-smoke                	 validate every example config (no LLM)"
 	@echo "  examples-all               	 validate every example config with LLM"
 	@echo "  examples-reset             	 wipe per-example runtime state (.state/ dirs)"
-	
+	@echo "  link-skills                  symlink .agents/skills/* into ~/.claude/skills/"
+
