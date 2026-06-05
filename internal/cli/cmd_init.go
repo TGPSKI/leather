@@ -42,6 +42,17 @@ instances:
     prompt: Confirm the agent is running.
 `
 
+const initDotEnv = `# leather environment variables
+# Source this file before running leather:  source .env
+# Or use direnv:  echo 'dotenv' > .envrc && direnv allow
+
+LEATHER_LLM_ENDPOINT=http://localhost:11434
+LEATHER_MODEL=
+LEATHER_LLM_API_KEY=
+LEATHER_LOG_LEVEL=info
+LEATHER_AGENT_DIR=~/.leather/agents
+`
+
 const initMakefile = `# Makefile — leather project
 
 LEATHER ?= leather
@@ -108,6 +119,7 @@ func RunInit(args []string, stdout, stderr io.Writer) int {
 		rel     string
 		content string
 	}{
+		{".env", initDotEnv},
 		{"config.yaml", initConfigYAML},
 		{"agents/my-agent.agent.md", initAgentMD},
 		{"agents/my-agent.lifecycle.yaml", initLifecycleYAML},

@@ -134,7 +134,7 @@ func TestRunInit_CreatesOutputLines(t *testing.T) {
 	RunInit([]string{"--dir", dir}, &out, io.Discard) //nolint:errcheck
 
 	stdout := out.String()
-	for _, want := range []string{"created:", "config.yaml", "my-agent.agent.md", "my-agent.lifecycle.yaml", "Makefile"} {
+	for _, want := range []string{"created:", ".env", "config.yaml", "my-agent.agent.md", "my-agent.lifecycle.yaml", "Makefile"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("stdout missing %q\nfull output:\n%s", want, stdout)
 		}
