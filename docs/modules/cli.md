@@ -8,13 +8,17 @@
 shared flags, loads configuration, assembles the runtime dependencies for each
 command, starts the scheduler and worker supervisor in `serve`, exposes the
 HTTP API and replay endpoints, and provides testable command handlers for
-`chat`, `run`, `validate`, `test-agent`, `status`, and `version`.
+`init`, `doctor`, `chat`, `run`, `validate`, `test-agent`, `status`, and `version`.
 
 ## Public API
 
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
+| Symbol | Signature | Description |
+|--------|-----------|-------------|
 | `Run` | `func Run(args []string, stdout, stderr io.Writer, version, commit string) int` | Main command dispatcher used by `cmd/leather/main.go`. |
+| `RunInit` | `func RunInit(args []string, stdout, stderr io.Writer) int` | Scaffold `~/.leather` with `.env`, `config.yaml`, example agent, and `Makefile`. Fails closed on existing files unless `--overwrite` is set. |
+| `RunDoctor` | `func RunDoctor(args []string, stdout, stderr io.Writer) int` | Print every effective config value with source attribution; redacts `llm_api_key`. |
 | `RunServe` | `func RunServe(args []string, stdout, stderr io.Writer, version, commit string) int` | Start the scheduler, optional API, optional replay modes, workers, and runtime wiring. |
 | `RunChat` | `func RunChat(args []string, stdin io.Reader, stdout, stderr io.Writer) int` | Start an interactive chat session backed by `session.Session`. |
 | `RunOnce` | `func RunOnce(args []string, stdout, stderr io.Writer) int` | Execute one `*.agent.md` file once, optionally using a co-located lifecycle file. |

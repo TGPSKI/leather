@@ -39,6 +39,8 @@ Each subcommand has:
 
 | Subcommand | Function | Purpose |
 |---|---|---|
+| `doctor` | `RunDoctor` | Print effective config values with source attribution; redact secrets |
+| `init` | `RunInit` | Scaffold a new project directory with config, agent, and Makefile |
 | `serve` | `RunServe(args, stdout, stderr, version, commit)` | Start scheduler loop + optional HTTP API |
 | `chat` | `RunChat` | Interactive multi-turn chat session with a named agent |
 | `run` | `RunOnce` | Load and execute a single agent, then exit |
@@ -374,6 +376,8 @@ internal/schema  →  internal/config
 | Flag name doesn't match env var | `--flag-name` → `LEATHER_FLAG_NAME`; check both |
 | Skipping graceful shutdown | Always call `scheduler.Drain` before returning from `RunServe` |
 | Flags after positional arg in `leather run` | Go's `flag.FlagSet` stops at the first non-flag token. The agent file path must come **last**: `leather run --config=... --var k=v agent.md` — not `leather run agent.md --config ...` |
+| `leather init` overwriting without `--overwrite` | `RunInit` fails closed: any pre-existing file causes a non-zero exit and reports `--overwrite` hint. Never silently clobber. |
+| Calling `RunValidate` from `RunInit` for post-write validation | `RunValidate` performs a full semantic check including model resolution (fails without `LEATHER_MODEL`). `RunInit` uses schema-only validation (`runInitValidate`) which is syntax-only and does not require a model to be set. |
 
 ---
 
@@ -393,4 +397,4 @@ Before opening a PR touching this domain:
 
 ---
 
-_Last reviewed: 2026-05-19_
+_Last reviewed: 2026-06-04_

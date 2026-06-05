@@ -395,10 +395,6 @@ content, API keys, or hide payloads.
 The following commonly-requested operational features are explicitly
 deferred. See [ROADMAP.md](../ROADMAP.md) for the full deferral list.
 
-- **`leather doctor`** — a single command that resolves and prints
-  every effective config value with source attribution. Planned for v0.2.
-  In the meantime, `leather validate` + `GET /config` cover the
-  essentials.
 - **`leather snapshot save/restore`** — built-in backup tooling.
   Use the stop-then-tar procedure documented above.
 - **Prometheus exposition** — `/metrics` returns JSON. Adapt externally.

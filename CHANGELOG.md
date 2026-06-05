@@ -7,6 +7,61 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-06-04
+
+### Added
+
+- `leather doctor` subcommand: prints effective configuration with source
+  attribution (`default` vs. `config/env/flag`) for every key. Secret-bearing
+  values (`llm_api_key`) are redacted to a 4-char prefix + mask so operators
+  can confirm which credential is loaded without exposing the full token.
+- `leather init` subcommand: scaffolds a new project directory with a
+  `.env`, `config.yaml`, example `agents/my-agent.agent.md`,
+  `agents/my-agent.lifecycle.yaml`, and a `Makefile`.
+  - `--dir <path>` selects the target directory (created if absent; defaults
+    to `~/.leather`).
+  - `.env` pre-populates `LEATHER_LLM_ENDPOINT`, `LEATHER_MODEL`,
+    `LEATHER_LLM_API_KEY`, `LEATHER_LOG_LEVEL`, and `LEATHER_AGENT_DIR`
+    with comments for `source .env` / direnv usage.
+  - Fails closed on existing files — any collision is reported with a hint to
+    use `--overwrite`.
+  - `--overwrite` replaces existing files.
+  - Schema-validates the scaffolded `config.yaml` and lifecycle file before
+    reporting success.
+- **Qwen/Hermes text tool call fallback**: models that emit
+  `<tool_call>{json}</tool_call>` blocks in the content channel instead of
+  the API `tool_calls` array now parse and execute correctly. Truncated
+  trailing blocks (finish_reason=length) are silently dropped so the run
+  continues on the next round.
+- **Examples 13–15** — Raspberry Pi 5 + AI HAT+ 2 (Hailo-10H) examples
+  validated on live hardware against `qwen3:1.7b`:
+  - `13-rpi-hailo-endpoint-canary`: endpoint sanity check.
+  - `14-rpi-hailo-local-status-digest`: shell evidence collection → scheduled
+    digest without tannery.
+  - `15-rpi-hailo-local-status-ingest`: evidence → hide → curing → artifact.
+- `docs/integrations/rpi-hailo.md` integration guide for Raspberry Pi 5 +
+  Hailo-10H.
+- `make install` target and `LEATHER_RPI_*` env vars in the examples Makefile.
+- GitHub issue template for agent work items.
+
+### Changed
+
+- Tool call limit raised from 16 to 100 in `internal/schema/defs.go`, removing
+  a ceiling that caused batch agents to hit mid-run limits on large workloads.
+
+## [0.1.2] - 2026-06-01
+
+### Changed
+
+- Replaced `LICENSE` with canonical GPL-3.0 SPDX text for `pkg.go.dev` license
+  detection.
+
+## [0.1.1] - 2026-06-01
+
+### Added
+
+- `doc.go` package documentation for `pkg.go.dev` landing page.
+
 ## [0.1.0] - 2026-05-31
 
 First public release.
