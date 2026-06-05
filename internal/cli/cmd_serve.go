@@ -3,7 +3,6 @@ package cli
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
@@ -32,6 +31,7 @@ import (
 	"github.com/tgpski/leather/internal/curing"
 	"github.com/tgpski/leather/internal/devtools/bus"
 	"github.com/tgpski/leather/internal/devtools/sources"
+	"github.com/tgpski/leather/internal/ids"
 	"github.com/tgpski/leather/internal/logging"
 	"github.com/tgpski/leather/internal/mcp"
 	"github.com/tgpski/leather/internal/model"
@@ -1693,11 +1693,11 @@ func corsMiddleware(h http.Handler) http.Handler {
 // generateDevtoolsToken returns 32 random bytes hex-encoded for use as a
 // per-launch DevTools bearer token.
 func generateDevtoolsToken() (string, error) {
-	var b [32]byte
-	if _, err := rand.Read(b[:]); err != nil {
+	tok, err := ids.RandHex(32)
+	if err != nil {
 		return "", fmt.Errorf("devtools token: %w", err)
 	}
-	return hex.EncodeToString(b[:]), nil
+	return tok, nil
 }
 
 // devtoolsTokenMiddleware gates the wrapped handler with a per-launch bearer

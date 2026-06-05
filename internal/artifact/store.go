@@ -7,13 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
+	"github.com/tgpski/leather/internal/ids"
+	"github.com/tgpski/leather/internal/jsonstore"
 	"github.com/tgpski/leather/internal/model"
 	"github.com/tgpski/leather/internal/safepath"
 )
@@ -35,21 +35,15 @@ func (s *Store) Write(a model.Artifact) error {
 	if err != nil {
 		return fmt.Errorf("artifact/store.Write: invalid curing name %s: %w", a.CuringName, err)
 	}
-	if err := os.MkdirAll(curingDir, 0700); err != nil {
-		return fmt.Errorf("artifact/store.Write: mkdir %s: %w", a.CuringName, err)
-	}
-	data, err := json.Marshal(a)
-	if err != nil {
-		return fmt.Errorf("artifact/store.Write: marshal %s: %w", a.ID, err)
-	}
 	// Anchor the artifact ID (with .json suffix) against the curing directory.
-	// a.ID is caller-controlled so must be validated.
+	// a.ID is caller-controlled so must be validated. jsonstore.Save creates
+	// the curing directory (curingDir is the file's parent) before writing.
 	artifactFile, err := safepath.Anchor(curingDir, a.ID+".json")
 	if err != nil {
 		return fmt.Errorf("artifact/store.Write: invalid artifact id %s: %w", a.ID, err)
 	}
-	if err := os.WriteFile(artifactFile, data, 0600); err != nil {
-		return fmt.Errorf("artifact/store.Write: write %s: %w", a.ID, err)
+	if err := jsonstore.Save(artifactFile, a, 0600); err != nil {
+		return fmt.Errorf("artifact/store.Write: %s: %w", a.ID, err)
 	}
 	return nil
 }
@@ -136,10 +130,5 @@ func (s *Store) Get(id string) (model.Artifact, error) {
 // GenerateArtifactID generates a unique artifact ID in the form
 // "artifact_<yyyymmdd>_<HHMM>_<4hex>".
 func GenerateArtifactID() string {
-	now := time.Now()
-	suffix := rand.Int31n(0x10000) //nolint:gosec
-	return fmt.Sprintf("artifact_%s_%04x",
-		now.Format("20060102_1504"),
-		suffix,
-	)
+	return ids.TimestampHex("artifact")
 }

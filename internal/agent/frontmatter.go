@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tgpski/leather/internal/yamlx"
 )
 
 // frontMatter holds the raw parsed values from the YAML header of a *.agent.md file.
@@ -65,7 +67,7 @@ func applyFrontMatterFields(yamlBlock string, fm *frontMatter) error {
 	activeList := ""
 
 	appendItem := func(field, item string) {
-		item = fmStripQuotes(strings.TrimSpace(item))
+		item = yamlx.StripQuotes(strings.TrimSpace(item))
 		if item == "" {
 			return
 		}
@@ -108,11 +110,11 @@ func applyFrontMatterFields(yamlBlock string, fm *frontMatter) error {
 
 		switch key {
 		case "name":
-			fm.Name = fmStripQuotes(raw)
+			fm.Name = yamlx.StripQuotes(raw)
 		case "schedule":
-			fm.Schedule = fmStripQuotes(raw)
+			fm.Schedule = yamlx.StripQuotes(raw)
 		case "model":
-			fm.Model = fmStripQuotes(raw)
+			fm.Model = yamlx.StripQuotes(raw)
 		case "max_tokens":
 			n, err := strconv.Atoi(raw)
 			if err != nil {
@@ -177,14 +179,4 @@ func applyFrontMatterFields(yamlBlock string, fm *frontMatter) error {
 		}
 	}
 	return nil
-}
-
-// fmStripQuotes removes surrounding single or double quotes from s.
-func fmStripQuotes(s string) string {
-	if len(s) >= 2 {
-		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
-			return s[1 : len(s)-1]
-		}
-	}
-	return s
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/tgpski/leather/internal/model"
+	"github.com/tgpski/leather/internal/yamlx"
 )
 
 // TanneryConfig holds tannery-specific settings loaded from tannery.yaml.
@@ -166,14 +167,14 @@ func parseTanneryYAML(src string) (TanneryConfig, error) {
 
 		// Top-level keys reset block state.
 		if isTopLevel {
-			k, _, _ := notifySplitKV(trimmed)
+			k, _, _ := yamlx.SplitKV(trimmed)
 			switch k {
 			case "hide_dir", "curing_dir", "artifact_dir":
 				flushRoute()
 				flushQueue()
 				flushWebhook()
 				block = blockNone
-				_, v, ok := notifySplitKV(trimmed)
+				_, v, ok := yamlx.SplitKV(trimmed)
 				if ok {
 					switch k {
 					case "hide_dir":
@@ -242,7 +243,7 @@ func parseTanneryRouteLine(trimmed string, indent int, cur **model.TanneryRoute,
 			return nil
 		}
 		// Could be "- name: value" on the same line.
-		k, v, ok := notifySplitKV(inner)
+		k, v, ok := yamlx.SplitKV(inner)
 		if ok && k == "name" {
 			(*cur).Name = v
 		}
@@ -251,7 +252,7 @@ func parseTanneryRouteLine(trimmed string, indent int, cur **model.TanneryRoute,
 	if *cur == nil {
 		return nil
 	}
-	k, v, ok := notifySplitKV(trimmed)
+	k, v, ok := yamlx.SplitKV(trimmed)
 	if !ok {
 		return nil
 	}
@@ -296,7 +297,7 @@ func applyRouteKey(r *model.TanneryRoute, k, v string) {
 // parseTanneryQueueLine parses one indented line within the queues: block.
 // queues is a map-of-maps: the queue name is a top-level key under queues:.
 func parseTanneryQueueLine(trimmed string, indent int, curName *string, cur **model.QueueConcurrencyConfig, flush func()) {
-	k, v, ok := notifySplitKV(trimmed)
+	k, v, ok := yamlx.SplitKV(trimmed)
 	if !ok {
 		return
 	}
@@ -338,7 +339,7 @@ func parseTanneryWebhookLine(trimmed string, indent int, cur **model.WebhookConf
 		if inner == "" {
 			return nil
 		}
-		k, v, ok := notifySplitKV(inner)
+		k, v, ok := yamlx.SplitKV(inner)
 		if ok && k == "name" {
 			(*cur).Name = v
 		}
@@ -347,7 +348,7 @@ func parseTanneryWebhookLine(trimmed string, indent int, cur **model.WebhookConf
 	if *cur == nil {
 		return nil
 	}
-	k, v, ok := notifySplitKV(trimmed)
+	k, v, ok := yamlx.SplitKV(trimmed)
 	if !ok {
 		return nil
 	}

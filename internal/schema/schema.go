@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tgpski/leather/internal/config"
+	"github.com/tgpski/leather/internal/yamlx"
 )
 
 // FieldType describes the expected format of a scalar field value.
@@ -56,7 +56,7 @@ type Violation struct {
 }
 
 // ValidateFlat checks flat YAML data against s.
-// vals holds scalar field values; lists holds list field values (from config.ParseBlock).
+// vals holds scalar field values; lists holds list field values (from yamlx.ParseBlock).
 // Returns violations for: missing required fields, type mismatches, enum violations,
 // and out-of-range integers. Unknown fields are not flagged (forward-compatible).
 func ValidateFlat(vals map[string]string, lists map[string][]string, s Schema) []Violation {
@@ -149,7 +149,7 @@ func validCron(s string) bool {
 // ValidateAgentFrontmatter parses src as agent front-matter YAML and returns field violations.
 // src should be the YAML block between the --- delimiters (excluding the delimiters themselves).
 func ValidateAgentFrontmatter(src string) []Violation {
-	vals, lists := config.ParseBlock(src)
+	vals, lists := yamlx.ParseBlock(src)
 	return ValidateFlat(vals, lists, AgentFrontmatterSchema)
 }
 
@@ -158,7 +158,7 @@ func ValidateAgentFrontmatter(src string) []Violation {
 // The output: block is partially validated: each item's type: field is checked
 // against the allowed enum values [file, queue, http, notify].
 func ValidateLifecycleYAML(src string) []Violation {
-	vals, lists := config.ParseBlock(src)
+	vals, lists := yamlx.ParseBlock(src)
 	viols := ValidateFlat(vals, lists, LifecycleSchema)
 	viols = append(viols, validateLifecycleOutputRoutes(src)...)
 	return viols
@@ -236,26 +236,26 @@ func checkEnum(val string, allowed []string) string {
 // ValidateConfigYAML parses src as config.yaml content and returns field violations.
 // The notify: nested block is not validated (parsed separately by the config loader).
 func ValidateConfigYAML(src string) []Violation {
-	vals, lists := config.ParseBlock(src)
+	vals, lists := yamlx.ParseBlock(src)
 	return ValidateFlat(vals, lists, ConfigSchema)
 }
 
 // ValidateSkillYAML parses src as skill YAML and returns field violations.
 // Tool-level nested objects are not validated here.
 func ValidateSkillYAML(src string) []Violation {
-	vals, lists := config.ParseBlock(src)
+	vals, lists := yamlx.ParseBlock(src)
 	return ValidateFlat(vals, lists, SkillSchema)
 }
 
 // ValidateToolsetYAML parses src as toolset YAML and returns field violations.
 func ValidateToolsetYAML(src string) []Violation {
-	vals, lists := config.ParseBlock(src)
+	vals, lists := yamlx.ParseBlock(src)
 	return ValidateFlat(vals, lists, ToolsetSchema)
 }
 
 // ValidateWorkerYAML parses src as worker YAML and returns field violations.
 func ValidateWorkerYAML(src string) []Violation {
-	vals, lists := config.ParseBlock(src)
+	vals, lists := yamlx.ParseBlock(src)
 	return ValidateFlat(vals, lists, WorkerSchema)
 }
 
@@ -359,7 +359,7 @@ func splitSchemaKV(line string) (string, string) {
 // queues, and webhooks blocks against their respective item schemas.
 func ValidateTanneryYAML(src string) []Violation {
 	// Flat top-level fields (hide_dir, curing_dir, artifact_dir).
-	vals, _ := config.ParseBlock(src)
+	vals, _ := yamlx.ParseBlock(src)
 	viols := ValidateFlat(vals, nil, TanneryConfigSchema)
 
 	src = strings.ReplaceAll(src, "\r\n", "\n")
@@ -436,7 +436,7 @@ func walkTanneryWebhooks(lines []string) []Violation {
 // top-level fields against CuringSchema and the nested output: block against
 // CuringOutputSchema.
 func ValidateCuringYAML(src string) []Violation {
-	vals, lists := config.ParseBlock(src)
+	vals, lists := yamlx.ParseBlock(src)
 	viols := ValidateFlat(vals, lists, CuringSchema)
 
 	// Walk nested output: block.

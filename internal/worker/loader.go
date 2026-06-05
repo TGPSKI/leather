@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/config"
 	"github.com/tgpski/leather/internal/model"
+	"github.com/tgpski/leather/internal/yamlx"
 )
 
 // supportedTypes is the set of worker types leather can run.
@@ -81,9 +81,9 @@ func parseWorkerFile(path string) (model.WorkerDefinition, error) {
 }
 
 // parseWorkerYAML parses a worker YAML document using the stdlib-only block
-// parser from internal/config.
+// parser from internal/yamlx.
 func parseWorkerYAML(src string) (model.WorkerDefinition, error) {
-	vals, _ := config.ParseBlock(src)
+	vals, _ := yamlx.ParseBlock(src)
 
 	name := vals["name"]
 	if name == "" {
