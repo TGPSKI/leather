@@ -247,7 +247,8 @@ an import cycle. Prefer these over re-rolling the same logic inline.
 | `internal/fileutil` | `Exists`, `AtomicWriteFile`, `AtomicWriteFileFunc` | hand-rolled `os.CreateTemp`→`Rename` blocks; `os.Stat`+`IsNotExist` checks |
 | `internal/jsonstore` | `Save`, `Load` | `json.Marshal`+atomic write; `os.ReadFile`+`json.Unmarshal` with not-exist handling |
 | `internal/ids` | `TimestampHex`, `RandHex` | inline `"<prefix>_<ts>_<hex>"` IDs; `crypto/rand`→`hex` token blocks |
-| `internal/yamlx` | `ParseBlock`, `ParseFlat`, `StripQuotes`, `SplitKV` | per-package flat-YAML scanners, quote-strippers, and `key: value` splitters |
+| `internal/yamlx` | `ParseBlock`, `ParseFlat`, `ParseFlatLines`, `StripQuotes`, `SplitKV` | per-package flat-YAML scanners, quote-strippers, and `key: value` splitters |
+| `internal/httpx` | `WriteJSON`, `WriteError` | inline `w.Header().Set(…)`+`json.NewEncoder(w).Encode(…)` patterns in HTTP handlers |
 
 `jsonstore.Load` returns `(found bool, err error)`: a missing file is
 `(false, nil)`, never an error — callers map `!found` to empty state.
@@ -262,6 +263,7 @@ Before opening a PR:
 
 - [ ] `make ci` passes locally (check + test-race + lint)
 - [ ] New disk persistence / ID / flat-YAML code reuses `internal/{fileutil,jsonstore,ids,yamlx}` rather than re-rolling it
+- [ ] New HTTP handler responses use `internal/httpx` (`WriteJSON`, `WriteError`) rather than inline `json.NewEncoder(w).Encode` patterns
 - [ ] New packages have colocated `_test.go` with coverage for exported API
 - [ ] No `//nolint` directives without a comment explaining the exception
 - [ ] Benchmarks added for any new hot-path code
@@ -271,4 +273,4 @@ Before opening a PR:
 
 ---
 
-_Last reviewed: 2026-06-05_
+_Last reviewed: 2026-06-05_ 

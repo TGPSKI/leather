@@ -44,7 +44,7 @@ func RunValidate(args []string, stdout, stderr io.Writer) int {
 			name := filepath.Base(cfg.ConfigFile)
 			if len(viols) > 0 {
 				for _, v := range viols {
-					fmt.Fprintf(stderr, "schema: %s:  field %q: %s\n", name, v.Field, v.Message)
+					fmt.Fprintln(stderr, fmtViol(name, v))
 				}
 				exitCode = 1
 			} else {
@@ -98,7 +98,7 @@ func RunValidate(args []string, stdout, stderr io.Writer) int {
 				viols = schema.ValidateLifecycleYAML(src)
 			}
 			for _, v := range viols {
-				fmt.Fprintf(stderr, "schema: %s:  field %q: %s\n", e.Name(), v.Field, v.Message)
+				fmt.Fprintln(stderr, fmtViol(e.Name(), v))
 				exitCode = 1
 			}
 		}
@@ -122,7 +122,7 @@ func RunValidate(args []string, stdout, stderr io.Writer) int {
 				viols := schema.ValidateSkillYAML(string(data))
 				if len(viols) > 0 {
 					for _, v := range viols {
-						fmt.Fprintf(stderr, "schema: %s:  field %q: %s\n", e.Name(), v.Field, v.Message)
+						fmt.Fprintln(stderr, fmtViol(e.Name(), v))
 					}
 					exitCode = 1
 				} else {
@@ -147,7 +147,7 @@ func RunValidate(args []string, stdout, stderr io.Writer) int {
 				viols := schema.ValidateToolsetYAML(string(data))
 				if len(viols) > 0 {
 					for _, v := range viols {
-						fmt.Fprintf(stderr, "schema: %s:  field %q: %s\n", e.Name(), v.Field, v.Message)
+						fmt.Fprintln(stderr, fmtViol(e.Name(), v))
 					}
 					exitCode = 1
 				} else {
@@ -176,7 +176,7 @@ func RunValidate(args []string, stdout, stderr io.Writer) int {
 				viols := schema.ValidateWorkerYAML(string(data))
 				if len(viols) > 0 {
 					for _, v := range viols {
-						fmt.Fprintf(stderr, "schema: %s:  field %q: %s\n", e.Name(), v.Field, v.Message)
+						fmt.Fprintln(stderr, fmtViol(e.Name(), v))
 					}
 					exitCode = 1
 				} else {
@@ -201,7 +201,7 @@ func RunValidate(args []string, stdout, stderr io.Writer) int {
 			name := filepath.Base(mcpFile)
 			if len(viols) > 0 {
 				for _, v := range viols {
-					fmt.Fprintf(stderr, "schema: %s:  field %q: %s\n", name, v.Field, v.Message)
+					fmt.Fprintln(stderr, fmtViol(name, v))
 				}
 				exitCode = 1
 			} else {
@@ -219,7 +219,7 @@ func RunValidate(args []string, stdout, stderr io.Writer) int {
 			name := filepath.Base(cfg.TanneryFile)
 			if len(viols) > 0 {
 				for _, v := range viols {
-					fmt.Fprintf(stderr, "schema: %s:  field %q: %s\n", name, v.Field, v.Message)
+					fmt.Fprintln(stderr, fmtViol(name, v))
 				}
 				exitCode = 1
 			} else {
@@ -245,7 +245,7 @@ func RunValidate(args []string, stdout, stderr io.Writer) int {
 						viols := schema.ValidateCuringYAML(string(data))
 						if len(viols) > 0 {
 							for _, v := range viols {
-								fmt.Fprintf(stderr, "schema: %s:  field %q: %s\n", e.Name(), v.Field, v.Message)
+								fmt.Fprintln(stderr, fmtViol(e.Name(), v))
 							}
 							exitCode = 1
 						} else {
@@ -266,6 +266,15 @@ func RunValidate(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "\n%d file(s) checked\n", totalFiles)
 	}
 	return exitCode
+}
+
+// fmtViol formats a schema violation for stderr output.
+// When v.Line > 0 the output includes the source line number: "schema: file:N:  field ...".
+func fmtViol(file string, v schema.Violation) string {
+	if v.Line > 0 {
+		return fmt.Sprintf("schema: %s:%d:  field %q: %s", file, v.Line, v.Field, v.Message)
+	}
+	return fmt.Sprintf("schema: %s:  field %q: %s", file, v.Field, v.Message)
 }
 
 // extractFrontMatterYAML returns the YAML content between the leading --- delimiters of src.

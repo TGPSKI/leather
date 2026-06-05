@@ -5,7 +5,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +20,7 @@ import (
 	"github.com/tgpski/leather/internal/config"
 	"github.com/tgpski/leather/internal/curing"
 	"github.com/tgpski/leather/internal/hide"
+	"github.com/tgpski/leather/internal/httpx"
 	"github.com/tgpski/leather/internal/model"
 	"github.com/tgpski/leather/internal/queue"
 	"github.com/tgpski/leather/internal/runner"
@@ -425,7 +425,7 @@ func makeWebhookHandler(wh model.WebhookConfig, td *tanneryDeps, deps *apiDeps) 
 				if queueCfg, exists := td.tannCfg.Queues[route.Queue]; exists &&
 					queueCfg.MaxDepth > 0 && deps.queueMgr.Depth(route.Queue) >= queueCfg.MaxDepth {
 					w.Header().Set("Retry-After", "30")
-					writeJSONError(w, "queue full: "+route.Queue, http.StatusServiceUnavailable)
+					httpx.WriteError(w, http.StatusServiceUnavailable, "queue full: "+route.Queue)
 					return
 				}
 			}
@@ -529,7 +529,7 @@ func makeWebhookHandler(wh model.WebhookConfig, td *tanneryDeps, deps *apiDeps) 
 			return
 		}
 		// Backward-compat: top-level curing/queue fields reflect the first route.
-		writeJSON(w, http.StatusAccepted, map[string]any{
+		httpx.WriteJSON(w, http.StatusAccepted, map[string]any{
 			"hide_id": entry.ID,
 			"curing":  results[0].Curing,
 			"queue":   results[0].Queue,
@@ -573,7 +573,7 @@ func handleHidesCollection(td *tanneryDeps) http.HandlerFunc {
 		if entries == nil {
 			entries = []hide.StoreEntry{}
 		}
-		writeJSON(w, http.StatusOK, entries)
+		httpx.WriteJSON(w, http.StatusOK, entries)
 	}
 }
 
@@ -614,7 +614,7 @@ func dispatchHide(td *tanneryDeps) http.HandlerFunc {
 				http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
 				return
 			}
-			writeJSON(w, http.StatusOK, entry)
+			httpx.WriteJSON(w, http.StatusOK, entry)
 		case sub == "" && r.Method == http.MethodDelete:
 			if err := td.hideStore.Delete(id); err != nil {
 				if errors.Is(err, os.ErrNotExist) {
@@ -635,7 +635,7 @@ func dispatchHide(td *tanneryDeps) http.HandlerFunc {
 				http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
 				return
 			}
-			writeJSON(w, http.StatusOK, cut)
+			httpx.WriteJSON(w, http.StatusOK, cut)
 		default:
 			http.NotFound(w, r)
 		}
@@ -663,7 +663,7 @@ func handleArtifactsCollection(td *tanneryDeps) http.HandlerFunc {
 		if arts == nil {
 			arts = []model.Artifact{}
 		}
-		writeJSON(w, http.StatusOK, arts)
+		httpx.WriteJSON(w, http.StatusOK, arts)
 	}
 }
 
@@ -688,7 +688,7 @@ func dispatchArtifact(td *tanneryDeps) http.HandlerFunc {
 			http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
-		writeJSON(w, http.StatusOK, art)
+		httpx.WriteJSON(w, http.StatusOK, art)
 	}
 }
 
@@ -703,7 +703,7 @@ func handleCurings(td *tanneryDeps) http.HandlerFunc {
 		if defs == nil {
 			defs = []model.CuringDefinition{}
 		}
-		writeJSON(w, http.StatusOK, defs)
+		httpx.WriteJSON(w, http.StatusOK, defs)
 	}
 }
 
@@ -717,7 +717,7 @@ func handleIntake(td *tanneryDeps, deps *apiDeps) http.HandlerFunc {
 		}
 		kind := r.URL.Query().Get("kind")
 		if kind == "" {
-			writeJSONError(w, "missing required query param: kind", http.StatusBadRequest)
+			httpx.WriteError(w, http.StatusBadRequest, "missing required query param: kind")
 			return
 		}
 		source := r.URL.Query().Get("source")
@@ -748,7 +748,7 @@ func handleIntake(td *tanneryDeps, deps *apiDeps) http.HandlerFunc {
 			if queueCfg, exists := td.tannCfg.Queues[queueName]; exists &&
 				queueCfg.MaxDepth > 0 && deps.queueMgr.Depth(queueName) >= queueCfg.MaxDepth {
 				w.Header().Set("Retry-After", "30")
-				writeJSONError(w, "queue full", http.StatusServiceUnavailable)
+				httpx.WriteError(w, http.StatusServiceUnavailable, "queue full")
 				return // hide NOT stored — caller retries
 			}
 		}
@@ -784,20 +784,8 @@ func handleIntake(td *tanneryDeps, deps *apiDeps) http.HandlerFunc {
 				"hide_id": entry.ID,
 			})
 		}
-		writeJSON(w, http.StatusAccepted, resp)
+		httpx.WriteJSON(w, http.StatusAccepted, resp)
 	}
-}
-
-// writeJSON encodes v as JSON and writes it with the given status code.
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-// writeJSONError writes a JSON {"error":"<msg>"} response with the given status.
-func writeJSONError(w http.ResponseWriter, msg string, status int) {
-	writeJSON(w, status, map[string]string{"error": msg})
 }
 
 // drainTannery stops all curing workers and waits for in-flight work to finish.

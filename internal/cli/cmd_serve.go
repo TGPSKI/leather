@@ -31,6 +31,7 @@ import (
 	"github.com/tgpski/leather/internal/curing"
 	"github.com/tgpski/leather/internal/devtools/bus"
 	"github.com/tgpski/leather/internal/devtools/sources"
+	"github.com/tgpski/leather/internal/httpx"
 	"github.com/tgpski/leather/internal/ids"
 	"github.com/tgpski/leather/internal/logging"
 	"github.com/tgpski/leather/internal/mcp"
@@ -1797,11 +1798,11 @@ func apiMux(deps apiDeps) http.Handler {
 			checks["llm_endpoint"] = check{OK: true}
 		}
 
-		w.Header().Set("Content-Type", "application/json")
+		status := http.StatusOK
 		if !ok {
-			w.WriteHeader(http.StatusServiceUnavailable)
+			status = http.StatusServiceUnavailable
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		httpx.WriteJSON(w, status, map[string]any{
 			"status": map[bool]string{true: "ok", false: "degraded"}[ok],
 			"checks": checks,
 		})
@@ -1819,10 +1820,7 @@ func apiMux(deps apiDeps) http.Handler {
 		if jobs == nil {
 			jobs = []model.Job{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(jobs); err != nil {
-			log.Error("API /jobs encode error", "error", err)
-		}
+		httpx.WriteJSON(w, http.StatusOK, jobs)
 	})
 
 	mux.HandleFunc("/jobs/", func(w http.ResponseWriter, r *http.Request) {
@@ -1839,16 +1837,11 @@ func apiMux(deps apiDeps) http.Handler {
 		}
 		for _, j := range jobs {
 			if j.AgentName == name {
-				w.Header().Set("Content-Type", "application/json")
-				if err := json.NewEncoder(w).Encode(j); err != nil {
-					log.Error("API /jobs/{name} encode error", "error", err)
-				}
+				httpx.WriteJSON(w, http.StatusOK, j)
 				return
 			}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprint(w, `{"error":"not found"}`)
+		httpx.WriteError(w, http.StatusNotFound, "not found")
 	})
 
 	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
@@ -1897,10 +1890,7 @@ func apiMux(deps apiDeps) http.Handler {
 				MaxConcurrentJobs: deps.cfg.MaxConcurrentJobs,
 			}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(body); err != nil {
-			log.Error("API /status encode error", "error", err)
-		}
+		httpx.WriteJSON(w, http.StatusOK, body)
 	})
 
 	mux.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
@@ -1910,10 +1900,7 @@ func apiMux(deps apiDeps) http.Handler {
 		} else {
 			body = buildConfigResponse(deps.cfg)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(body); err != nil {
-			log.Error("API /config encode error", "error", err)
-		}
+		httpx.WriteJSON(w, http.StatusOK, body)
 	})
 
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
@@ -1925,10 +1912,7 @@ func apiMux(deps apiDeps) http.Handler {
 		} else {
 			body = metricsResponse{Agents: deps.metrics.summaries()}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(body); err != nil {
-			log.Error("API /metrics encode error", "error", err)
-		}
+		httpx.WriteJSON(w, http.StatusOK, body)
 	})
 
 	mux.HandleFunc("/history", func(w http.ResponseWriter, r *http.Request) {
@@ -1943,10 +1927,7 @@ func apiMux(deps apiDeps) http.Handler {
 		if recs == nil {
 			recs = []model.RunRecord{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(recs); err != nil {
-			log.Error("API /history encode error", "error", err)
-		}
+		httpx.WriteJSON(w, http.StatusOK, recs)
 	})
 
 	mux.HandleFunc("/snapshot", func(w http.ResponseWriter, r *http.Request) {
@@ -1989,18 +1970,14 @@ func apiMux(deps apiDeps) http.Handler {
 				History:    recs,
 			}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(body); err != nil {
-			log.Error("API /snapshot encode error", "error", err)
-		}
+		httpx.WriteJSON(w, http.StatusOK, body)
 	})
 
 	// /replay/control — pause, resume, or change speed in replay-live mode.
 	mux.HandleFunc("/replay/control", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if deps.replayLive == nil {
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprint(w, `{"error":"not in replay-live mode"}`)
+			httpx.WriteError(w, http.StatusNotFound, "not in replay-live mode")
 			return
 		}
 		switch r.URL.Query().Get("action") {
@@ -2021,11 +1998,8 @@ func apiMux(deps apiDeps) http.Handler {
 
 	// /queues — list all known queues with their current length.
 	mux.HandleFunc("/queues", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		if deps.queueMgr == nil {
-			if err := json.NewEncoder(w).Encode([]any{}); err != nil {
-				log.Error("API /queues encode error", "error", err)
-			}
+			httpx.WriteJSON(w, http.StatusOK, []any{})
 			return
 		}
 		type queueSummary struct {
@@ -2041,22 +2015,18 @@ func apiMux(deps apiDeps) http.Handler {
 			}
 			out = append(out, queueSummary{Name: name, Len: q.Len()})
 		}
-		if err := json.NewEncoder(w).Encode(out); err != nil {
-			log.Error("API /queues encode error", "error", err)
-		}
+		httpx.WriteJSON(w, http.StatusOK, out)
 	})
 
 	// /queues/{name} — GET details; POST .../requeue moves DLQ back; DELETE drains.
 	mux.HandleFunc("/queues/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		name := strings.TrimPrefix(r.URL.Path, "/queues/")
 		if name == "" {
 			http.NotFound(w, r)
 			return
 		}
 		if deps.queueMgr == nil {
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprint(w, `{"error":"queue manager not configured"}`)
+			httpx.WriteError(w, http.StatusNotFound, "queue manager not configured")
 			return
 		}
 		// POST /queues/{name}/requeue — move all DLQ items back to the named queue.
@@ -2065,18 +2035,12 @@ func apiMux(deps apiDeps) http.Handler {
 			dlqName := queueName + "-dlq"
 			dlq, err := deps.queueMgr.Get(dlqName)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
-					log.Error("API /queues requeue encode error", "error", encErr)
-				}
+				httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
 			items, err := dlq.Drain()
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
-					log.Error("API /queues requeue encode error", "error", encErr)
-				}
+				httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
 			// T2.4: propagate per-item enqueue errors; roll back failed items
@@ -2101,46 +2065,35 @@ func apiMux(deps apiDeps) http.Handler {
 			if len(failed) > 0 {
 				status = http.StatusMultiStatus
 			}
-			w.WriteHeader(status)
-			if err := json.NewEncoder(w).Encode(map[string]any{
+			httpx.WriteJSON(w, status, map[string]any{
 				"requeued": succeeded,
 				"failed":   failed,
-			}); err != nil {
-				log.Error("API /queues requeue encode error", "error", err)
-			}
+			})
 			return
 		}
 		// DELETE /queues/{name} — drain the named queue (requires ?confirm=yes).
 		if r.Method == http.MethodDelete {
 			if r.URL.Query().Get("confirm") != "yes" {
-				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprint(w, `{"error":"add ?confirm=yes to confirm drain"}`)
+				httpx.WriteError(w, http.StatusBadRequest, "add ?confirm=yes to confirm drain")
 				return
 			}
 			q, err := deps.queueMgr.Get(name)
 			if err != nil {
-				w.WriteHeader(http.StatusNotFound)
-				fmt.Fprint(w, `{"error":"not found"}`)
+				httpx.WriteError(w, http.StatusNotFound, "not found")
 				return
 			}
 			items, err := q.Drain()
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
-					log.Error("API /queues delete encode error", "error", encErr)
-				}
+				httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
-			if err := json.NewEncoder(w).Encode(map[string]int{"drained": len(items)}); err != nil {
-				log.Error("API /queues delete encode error", "error", err)
-			}
+			httpx.WriteJSON(w, http.StatusOK, map[string]int{"drained": len(items)})
 			return
 		}
 		// GET /queues/{name} — details for a specific queue including its head item.
 		q, err := deps.queueMgr.Get(name)
 		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprint(w, `{"error":"not found"}`)
+			httpx.WriteError(w, http.StatusNotFound, "not found")
 			return
 		}
 		type queueDetail struct {
@@ -2152,9 +2105,7 @@ func apiMux(deps apiDeps) http.Handler {
 		if item, ok := q.Peek(); ok {
 			detail.Head = &item
 		}
-		if err := json.NewEncoder(w).Encode(detail); err != nil {
-			log.Error("API /queues/{name} encode error", "error", err)
-		}
+		httpx.WriteJSON(w, http.StatusOK, detail)
 	})
 
 	// cacheStatsResponse is the JSON shape for GET /cache/stats.
@@ -2178,10 +2129,8 @@ func apiMux(deps apiDeps) http.Handler {
 	const cacheStatsMaxEntries = 1000
 
 	mux.HandleFunc("/cache/stats", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		if deps.cacheDir == "" {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			fmt.Fprint(w, `{"error":"cache not configured"}`)
+			httpx.WriteError(w, http.StatusServiceUnavailable, "cache not configured")
 			return
 		}
 		cacheStatsMu.Lock()
@@ -2189,22 +2138,17 @@ func apiMux(deps apiDeps) http.Handler {
 			cached := cacheStatsResult
 			cached.Cached = true
 			cacheStatsMu.Unlock()
-			if err := json.NewEncoder(w).Encode(cached); err != nil {
-				log.Error("API /cache/stats encode error", "error", err)
-			}
+			httpx.WriteJSON(w, http.StatusOK, cached)
 			return
 		}
 		cacheStatsMu.Unlock()
 		entries, err := os.ReadDir(deps.cacheDir)
 		if err != nil {
 			if os.IsNotExist(err) {
-				if err := json.NewEncoder(w).Encode(cacheStatsResponse{Dir: deps.cacheDir}); err != nil {
-					log.Error("API /cache/stats encode error", "error", err)
-				}
+				httpx.WriteJSON(w, http.StatusOK, cacheStatsResponse{Dir: deps.cacheDir})
 				return
 			}
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprint(w, `{"error":"could not read cache dir"}`)
+			httpx.WriteError(w, http.StatusInternalServerError, "could not read cache dir")
 			return
 		}
 		var stats cacheStatsResponse
@@ -2241,13 +2185,10 @@ func apiMux(deps apiDeps) http.Handler {
 		cacheStatsResult = stats
 		cacheStatsAt = time.Now()
 		cacheStatsMu.Unlock()
-		if err := json.NewEncoder(w).Encode(stats); err != nil {
-			log.Error("API /cache/stats encode error", "error", err)
-		}
+		httpx.WriteJSON(w, http.StatusOK, stats)
 	})
 
 	mux.HandleFunc("/workers", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		statuses := []worker.WorkerStatus{}
 		if deps.getWorkerSup != nil {
 			if sup := deps.getWorkerSup(); sup != nil {
@@ -2256,9 +2197,7 @@ func apiMux(deps apiDeps) http.Handler {
 				}
 			}
 		}
-		if err := json.NewEncoder(w).Encode(statuses); err != nil {
-			log.Error("API /workers encode error", "error", err)
-		}
+		httpx.WriteJSON(w, http.StatusOK, statuses)
 	})
 
 	var handler http.Handler = mux

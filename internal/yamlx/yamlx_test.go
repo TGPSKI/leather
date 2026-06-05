@@ -261,3 +261,40 @@ func TestSplitKV(t *testing.T) {
 		})
 	}
 }
+
+func TestParseFlatLines(t *testing.T) {
+	input := `# comment line 1
+key_a: alpha
+key_b: beta
+
+# another comment
+key_c: gamma
+key_d: "quoted"
+`
+	vals, lists, lines, err := ParseFlatLines(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("ParseFlatLines: %v", err)
+	}
+	_ = lists
+
+	cases := []struct {
+		key      string
+		wantVal  string
+		wantLine int
+	}{
+		{"key_a", "alpha", 2},
+		{"key_b", "beta", 3},
+		{"key_c", "gamma", 6},
+		{"key_d", "quoted", 7},
+	}
+	for _, tc := range cases {
+		t.Run(tc.key, func(t *testing.T) {
+			if got := vals[tc.key]; got != tc.wantVal {
+				t.Errorf("vals[%q] = %q, want %q", tc.key, got, tc.wantVal)
+			}
+			if got := lines[tc.key]; got != tc.wantLine {
+				t.Errorf("lines[%q] = %d, want %d", tc.key, got, tc.wantLine)
+			}
+		})
+	}
+}
