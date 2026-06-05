@@ -39,6 +39,7 @@ Each subcommand has:
 
 | Subcommand | Function | Purpose |
 |---|---|---|
+| `doctor` | `RunDoctor` | Print effective config values with source attribution; redact secrets |
 | `init` | `RunInit` | Scaffold a new project directory with config, agent, and Makefile |
 | `serve` | `RunServe(args, stdout, stderr, version, commit)` | Start scheduler loop + optional HTTP API |
 | `chat` | `RunChat` | Interactive multi-turn chat session with a named agent |
