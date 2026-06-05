@@ -7,7 +7,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [0.1.3] - 2026-06-04
+## [0.1.3] - 2026-06-05
 
 ### Added
 
@@ -51,6 +51,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
     origin, CHANGELOG has the version, tag does not already exist), then
     creates and pushes an annotated tag to trigger the automated release
     pipeline.
+- `.claude/skills/` symlinks pointing to `.agents/skills/` so Claude Code
+  discovers project skills without duplicating files.
+- `make link-skills` target recreates those symlinks for contributors cloning
+  fresh.
 
 ### Changed
 
