@@ -36,6 +36,8 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 	case "--version", "-v":
 		// Top-level convenience: `leather --version` / `leather -v`.
 		return RunVersion(rest, stdout, stderr, version, commit)
+	case "init":
+		return RunInit(rest, stdout, stderr)
 	case "ingest":
 		return RunIngest(rest, stdout, stderr)
 	case "replay":

@@ -220,4 +220,27 @@ Before opening a PR that touches `tanning/` or a tutorial:
 
 ---
 
-_Last reviewed: 2026-05-19_
+## `leather init` scaffold convention
+
+`leather init [--dir <path>] [--overwrite]` writes four files into the target
+directory:
+
+```
+config.yaml                     minimal config pointing at agents/ and .state/
+agents/my-agent.agent.md        stub agent with name front matter
+agents/my-agent.lifecycle.yaml  hourly schedule wired to my-agent
+Makefile                        run + validate + clean targets
+```
+
+The scaffold follows the same conventions as `examples/01-hello-mock`:
+- `agent_dir: agents` and `state_dir: .state` in `config.yaml`
+- agent name in front matter matches the lifecycle `agent:` field
+- no model hard-coded — user supplies `LEATHER_MODEL` at run time
+
+When adding a new example under `examples/`, verify that its structure
+matches what `leather init` produces for the shared fields above, so new
+users graduate from `init` to a real example without friction.
+
+---
+
+_Last reviewed: 2026-06-04_

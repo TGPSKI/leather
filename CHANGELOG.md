@@ -7,6 +7,21 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-06-04
+
+### Added
+
+- `leather init` subcommand: scaffolds a new project directory with a
+  `config.yaml`, example `agents/my-agent.agent.md`,
+  `agents/my-agent.lifecycle.yaml`, and a `Makefile`.
+  - `--dir <path>` selects the target directory (created if absent; defaults
+    to `.`).
+  - Fails closed on existing files — any collision is reported with a hint to
+    use `--overwrite`.
+  - `--overwrite` replaces existing files.
+  - Schema-validates the scaffolded `config.yaml` and lifecycle file before
+    reporting success.
+
 ## [0.1.0] - 2026-05-31
 
 First public release.

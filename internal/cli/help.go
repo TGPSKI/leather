@@ -6,6 +6,7 @@ Usage:
   leather <command> [flags]
 
 Commands:
+  init        scaffold a new project directory with config, agent, and Makefile
   serve       run the scheduler loop (primary operating mode)
   chat        interactive chat session with session context management
   run         execute a single agent definition once and exit
