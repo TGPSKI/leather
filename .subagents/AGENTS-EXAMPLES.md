@@ -243,4 +243,22 @@ users graduate from `init` to a real example without friction.
 
 ---
 
+## Agent skills for release workflow
+
+`.agents/skills/` contains two skills that automate the leather release
+cycle. These are **Claude Code / coding-agent skills**, not leather
+agent definitions — they run in the IDE assistant, not under `leather serve`.
+
+| Skill | Path | Purpose |
+|---|---|---|
+| `release-prep` | [`.agents/skills/release-prep/SKILL.md`](../.agents/skills/release-prep/SKILL.md) | Detect next version, insert CHANGELOG section, update docs, commit + push `main`. |
+| `release-tag` | [`.agents/skills/release-tag/SKILL.md`](../.agents/skills/release-tag/SKILL.md) | Run four pre-flight gates, create and push annotated tag, verify on origin. |
+
+**Workflow:** run `release-prep` first. When its commit is on `origin/main`,
+run `release-tag`. The tag push triggers `.github/workflows/release.yml` which
+builds binaries and creates the GitHub Release — do not call `gh release create`
+manually.
+
+---
+
 _Last reviewed: 2026-06-04_
