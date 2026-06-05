@@ -86,7 +86,13 @@ func initFile(path, content string, overwrite bool, out, errOut io.Writer) bool 
 // Usage: leather init [--dir <path>] [--overwrite]
 func RunInit(args []string, stdout, stderr io.Writer) int {
 	fs := newFlagSet("init", stderr)
-	dir := fs.String("dir", ".", "target directory for the new project (created if absent)")
+
+	defaultDir := "~/.leather"
+	if home, err := os.UserHomeDir(); err == nil {
+		defaultDir = filepath.Join(home, ".leather")
+	}
+
+	dir := fs.String("dir", defaultDir, "target directory for the new project (created if absent)")
 	overwrite := fs.Bool("overwrite", false, "overwrite existing files")
 	if !parseFlags(fs, args) {
 		return 2
