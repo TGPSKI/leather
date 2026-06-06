@@ -16,6 +16,7 @@ Commands:
   status      show scheduler state, job history, token budget usage
   ingest      store raw bytes as a hide and optionally enqueue for curing
   replay      replay a captured snapshot or runs directory via the API
+  snapshot    save or restore a point-in-time archive of runtime state
   version     print build version information
   help        print this message
 

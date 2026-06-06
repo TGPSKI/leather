@@ -40,9 +40,13 @@ The major v0.2 themes are *day-2 operations*, *codebase hygiene*, and
   semantics; print a compact status/artifact summary; and exit with a
   meaningful code. This gives agent-backed tasks like signed per-file git
   commits a clear Leather-owned execution path instead of process glue.
-- **`leather snapshot save / restore`** — built-in backup tooling.
-  Today the procedure is *stop the service, tar the state dir, start
-  again* (see [docs/OPERATIONS.md](docs/OPERATIONS.md#backup-and-restore)).
+- ~~**`leather snapshot save / restore`**~~ — shipped in v0.2 (issue #6).
+- **`leather attach`** — join a running `serve` instance and stream
+  pretty-printed runtime logs in the terminal. Connects to the API
+  server (SSE or a new `/logs/stream` endpoint), renders structured
+  log lines with color-coded levels, component labels, and key-value
+  pairs. Supports `--filter` by component or level; reconnects with
+  backoff if the serve process restarts. Tracked in issue #19.
 
 ### Runtime
 

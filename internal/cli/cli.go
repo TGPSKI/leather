@@ -44,6 +44,8 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		return RunIngest(rest, stdout, stderr)
 	case "replay":
 		return RunReplay(rest, stdout, stderr, version, commit)
+	case "snapshot":
+		return RunSnapshot(rest, stdout, stderr)
 	case "help", "--help", "-h":
 		fmt.Fprint(stdout, usage)
 		return 0
