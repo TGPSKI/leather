@@ -218,6 +218,29 @@ binary for shell commands; an HTTP MCP server for HTTP APIs).
 - The capability is a coherent verb (e.g. `release-write`,
   `inbox-triage`), not a grab bag.
 
+#### Adding retry policy to a skill tool
+
+Tools that call remote APIs should declare a `retry:` block to handle transient
+failures (5xx, 429, network errors) without relying on the caller to retry:
+
+```yaml
+tools:
+  - name: github_list_issues
+    type: http
+    http:
+      url: "https://api.github.com/repos/{{.repo}}/issues"
+    retry:
+      max_attempts: 3    # initial attempt + 2 retries
+      base_delay: 1s     # doubles each retry; capped at max_delay
+      max_delay: 30s
+      honor_retry_after: true  # use Retry-After header when present
+```
+
+Omitting `retry:` (or setting `max_attempts: 1`) preserves the legacy
+single-attempt behaviour — no retries, no backoff. Only transient errors
+(5xx, 429, network timeouts) trigger retries; permanent 4xx errors return
+immediately regardless of the retry config.
+
 ### When to write a per-turn declaration
 
 - The turn does something dangerous and the agent's base scope is too

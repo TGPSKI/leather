@@ -224,6 +224,9 @@ func loadYAMLFile(path string, cfg *model.Config) error {
 		return err
 	}
 	cfg.NotifyBackends = parseNotifyBackends(string(b))
+	if limits := parseToolRateLimits(string(b)); len(limits) > 0 {
+		cfg.ToolRateLimits = limits
+	}
 	return nil
 }
 
@@ -669,6 +672,73 @@ func parseNotifyBackendItem(lines []string) model.NotifyBackendConfig {
 		}
 	}
 	return b
+}
+
+// parseToolRateLimits extracts the tools.rate_limits map from raw YAML source.
+// It looks for a block of the form:
+//
+//	tools:
+//	  rate_limits:
+//	    api.github.com: 5000/h
+//	    example.com: 10/s
+//
+// Returns nil when the block is absent.
+func parseToolRateLimits(src string) map[string]string {
+	lines := strings.Split(src, "\n")
+
+	// Find "tools:" top-level key.
+	toolsStart := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "tools:" {
+			toolsStart = i + 1
+			break
+		}
+	}
+	if toolsStart < 0 {
+		return nil
+	}
+
+	// Collect indented lines inside the tools: block.
+	var toolsLines []string
+	for i := toolsStart; i < len(lines); i++ {
+		line := lines[i]
+		if line == "" || strings.TrimSpace(line) == "" {
+			toolsLines = append(toolsLines, "")
+			continue
+		}
+		if len(line) > 0 && line[0] != ' ' && line[0] != '\t' {
+			break
+		}
+		toolsLines = append(toolsLines, strings.TrimSpace(line))
+	}
+
+	// Find "rate_limits:" sub-block.
+	rlStart := -1
+	for i, line := range toolsLines {
+		if line == "rate_limits:" {
+			rlStart = i + 1
+			break
+		}
+	}
+	if rlStart < 0 {
+		return nil
+	}
+
+	limits := make(map[string]string)
+	for _, line := range toolsLines[rlStart:] {
+		if line == "" {
+			continue
+		}
+		k, v, ok := yamlx.SplitKV(line)
+		if !ok || v == "" {
+			continue
+		}
+		limits[k] = v
+	}
+	if len(limits) == 0 {
+		return nil
+	}
+	return limits
 }
 
 // parseLLMAPIKeyBlock extracts the llm_api_key field from raw YAML source.

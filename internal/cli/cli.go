@@ -46,6 +46,8 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		return RunReplay(rest, stdout, stderr, version, commit)
 	case "snapshot":
 		return RunSnapshot(rest, stdout, stderr)
+	case "dlq":
+		return RunDLQ(rest, stdout, stderr)
 	case "attach":
 		return RunAttach(rest, stdout, stderr)
 	case "help", "--help", "-h":

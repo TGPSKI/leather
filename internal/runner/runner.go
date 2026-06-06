@@ -84,6 +84,9 @@ type Runner struct {
 	// turn. Use in reflection mode so the final structured output is plain text
 	// after all pages have been read.
 	NoToolsForLastTurn bool
+	// ToolLimiter, when non-nil, applies per-host token-bucket rate limiting to
+	// outbound HTTP and MCP tool calls. Constructed from Config.ToolRateLimits.
+	ToolLimiter *tool.HostLimiter
 	// Vars holds named values that replace {{key}} placeholders in the agent's
 	// system prompt and user prompt before the first LLM call. Populated by
 	// leather run when skills declare parameters.
@@ -430,7 +433,7 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 						hideToolSucceeded = true
 					}
 				} else {
-					result = (&tool.Executor{MCP: r.MCPRegistry}).Execute(ctx, def, tc.Arguments)
+					result = (&tool.Executor{MCP: r.MCPRegistry, QueueMgr: r.QueueMgr, AgentName: a.Name, Limiter: r.ToolLimiter}).Execute(ctx, def, tc.Arguments)
 				}
 				if result.Error == "" && def.Buffer {
 					if r.HideBuffer == nil {

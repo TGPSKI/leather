@@ -4,18 +4,24 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
+	"syscall"
 	"time"
 
+	"github.com/tgpski/leather/internal/ids"
 	"github.com/tgpski/leather/internal/mcp"
 	"github.com/tgpski/leather/internal/model"
+	"github.com/tgpski/leather/internal/queue"
 )
 
 // toolClient is a shared HTTP client with a conservative timeout.
@@ -23,12 +29,41 @@ import (
 // tool calls from blocking indefinitely on unresponsive endpoints.
 var toolClient = &http.Client{Timeout: 30 * time.Second}
 
+// Package-level atomic metrics counters.
+var (
+	metricRetryTotal         int64 // incremented on each retry attempt
+	metricBackoffTotal       int64 // incremented when a retry-after sleep occurs
+	metricRateLimitWaitTotal int64 // incremented when HostLimiter.Wait blocks
+)
+
+// MetricSnapshot returns a point-in-time copy of the outbound tool counters.
+func MetricSnapshot() (retryTotal, backoffTotal, rateLimitWaitTotal int64) {
+	return atomic.LoadInt64(&metricRetryTotal),
+		atomic.LoadInt64(&metricBackoffTotal),
+		atomic.LoadInt64(&metricRateLimitWaitTotal)
+}
+
+const (
+	outboundDLQName    = "outbound-dlq"
+	defaultMaxAttempts = 3
+	defaultBaseDelay   = 1 * time.Second
+	defaultMaxDelay    = 30 * time.Second
+)
+
 // Executor dispatches tool calls to the appropriate backend.
 // The zero value (all fields nil) handles http-type tools only.
 type Executor struct {
 	// MCP is the registry of running MCP server clients.
 	// Nil means mcp-type tools are unavailable.
 	MCP *mcp.Registry
+	// QueueMgr, when non-nil, enables the outbound DLQ: permanent failures and
+	// exhausted-retry failures are enqueued to the "outbound-dlq" queue.
+	QueueMgr *queue.Manager
+	// AgentName is propagated into outbound-DLQ items for traceability.
+	AgentName string
+	// Limiter, when non-nil, applies per-host token-bucket throttling before
+	// every outbound HTTP or MCP-backed call (including retries).
+	Limiter *HostLimiter
 }
 
 // Execute dispatches a ToolCall to the appropriate executor based on def.Type.
@@ -38,14 +73,16 @@ func (e *Executor) Execute(ctx context.Context, def model.ToolDefinition, args m
 	var content string
 	var execErr error
 
+	retrycfg := resolvedRetry(def.Retry)
+
 	switch def.Type {
 	case "http", "":
-		content, execErr = execHTTP(ctx, def.HTTP, args, def.AllowedEnv)
+		content, execErr = e.execHTTPWithRetry(ctx, def, args, retrycfg)
 	case "mcp":
 		if e.MCP == nil {
 			execErr = fmt.Errorf("mcp tool %q: no MCP registry configured", def.Name)
 		} else {
-			content, execErr = execMCP(ctx, e.MCP, def.MCP, args)
+			content, execErr = e.execMCPWithRetry(ctx, def, args, retrycfg)
 		}
 	default:
 		execErr = fmt.Errorf("unsupported tool type %q", def.Type)
@@ -76,6 +113,182 @@ func Execute(ctx context.Context, def model.ToolDefinition, args map[string]any)
 	return (&Executor{}).Execute(ctx, def, args)
 }
 
+// resolvedRetry returns a ToolRetryConfig ready for use.
+// When MaxAttempts is 0 (zero value / not configured), the retry policy is
+// disabled and the legacy single-attempt path is used. Backoff fields default
+// when MaxAttempts > 0 and the fields are not explicitly set.
+func resolvedRetry(r model.ToolRetryConfig) model.ToolRetryConfig {
+	if r.MaxAttempts == 0 {
+		// Not configured: single attempt, no retry. Legacy behaviour.
+		return model.ToolRetryConfig{MaxAttempts: 1}
+	}
+	if r.BaseDelay == 0 {
+		r.BaseDelay = defaultBaseDelay
+	}
+	if r.MaxDelay == 0 {
+		r.MaxDelay = defaultMaxDelay
+	}
+	// HonorRetryAfter defaults to true when not set but MaxAttempts is configured.
+	if !r.HonorRetryAfter {
+		r.HonorRetryAfter = true
+	}
+	return r
+}
+
+// execHTTPWithRetry wraps execHTTPInner with the configured retry policy.
+func (e *Executor) execHTTPWithRetry(ctx context.Context, def model.ToolDefinition, args map[string]any, retrycfg model.ToolRetryConfig) (string, error) {
+	cfg := def.HTTP
+	allowedEnv := def.AllowedEnv
+
+	// Extract host for rate limiting.
+	rawURL, err := expandTemplate(cfg.URL, args, allowedEnv)
+	if err != nil {
+		return "", fmt.Errorf("tool/execHTTP: expand url: %w", err)
+	}
+	host := ""
+	if u, parseErr := url.Parse(rawURL); parseErr == nil {
+		host = u.Hostname()
+	}
+
+	maxAttempts := retrycfg.MaxAttempts
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Apply per-host rate limiting before the attempt.
+		if e.Limiter != nil {
+			waited, waitErr := e.Limiter.Wait(ctx, host)
+			if waitErr != nil {
+				return "", fmt.Errorf("tool/execHTTP: rate limit wait: %w", waitErr)
+			}
+			if waited {
+				atomic.AddInt64(&metricRateLimitWaitTotal, 1)
+			}
+		}
+
+		var content string
+		content, lastErr = execHTTPInner(ctx, cfg, args, allowedEnv)
+		if lastErr == nil {
+			return content, nil
+		}
+
+		// Check if the error is transient and we have retries left.
+		if attempt >= maxAttempts {
+			break
+		}
+
+		statusCode := httpStatusFromErr(lastErr)
+		if !isTransient(statusCode, lastErr) {
+			// Permanent failure — don't retry.
+			break
+		}
+
+		atomic.AddInt64(&metricRetryTotal, 1)
+
+		// Compute backoff delay.
+		delay := backoffDelay(attempt, retrycfg, lastErr)
+		if delay > 0 {
+			atomic.AddInt64(&metricBackoffTotal, 1)
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return "", fmt.Errorf("tool/execHTTP: retry wait cancelled: %w", ctx.Err())
+			}
+		}
+	}
+
+	// Enqueue to outbound-DLQ on failure (permanent or exhausted).
+	e.enqueueDLQ(def, args, host, lastErr, maxAttempts)
+	return "", lastErr
+}
+
+// execMCPWithRetry wraps execMCP with the configured retry policy.
+func (e *Executor) execMCPWithRetry(ctx context.Context, def model.ToolDefinition, args map[string]any, retrycfg model.ToolRetryConfig) (string, error) {
+	target := def.MCP.Server + "/" + def.MCP.Tool
+
+	maxAttempts := retrycfg.MaxAttempts
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Apply per-host rate limiting (keyed by MCP server name).
+		if e.Limiter != nil {
+			waited, waitErr := e.Limiter.Wait(ctx, def.MCP.Server)
+			if waitErr != nil {
+				return "", fmt.Errorf("tool/execMCP: rate limit wait: %w", waitErr)
+			}
+			if waited {
+				atomic.AddInt64(&metricRateLimitWaitTotal, 1)
+			}
+		}
+
+		var content string
+		content, lastErr = execMCP(ctx, e.MCP, def.MCP, args)
+		if lastErr == nil {
+			return content, nil
+		}
+
+		if attempt >= maxAttempts {
+			break
+		}
+
+		// MCP errors are treated as transient unless they indicate a missing server.
+		if strings.Contains(lastErr.Error(), "not found in MCP registry") {
+			break // permanent: server not configured
+		}
+
+		atomic.AddInt64(&metricRetryTotal, 1)
+
+		delay := backoffDelay(attempt, retrycfg, lastErr)
+		if delay > 0 {
+			atomic.AddInt64(&metricBackoffTotal, 1)
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return "", fmt.Errorf("tool/execMCP: retry wait cancelled: %w", ctx.Err())
+			}
+		}
+	}
+
+	e.enqueueDLQ(def, args, target, lastErr, maxAttempts)
+	return "", lastErr
+}
+
+// enqueueDLQ enqueues a failed tool call to the outbound-DLQ when QueueMgr is set.
+// This is a best-effort side-effect; it does not affect the ToolResult.
+func (e *Executor) enqueueDLQ(def model.ToolDefinition, args map[string]any, target string, lastErr error, attempts int) {
+	if e.QueueMgr == nil {
+		return
+	}
+	errStr := ""
+	if lastErr != nil {
+		errStr = lastErr.Error()
+	}
+	item := model.QueueItem{
+		ID:         ids.TimestampHex("odlq"),
+		AgentName:  e.AgentName,
+		ToolName:   def.Name,
+		ToolTarget: target,
+		EnqueuedAt: time.Now().Unix(),
+		Payload: map[string]any{
+			"tool":    def.Name,
+			"target":  target,
+			"agent":   e.AgentName,
+			"error":   errStr,
+			"attempt": attempts,
+			"args":    args,
+		},
+	}
+	if enqErr := e.QueueMgr.Enqueue(outboundDLQName, item); enqErr != nil {
+		// Non-fatal: DLQ enqueue failure is logged by the caller if needed.
+		_ = enqErr
+	}
+}
+
 // execMCP calls a named tool on a running MCP server and returns the text result.
 func execMCP(ctx context.Context, reg *mcp.Registry, cfg model.MCPToolConfig, args map[string]any) (string, error) {
 	client, ok := reg.Get(cfg.Server)
@@ -89,17 +302,14 @@ func execMCP(ctx context.Context, reg *mcp.Registry, cfg model.MCPToolConfig, ar
 	return result, nil
 }
 
-// execHTTP performs an HTTP tool call by expanding templates, building the
-// request, and returning the response body as a string. On a rate-limit
-// response (429 or 403 with X-RateLimit-Remaining: 0) it waits up to 60 s
-// and retries exactly once.
+// execHTTP performs a single HTTP tool call with no retry logic.
+// Callers that want retry should use execHTTPWithRetry via the Executor.
 func execHTTP(ctx context.Context, cfg model.HTTPToolConfig, args map[string]any, allowedEnv []string) (string, error) {
-	return execHTTPInner(ctx, cfg, args, allowedEnv, true)
+	return execHTTPInner(ctx, cfg, args, allowedEnv)
 }
 
-// execHTTPInner is the implementation of execHTTP. allowRetry controls whether
-// a rate-limited response triggers a single retry attempt.
-func execHTTPInner(ctx context.Context, cfg model.HTTPToolConfig, args map[string]any, allowedEnv []string, allowRetry bool) (string, error) {
+// execHTTPInner is the single-attempt HTTP implementation.
+func execHTTPInner(ctx context.Context, cfg model.HTTPToolConfig, args map[string]any, allowedEnv []string) (string, error) {
 	// Expand the URL template.
 	rawURL, err := expandTemplate(cfg.URL, args, allowedEnv)
 	if err != nil {
@@ -175,25 +385,107 @@ func execHTTPInner(ctx context.Context, cfg model.HTTPToolConfig, args map[strin
 		return "", fmt.Errorf("tool/execHTTP: read response: %w", err)
 	}
 
-	if allowRetry && isRateLimited(resp) {
-		wait := retryWait(resp, 60*time.Second)
-		select {
-		case <-time.After(wait):
-		case <-ctx.Done():
-			return "", fmt.Errorf("tool/execHTTP: rate limit wait cancelled: %w", ctx.Err())
-		}
-		return execHTTPInner(ctx, cfg, args, allowedEnv, false)
-	}
-
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		snippet := body
 		if len(snippet) > 256 {
 			snippet = snippet[:256]
 		}
-		return "", fmt.Errorf("tool/execHTTP: status %d: %s", resp.StatusCode, snippet)
+		return "", &httpError{status: resp.StatusCode, body: string(snippet), header: resp.Header}
 	}
 
 	return string(body), nil
+}
+
+// httpError carries the HTTP status code and body snippet so callers can
+// inspect the status without reparsing the error string.
+type httpError struct {
+	status int
+	body   string
+	header http.Header
+}
+
+func (e *httpError) Error() string {
+	return fmt.Sprintf("tool/execHTTP: status %d: %s", e.status, e.body)
+}
+
+// httpStatusFromErr returns the HTTP status code embedded in an httpError, or 0.
+func httpStatusFromErr(err error) int {
+	var he *httpError
+	if errors.As(err, &he) {
+		return he.status
+	}
+	return 0
+}
+
+// isTransient reports whether the error or HTTP status represents a condition
+// that may resolve on retry (server-side overload, network blip, rate limit).
+// Permanent failures (auth errors, bad requests) return false.
+// A 403 with X-RateLimit-Remaining: 0 (GitHub-style quota exhaustion) is also
+// treated as transient since it resolves once the quota resets.
+func isTransient(statusCode int, err error) bool {
+	if statusCode != 0 {
+		switch statusCode {
+		case 429, 500, 502, 503, 504:
+			return true
+		default:
+			// 403 + rate-limit header is transient (quota exhaustion, not auth failure).
+			var he *httpError
+			if errors.As(err, &he) && he.status == 403 &&
+				he.header != nil && he.header.Get("X-RateLimit-Remaining") == "0" {
+				return true
+			}
+			return false
+		}
+	}
+	if err == nil {
+		return false
+	}
+	// Network-level transient errors.
+	if os.IsTimeout(err) {
+		return true
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.ECONNREFUSED) {
+		return true
+	}
+	// url.Error wraps net errors (includes timeouts).
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		return os.IsTimeout(ue.Err) || errors.Is(ue.Err, io.EOF) ||
+			errors.Is(ue.Err, syscall.ECONNRESET) || errors.Is(ue.Err, syscall.ECONNREFUSED)
+	}
+	return false
+}
+
+// backoffDelay computes how long to wait before the next attempt.
+// attempt is 1-indexed (attempt=1 means the first failure; next attempt is #2).
+func backoffDelay(attempt int, cfg model.ToolRetryConfig, err error) time.Duration {
+	// If Retry-After header is present and honored, use it.
+	if cfg.HonorRetryAfter {
+		var he *httpError
+		if errors.As(err, &he) && he.header != nil {
+			wait := retryWait(he.header, cfg.MaxDelay)
+			return wait
+		}
+	}
+	// Exponential backoff: BaseDelay * 2^(attempt-1), capped at MaxDelay.
+	exp := attempt - 1
+	if exp > 30 {
+		exp = 30
+	}
+	delay := cfg.BaseDelay
+	for i := 0; i < exp; i++ {
+		delay *= 2
+		if delay > cfg.MaxDelay {
+			delay = cfg.MaxDelay
+			break
+		}
+	}
+	// Add up to 10% jitter.
+	jitter := time.Duration(rand.Int63n(int64(delay/10) + 1)) //nolint:gosec
+	return delay + jitter
 }
 
 // isRateLimited reports whether resp indicates a rate-limit condition:
@@ -208,8 +500,8 @@ func isRateLimited(resp *http.Response) bool {
 // retryWait returns how long to wait before retrying, capped at max.
 // It reads Retry-After (seconds) first, then X-RateLimit-Reset (Unix timestamp).
 // Falls back to max if neither header is present or parseable.
-func retryWait(resp *http.Response, max time.Duration) time.Duration {
-	if v := resp.Header.Get("Retry-After"); v != "" {
+func retryWait(header http.Header, max time.Duration) time.Duration {
+	if v := header.Get("Retry-After"); v != "" {
 		if secs, err := strconv.Atoi(v); err == nil && secs >= 0 {
 			d := time.Duration(secs) * time.Second
 			if d < max {
@@ -218,7 +510,7 @@ func retryWait(resp *http.Response, max time.Duration) time.Duration {
 			return max
 		}
 	}
-	if v := resp.Header.Get("X-RateLimit-Reset"); v != "" {
+	if v := header.Get("X-RateLimit-Reset"); v != "" {
 		if ts, err := strconv.ParseInt(v, 10, 64); err == nil {
 			d := time.Until(time.Unix(ts, 0))
 			if d > 0 && d < max {

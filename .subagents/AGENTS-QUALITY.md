@@ -271,6 +271,21 @@ Before opening a PR:
 - [ ] No real credentials or secrets in `testdata/`
 - [ ] CI workflow action refs are SHA-pinned with version comments
 
+### Outbound tool resilience (retry, DLQ, rate limits)
+
+PRs touching `internal/tool`, `internal/config`, or `internal/cli/cmd_dlq.go`:
+
+- [ ] `go test ./internal/tool/... ./internal/cli/...` passes
+- [ ] `go test -race ./internal/tool/... ./internal/cli/...` passes
+- [ ] New tools with `retry:` config have tests covering transient retry and permanent no-retry paths
+- [ ] `TestExecute_DLQEnqueueOnExhaustion` and `TestExecute_DLQEnqueueOnPermanent` pass
+- [ ] `TestHostLimiter_*` suite passes; no real network calls
+- [ ] `TestRunDLQ*` suite passes with `t.TempDir()` state dirs
+- [ ] `leather dlq inspect` output includes ID, tool name, agent, attempt, error
+- [ ] `leather dlq requeue --state-dir ... <item-id>` (item-id **last**) moves item
+- [ ] `tools.rate_limits` in config.yaml parses without error; bad spec is warn+disable, not panic
+- [ ] `/metrics` response contains `leather_tool_retry_total`, `leather_tool_backoff_total`, `leather_tool_rate_limit_wait_total`, `leather_outbound_dlq_depth`
+
 ---
 
 _Last reviewed: 2026-06-05_ 

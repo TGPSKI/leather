@@ -116,12 +116,59 @@ func (r *Registry) GetTools(skillNames []string) []model.ToolDefinition
 func (r *Registry) ResolveTools(skillNames, toolsetNames, toolNames []string) []model.ToolDefinition
 
 // Executor dispatches HTTP- and MCP-backed tools.
-type Executor struct { MCP *mcp.Registry }
+// QueueMgr enables the outbound DLQ: permanent/exhausted failures are
+// enqueued to "outbound-dlq" when this field is non-nil.
+// Limiter enforces per-host token-bucket rate limits before each attempt.
+type Executor struct {
+    MCP       *mcp.Registry
+    QueueMgr  *queue.Manager  // nil = outbound DLQ disabled
+    AgentName string           // injected by Runner; stored in DLQ items
+    Limiter   *HostLimiter     // nil = no rate limiting
+}
 
 // Execute runs a single tool call. Always returns a ToolResult; never panics.
 // On failure, ToolResult.Error is set and Content may be empty.
+// With def.Retry.MaxAttempts > 0, transient failures (5xx, 429, network)
+// are retried with exponential backoff + jitter.
 func (e *Executor) Execute(ctx context.Context, def model.ToolDefinition, args map[string]any) model.ToolResult
+
+// MetricSnapshot returns a point-in-time snapshot of outbound tool counters.
+// Counters are process-lifetime atomics; they reset only on restart.
+func MetricSnapshot() (retryTotal, backoffTotal, rateLimitWaitTotal int64)
 ```
+
+#### Per-tool retry policy
+
+`ToolDefinition.Retry` (`model.ToolRetryConfig`) controls retry behaviour:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `max_attempts` | 1 (no retry) | Total attempts including the initial one. |
+| `base_delay` | `1s` | Initial backoff; doubles each attempt. |
+| `max_delay` | `30s` | Backoff ceiling before jitter. |
+| `honor_retry_after` | `true` | Use `Retry-After` header value when present. |
+
+A zero `ToolRetryConfig` (all fields at zero value) means **single attempt, no
+retry** — preserving backward compatibility for tools that predate the policy.
+Only tools with an explicit `retry:` block in their skill YAML get the retry loop.
+
+`isTransient` classifies the failure to decide whether to retry:
+- **Transient** → retry: 429, 500, 502, 503, 504; network/timeout errors;
+  403 with `X-RateLimit-Remaining: 0`
+- **Permanent** → return immediately without retrying: all other 4xx
+
+#### Outbound DLQ
+
+When `Executor.QueueMgr != nil` and a tool call either:
+- exhausts its retry budget on transient errors, or
+- fails immediately with a permanent error,
+
+a `model.QueueItem` is enqueued to the well-known `"outbound-dlq"` queue.
+DLQ items carry `ToolName`, `ToolTarget`, and the last error in `Payload`.
+DLQ enqueue is a fire-and-forget side-effect; failure to enqueue is logged
+at `warn` and does not affect the returned `ToolResult`.
+
+Items in `outbound-dlq` can be inspected and requeued via `leather dlq`.
 
 #### Skill file format (`*.skill.yaml`)
 
@@ -139,6 +186,11 @@ tools:
       headers:
         Authorization: "Bearer {{env:GITHUB_TOKEN}}"
         Accept: application/vnd.github+json
+    retry:
+      max_attempts: 3
+      base_delay: 1s
+      max_delay: 30s
+      honor_retry_after: true
 ```
 
 #### Toolset file format (`*.toolset.yaml`)
@@ -161,11 +213,15 @@ every toolset reference points at an already-known tool.
 - `mcp` → `execMCP` through a started `mcp.Registry`
 
 HTTP execution (`execHTTP`):
+- Calls `e.Limiter.Wait(ctx, host)` before each attempt; blocks until the
+  per-host token bucket allows the request or ctx is cancelled.
 - Expands URL template with tool call arguments (`{{.field}}`).
 - Expands `{{env:VAR}}` in header values; **never logs auth header values**.
 - Sends the request with the runner's context (inherits timeout).
 - Response body is capped at 1 MB.
 - Non-2xx responses populate `ToolResult.Error` with the status code message.
+- Transient failures are retried up to `def.Retry.MaxAttempts` times with
+  exponential backoff; permanent failures return immediately.
 
 MCP execution (`execMCP`):
 - Looks up the named server in the running registry.

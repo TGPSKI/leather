@@ -25,6 +25,22 @@ const (
 	JobStatusSkipped JobStatus = "skipped"
 )
 
+// ToolRetryConfig controls per-tool retry behaviour for transient failures.
+// The zero value disables the configured retry policy; the executor falls back
+// to the legacy single-retry-on-rate-limit behaviour.
+type ToolRetryConfig struct {
+	// MaxAttempts is the total number of attempts (initial + retries).
+	// 0 means use the default (3). Set to 1 to disable retries entirely.
+	MaxAttempts int `json:"max_attempts,omitempty"`
+	// BaseDelay is the initial backoff delay. 0 means use the default (1s).
+	BaseDelay time.Duration `json:"base_delay,omitempty"`
+	// MaxDelay caps the backoff delay. 0 means use the default (30s).
+	MaxDelay time.Duration `json:"max_delay,omitempty"`
+	// HonorRetryAfter, when true, uses the Retry-After response header to
+	// override the computed backoff delay. Defaults to true when MaxAttempts > 0.
+	HonorRetryAfter bool `json:"honor_retry_after,omitempty"`
+}
+
 // ToolDefinition describes a callable tool available to an agent.
 type ToolDefinition struct {
 	// Name is the unique identifier of the tool, used by the model to invoke it.
@@ -52,6 +68,9 @@ type ToolDefinition struct {
 	// (the default) all env vars are permitted for backwards compatibility;
 	// set to an explicit list in new skill definitions.
 	AllowedEnv []string `json:"allowed_env,omitempty"`
+	// Retry configures the per-tool retry policy for transient failures.
+	// The zero value preserves the legacy single-retry-on-rate-limit behaviour.
+	Retry ToolRetryConfig `json:"retry,omitempty"`
 }
 
 // MCPToolConfig holds the configuration for an mcp-type tool.
@@ -290,6 +309,12 @@ type QueueItem struct {
 	// CorrelationID (= the original webhook hide_id). Downstream curings
 	// with collect_by: correlation_id group by this field for correlated joins.
 	CorrelationID string `json:"correlation_id,omitempty"`
+	// ToolName, when non-empty, identifies this as an outbound-DLQ item produced
+	// by a failed tool execution. Set to the tool name that failed.
+	ToolName string `json:"tool_name,omitempty"`
+	// ToolTarget is the URL (for HTTP tools) or "<server>/<tool>" (for MCP tools)
+	// that the failed tool was targeting. Used for DLQ inspection.
+	ToolTarget string `json:"tool_target,omitempty"`
 }
 
 // AgentHooks describes shell commands executed at agent lifecycle events.
@@ -531,6 +556,10 @@ type Config struct {
 	// to LLMEndpoint. Empty disables auth (suitable for local Ollama / vLLM).
 	// The raw key is never written to structured logs.
 	LLMAPIKey string
+	// ToolRateLimits maps a hostname (e.g. "api.github.com") to a rate spec
+	// expressed as "N/s", "N/m", or "N/h". An empty map means no limits.
+	// Populated from the tools.rate_limits block in config.yaml.
+	ToolRateLimits map[string]string
 }
 
 // SessionContext is a point-in-time snapshot of a session's conversation window.

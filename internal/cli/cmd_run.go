@@ -131,6 +131,15 @@ func RunOnce(args []string, stdout, stderr io.Writer) int {
 		log.Warn("notify backend init failed", "error", e)
 	}
 
+	var toolLimiter *tool.HostLimiter
+	if len(cfg.ToolRateLimits) > 0 {
+		var limErr error
+		toolLimiter, limErr = tool.NewHostLimiter(cfg.ToolRateLimits)
+		if limErr != nil {
+			log.Warn("tool rate limits: invalid config, rate limiting disabled", "error", limErr)
+		}
+	}
+
 	r := &runner.Runner{
 		Client:        session.NewHTTPClient(cfg.LLMEndpoint, cfg.LLMAPIKey, cfg.LLMTimeout),
 		Registry:      toolReg,
@@ -138,6 +147,7 @@ func RunOnce(args []string, stdout, stderr io.Writer) int {
 		Log:           log,
 		MaxToolRounds: cfg.MaxToolRounds,
 		Notifiers:     notifiers,
+		ToolLimiter:   toolLimiter,
 	}
 
 	// Cancel the run context on SIGINT/SIGTERM/SIGHUP so in-flight LLM calls
