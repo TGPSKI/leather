@@ -189,6 +189,13 @@ func RunWorkflowRun(args []string, stdout, stderr io.Writer) int {
 		toolReg = tool.NewRegistry()
 	}
 
+	// Set LEATHER_INTAKE_URL before starting MCP servers so shell-mcp child
+	// processes inherit it at spawn time. The API server is started later but
+	// the address is already known from cfg.APIAddr.
+	intakeURL := "http://" + cfg.APIAddr + "/intake"
+	os.Setenv("LEATHER_INTAKE_URL", intakeURL) //nolint:errcheck
+	log.Info("workflow run: intake URL", "url", intakeURL)
+
 	// Load and start MCP servers (same fallback path as RunServe).
 	mcpServersFile := cfg.MCPServersFile
 	if mcpServersFile == "" {
@@ -234,10 +241,8 @@ func RunWorkflowRun(args []string, stdout, stderr io.Writer) int {
 	log.Info("workflow run: starting supervisor", "curings", len(curingDefs), "agents", len(agentsMap))
 	sup.Start(ctx)
 
-	// Start the API server on cfg.APIAddr, mirroring leather serve.
-	// This exposes /intake so MCP tool subprocesses can POST hides+items
-	// into this process's qmgr via HTTP, avoiding cross-process file I/O.
-	// LEATHER_INTAKE_URL is set in the environment so shell-mcp inherits it.
+	// Start the API server on cfg.APIAddr. Exposes /intake so MCP tool
+	// subprocesses can POST hides+items into this process's qmgr via HTTP.
 	td := &tanneryDeps{
 		hideStore:    hideStore,
 		artStore:     artStore,
@@ -253,9 +258,6 @@ func RunWorkflowRun(args []string, stdout, stderr io.Writer) int {
 	}
 	apiSrv := startAPIServer(deps)
 	defer apiSrv.Shutdown(context.Background()) //nolint:errcheck
-	intakeURL := "http://" + cfg.APIAddr + "/intake"
-	os.Setenv("LEATHER_INTAKE_URL", intakeURL)
-	log.Info("workflow run: intake URL", "url", intakeURL)
 
 	// Read content from file argument or stdin.
 	var content []byte
@@ -295,7 +297,7 @@ func RunWorkflowRun(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// Wait for all queues to reach simultaneous quiescence.
-	if err := waitForQuiescence(ctx, qmgr, tannCfg.Queues, *settle); err != nil {
+	if err := waitForQuiescence(ctx, qmgr, tannCfg.Queues, sup, *settle); err != nil {
 		cancel()
 		sup.Drain()
 		if ctx.Err() != nil {
@@ -349,15 +351,18 @@ func waitForQuiescence(
 	ctx context.Context,
 	qmgr *queue.Manager,
 	queues map[string]model.QueueConcurrencyConfig,
+	sup *curing.Supervisor,
 	settle time.Duration,
 ) error {
-	allEmpty := func() bool {
+	idle := func() bool {
 		for name := range queues {
 			if qmgr.Depth(name) > 0 {
 				return false
 			}
 		}
-		return true
+		// Queues may be empty but workers are still processing dequeued items
+		// (which can enqueue more work). Count in-flight handlers too.
+		return sup.TotalActive() == 0
 	}
 
 	for {
@@ -367,7 +372,7 @@ func waitForQuiescence(
 		default:
 		}
 
-		if !allEmpty() {
+		if !idle() {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -376,17 +381,18 @@ func waitForQuiescence(
 			continue
 		}
 
-		// Queues are empty — wait the settling delay for any fan-out enqueues.
+		// All queues empty and no handlers active — wait settle for any
+		// fan-out enqueues that race the idle check.
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(settle):
 		}
 
-		if allEmpty() {
+		if idle() {
 			return nil
 		}
-		// Queues refilled during settle; loop to keep polling.
+		// Work arrived during settle; loop to keep polling.
 	}
 }
 

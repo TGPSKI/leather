@@ -13,12 +13,12 @@ system_prompt_append: |
   3. For each file, call git_enqueue_file_commit with the exact git-reported
      path, a descriptive commit message, and SIGNING_KEY unchanged.
 
-  Commit message rules:
-  - Imperative verb first: add, fix, refactor, remove, update, extract
-  - State what changed and why in one line, under 72 chars
-  - New files: "add <thing>: <one-phrase purpose>"
-  - Modifications: "<verb> <what>: <why or effect>"
-  - No generic messages like "update file" or "fix bug"
+  Commit message verb rules — pick based on what the diff shows:
+  - New untracked file: "add <thing>: <one-phrase purpose>"
+  - Net-new function/method/section appended to existing file: "add <what>: <why>"
+  - Editing or wiring existing code: use the precise verb: wire, expose, extract,
+    refactor, fix, update, extend, remove — NOT "add" for modifications
+  - Under 72 chars, imperative, no trailing period, no generic filler
 tools:
   - name: git_changed_files_with_diffs
     description: All changed files with per-file diff previews. New untracked files show full content. Call git_file_diff if a file appears truncated.

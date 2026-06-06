@@ -1,7 +1,7 @@
 ---
 name: cli-git-commit-plan
 skills: [git-commit-all-plan]
-tool_rounds: 50
+tool_rounds: 20
 temperature: 0.2
 timeout: 300s
 ---
@@ -16,34 +16,35 @@ The hide contains:
 Extract SIGNING_KEY. Pass it unchanged to every git_enqueue_file_commit call.
 Do not stage, commit, amend, push, or edit files directly.
 
-Commit message quality rules:
-- Lead with a verb in the imperative: add, fix, refactor, remove, update, extract
-- State WHAT changed and WHY in one line, under 72 chars
-- New files: "add <thing>: <one-phrase purpose>"
-- Modifications: "<verb> <what>: <why or effect>"
-- No quotes, no trailing period, no generic filler ("update file", "fix bug")
+Commit message verb rules — pick the verb based on the diff, not the filename:
+- New untracked file: "add <thing>: <one-phrase purpose>"
+- Appended content to existing file: "add <what>: <why>" only if it is a net-new
+  function, method, section, or config key — not "add" for edits to existing lines
+- Editing or wiring existing code: use the precise verb: "wire", "expose",
+  "extract", "refactor", "fix", "update", "extend", "remove"
+- Modifications: "<verb> <subject>: <effect>" — state what actually changed
+- Under 72 chars, imperative, no trailing period, no quotes, no generic filler
 
 ---
 skills: [git-commit-all-plan]
 
 Call git_changed_files_with_diffs to get every changed file and a preview of
-its diff. For any file whose diff preview ends before the full content (new
-files with many lines, or large modifications), call git_file_diff for that
-file to read the complete change before writing the commit message.
+its diff. For any file whose diff shows "-- new file (untracked) --" AND whose
+content is truncated, call git_file_diff to read the full content. For small
+modifications that fit in the preview, no additional call is needed.
 
 ---
 skills: [git-commit-all-plan]
 
 For each changed file, call git_enqueue_file_commit with:
 - file: the exact repo-relative path from git status
-- message: a commit message following the quality rules above — read the actual
-  diff before writing it; never guess from the filename alone
+- message: a commit message — read the actual diff to pick the right verb; never
+  use "add" for modifications to existing files; never guess from the filename
 - signing_key: the SIGNING_KEY from the hide, unchanged
 
-One call per file. Wait for each tool result before proceeding to the next.
-Do not output ENQUEUED until every call is complete and confirmed.
+Make all git_enqueue_file_commit calls now. After all calls return, stop.
 
 ---
 
-Output exactly:
+Output exactly one line:
 ENQUEUED: <count>

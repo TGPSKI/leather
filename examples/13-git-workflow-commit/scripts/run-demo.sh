@@ -65,6 +65,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Purge any leftover queue state from prior interrupted runs so stale items
+# don't get picked up as phantom work items.
+rm -rf "${EXAMPLE_DIR}/.state"
+
 printf '\n\033[1m13-git-workflow-commit demo\033[0m\n'
 printf '  LLM:         %s  (%s)\n' "$LEATHER_LLM_ENDPOINT" "$LEATHER_MODEL"
 printf '  signing key: %s\n' "$LEATHER_GIT_SIGNING_KEY"
@@ -85,17 +89,20 @@ run_workflow() {
   local label="$1"
   printf '\n\033[1m==> %s\033[0m\n\n' "$label"
   mkdir -p "${EXAMPLE_DIR}/.state"
-  cd "$WORK_DIR"
-  printf 'Commit all changed files in cwd: %s\nSIGNING_KEY: %s\n' \
-    "$WORK_DIR" "$LEATHER_GIT_SIGNING_KEY" | \
-    LEATHER_LLM_ENDPOINT="$LEATHER_LLM_ENDPOINT" \
-    LEATHER_MODEL="$LEATHER_MODEL" \
-    "$LEATHER" workflow run \
-      --config  "${EXAMPLE_DIR}/config.yaml" \
-      --tannery "${EXAMPLE_DIR}/tannery.yaml" \
-      --kind    cli.git.commit_all \
-      --source  cli \
-      --settle  2s
+  (
+    cd "${EXAMPLE_DIR}"
+    export LEATHER_LLM_ENDPOINT LEATHER_MODEL
+    export GIT_DIR="${WORK_DIR}/.git"
+    export GIT_WORK_TREE="${WORK_DIR}"
+    printf 'Commit all changed files in cwd: %s\nSIGNING_KEY: %s\n' \
+      "$WORK_DIR" "$LEATHER_GIT_SIGNING_KEY" | \
+      "$LEATHER" workflow run \
+        --config  config.yaml \
+        --tannery tannery.yaml \
+        --kind    cli.git.commit_all \
+        --source  cli \
+        --settle  2s
+  )
 }
 
 show_log() {

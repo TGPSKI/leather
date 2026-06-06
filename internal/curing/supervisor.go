@@ -60,6 +60,17 @@ func (s *Supervisor) Start(ctx context.Context) {
 	}
 }
 
+// TotalActive returns the sum of in-flight item handlers across all workers.
+// A non-zero value means workers are still processing items even if all queues
+// report depth 0 (items are dequeued before processing begins).
+func (s *Supervisor) TotalActive() int {
+	total := 0
+	for _, w := range s.workers {
+		total += w.ActiveCount()
+	}
+	return total
+}
+
 // Drain waits for all worker Run loops to exit AND for any in-flight item
 // handlers spawned by those loops to finish. Call after ctx is cancelled
 // during graceful shutdown.

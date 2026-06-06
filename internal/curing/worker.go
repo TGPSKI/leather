@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tgpski/leather/internal/artifact"
@@ -122,9 +123,10 @@ type Worker struct {
 	q         *queue.FileQueue // pre-fetched queue handle for this curing
 	qmgr      *queue.Manager   // for output routing enqueues and DLQ
 	log       *logging.Logger
-	sem       chan struct{}  // bounded by QueueConcurrencyConfig.Concurrency
-	inflight  sync.WaitGroup // tracks goroutines spawned by Run; joined on shutdown
-	eventMu   sync.Mutex     // T4.8: serializes EventFn unless EventFnConcurrent is set
+	sem       chan struct{}    // bounded by QueueConcurrencyConfig.Concurrency
+	inflight  sync.WaitGroup  // tracks goroutines spawned by Run; joined on shutdown
+	active    atomic.Int32    // count of items currently being processed
+	eventMu   sync.Mutex      // T4.8: serializes EventFn unless EventFnConcurrent is set
 }
 
 // NewWorker constructs a Worker for the given CuringDefinition.
@@ -219,8 +221,10 @@ func (w *Worker) Run(ctx context.Context) {
 		// Per-item timeouts are applied inside process() via TimeoutSeconds.
 		w.sem <- struct{}{}
 		w.inflight.Add(1)
+		w.active.Add(1)
 		go func(it model.QueueItem) {
 			defer w.inflight.Done()
+			defer w.active.Add(-1)
 			defer func() { <-w.sem }()
 			defer func() {
 				if r := recover(); r != nil {
@@ -310,8 +314,10 @@ func (w *Worker) runCollect(ctx context.Context) {
 
 	w.sem <- struct{}{}
 	w.inflight.Add(1)
+	w.active.Add(1)
 	go func(items []model.QueueItem) {
 		defer w.inflight.Done()
+		defer w.active.Add(-1)
 		defer func() { <-w.sem }()
 		defer func() {
 			if r := recover(); r != nil {
@@ -320,6 +326,12 @@ func (w *Worker) runCollect(ctx context.Context) {
 		}()
 		w.handleCollected(context.Background(), items)
 	}(matched)
+}
+
+// ActiveCount returns the number of item-handler goroutines currently running.
+// Used by waitForQuiescence to detect in-flight work even when queue depth is 0.
+func (w *Worker) ActiveCount() int {
+	return int(w.active.Load())
 }
 
 // WaitInflight blocks until every handleItem goroutine spawned by Run has
@@ -383,8 +395,10 @@ func (w *Worker) runPrefixScan(ctx context.Context) {
 			})
 			w.sem <- struct{}{}
 			w.inflight.Add(1)
+			w.active.Add(1)
 			go func(it model.QueueItem, queueName string) {
 				defer w.inflight.Done()
+				defer w.active.Add(-1)
 				defer func() { <-w.sem }()
 				defer func() {
 					if r := recover(); r != nil {
@@ -462,8 +476,10 @@ func (w *Worker) runCollectFromQueue(ctx context.Context, queueName string, q *q
 
 	w.sem <- struct{}{}
 	w.inflight.Add(1)
+	w.active.Add(1)
 	go func(items []model.QueueItem, qn string) {
 		defer w.inflight.Done()
+		defer w.active.Add(-1)
 		defer func() { <-w.sem }()
 		defer func() {
 			if r := recover(); r != nil {
