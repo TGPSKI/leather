@@ -17,6 +17,7 @@ Commands:
   ingest      store raw bytes as a hide and optionally enqueue for curing
   replay      replay a captured snapshot or runs directory via the API
   snapshot    save or restore a point-in-time archive of runtime state
+  attach      join a running serve instance and stream pretty-printed runtime logs
   version     print build version information
   help        print this message
 

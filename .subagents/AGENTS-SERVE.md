@@ -49,6 +49,7 @@ Each subcommand has:
 | `status` | `RunStatus` | Print scheduler state, job history, token usage |
 | `ingest` | `RunIngest` | Store raw bytes as a hide and optionally enqueue for curing |
 | `snapshot` | `RunSnapshot` → `RunSnapshotSave` / `RunSnapshotRestore` | Save or restore a `tar.gz` point-in-time archive of runtime state |
+| `attach` | `RunAttach` | Join a running `serve` instance and stream pretty-printed DevTools events |
 | `version` | `RunVersion` | Print version, commit, Go runtime version |
 
 `cli.Run` also accepts `help`, `--help`, and `-h`, which print `usage`

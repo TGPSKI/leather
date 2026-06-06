@@ -51,6 +51,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   (values are never exposed). Each subsequent runner event is causally linked
   to the `queue.run` event via `AppendCause`, making the queue→agent lineage
   visible in the DevTools DAG view (issue #11).
+- **`leather attach`** — new subcommand that joins a running `serve` instance
+  and streams pretty-printed DevTools events to the terminal (issue #19).
+  Reads the DevTools token from the state directory, connects to the
+  `/api/devtools/events` SSE endpoint, and renders each event with
+  color-coded kind labels, entity references, and payload key-value pairs.
+  Supports `--filter` to scope output by event kind or source, and
+  `--no-reconnect` to exit on stream close instead of reconnecting with
+  exponential backoff.
 
 ## [0.1.3] - 2026-06-05
 
