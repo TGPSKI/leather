@@ -66,7 +66,44 @@ Use `grep -rn "LAST_VERSION"` to find any other version-pinned references.
 
 ---
 
-## Step 4 — Verify subcommand tables are current
+## Step 4 — Update ROADMAP.md
+
+Open `ROADMAP.md` and apply these changes:
+
+1. **Mark shipped items.** For each feature or item in the roadmap that was
+   delivered in the commits since LAST_TAG, strike through the bullet with
+   `~~text~~` and append `— shipped in NEXT_VERSION (issue #N if known)`.
+   Use the commit subjects and the CHANGELOG section you just wrote as the
+   source of truth.
+
+2. **Strike the outbound HTTP tool resilience block** if it is present
+   verbatim and has now shipped (it shipped in v0.3.0 as issues #7–#9).
+   Replace the prose block with a single struck-through line:
+   `- ~~Outbound HTTP tool resilience (retry, DLQ, per-host rate limits)~~ — shipped in NEXT_VERSION (#7, #8, #9).`
+
+3. **Add a new version section** for the _next_ planned minor if none
+   exists, or leave existing planned work in place if a forward-looking
+   section is already present.
+
+4. Update the `_Last reviewed:` footer to TODAY.
+
+---
+
+## Step 5 — Update SECURITY.md
+
+Open `SECURITY.md` and update the **Supported Versions** table:
+
+1. Add a new row for `NEXT_VERSION_MINOR.x` (the X.Y portion of
+   NEXT_VERSION) with `:white_check_mark:`.
+2. If LAST_VERSION was on a different minor line (e.g. LAST_TAG = v0.2.x
+   and NEXT_VERSION = v0.3.0), mark the old minor line as `:x:` (end of
+   support) — leather supports only the current minor line.
+3. If NEXT_VERSION is a patch on the same minor (e.g. v0.2.1 on v0.2.x),
+   no row change is needed; the existing row already covers it.
+
+---
+
+## Step 6 — Verify subcommand tables are current
 
 Confirm that every `Run*` function in `internal/cli/cli.go` has a corresponding
 row in each of these tables:
@@ -80,14 +117,14 @@ If any row is missing, add it before committing.
 
 ---
 
-## Step 5 — Commit and push
+## Step 7 — Commit and push
 
 Stay on the **current branch** — do not switch to or push directly to `main`.
 Stage all changed files and create one commit:
 
 ```
 CURRENT_BRANCH=$(git branch --show-current)
-git add CHANGELOG.md README.md docs/ .subagents/
+git add CHANGELOG.md README.md ROADMAP.md SECURITY.md docs/ .subagents/
 git commit -m "chore(release): prepare NEXT_VERSION"
 git push origin "$CURRENT_BRANCH"
 ```
@@ -108,6 +145,8 @@ Do not tag in this step. Tagging is the job of `leather-release-tag`.
 - [ ] NEXT_VERSION is set and justified
 - [ ] CHANGELOG has the new section with at least one bullet
 - [ ] No stale version string remains in docs (grep clean)
+- [ ] ROADMAP.md: shipped items struck through; `_Last reviewed:` updated
+- [ ] SECURITY.md: Supported Versions table reflects NEXT_VERSION
 - [ ] Subcommand tables are in sync
 - [ ] Commit is pushed to current branch (not directly to main)
 - [ ] PR is open targeting main (create one if it doesn't exist)
