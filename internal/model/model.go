@@ -734,6 +734,9 @@ type QueueConcurrencyConfig struct {
 	// MaxDepth is the backpressure ceiling; when Depth >= MaxDepth and MaxDepth > 0,
 	// webhook/intake handlers return HTTP 503 with Retry-After: 30. Default 1000; 0 = unlimited.
 	MaxDepth int `json:"max_depth"`
+	// PollInterval is the worker's queue-poll frequency. Default 1s. Use shorter
+	// values (e.g. 100ms) for low-latency workflows where queue items arrive in bursts.
+	PollInterval time.Duration `json:"poll_interval"`
 }
 
 // WebhookConfig describes one registered webhook endpoint.
