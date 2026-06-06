@@ -3,6 +3,10 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/tgpski/leather.svg)](https://pkg.go.dev/github.com/tgpski/leather)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/TGPSKI/leather?v=2)](https://go.dev/)
 [![License](https://img.shields.io/github/license/TGPSKI/leather?v=2)](LICENSE)
+[![GitHub Release](https://img.shields.io/github/release/TGPSKI/leather.svg?style=flat)](https://github.com/TGPSKI/leather/releases)
+[![CI](https://github.com/TGPSKI/leather/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/TGPSKI/leather/actions/workflows/ci.yml)
+
+  
 
 **Local agent infrastructure in one stdlib-only Go binary.**
 
