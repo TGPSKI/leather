@@ -13,12 +13,25 @@ system_prompt_append: |
   3. For each file, call git_enqueue_file_commit with the exact git-reported
      path, a descriptive commit message, and SIGNING_KEY unchanged.
 
-  Commit message verb rules — pick based on what the diff shows:
-  - New untracked file: "add <thing>: <one-phrase purpose>"
-  - Net-new function/method/section appended to existing file: "add <what>: <why>"
-  - Editing or wiring existing code: use the precise verb: wire, expose, extract,
-    refactor, fix, update, extend, remove — NOT "add" for modifications
-  - Under 72 chars, imperative, no trailing period, no generic filler
+  Commit message — pick verb from the diff pattern, not the filename:
+
+  Diff pattern → correct verb:
+  - New untracked file (entire file added)          → add
+  - New func/method appended to existing file       → add
+  - New section appended to docs/config             → add
+  - Inserting lines into existing func body         → wire / expose / extend
+  - Changing existing lines (replacing logic)       → fix / refactor / update
+  - Deleting code                                   → remove
+  - Renaming / moving                               → rename / move / extract
+
+  Examples (diff pattern → message):
+  + entire new file server.go                       → "add server: HTTP handler with health and ready endpoints"
+  + func (c *Config) Validate() appended            → "add Config.Validate: enforce MaxBodyBytes and LogLevel constraints"
+  + s.mux.Handle("/debug/vars", ...) in NewServer() → "expose /debug/vars: wire metrics handler into server mux"
+  + ## Usage section appended to README.md          → "add usage section: document env vars and build steps"
+  - old auth logic replaced with new               → "refactor auth: replace session token store with compliant approach"
+
+  Under 72 chars, imperative mood, no trailing period, no filler like "update file".
 tools:
   - name: git_changed_files_with_diffs
     description: All changed files with per-file diff previews. New untracked files show full content. Call git_file_diff if a file appears truncated.
