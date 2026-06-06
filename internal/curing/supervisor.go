@@ -3,6 +3,7 @@ package curing
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/tgpski/leather/internal/artifact"
 	"github.com/tgpski/leather/internal/hide"
@@ -36,10 +37,16 @@ func NewSupervisor(
 	s := &Supervisor{}
 	for _, def := range defs {
 		conc := 1
-		if cfg, ok := concMap[def.Queue]; ok && cfg.Concurrency > 0 {
-			conc = cfg.Concurrency
+		poll := time.Second
+		if cfg, ok := concMap[def.Queue]; ok {
+			if cfg.Concurrency > 0 {
+				conc = cfg.Concurrency
+			}
+			if cfg.PollInterval > 0 {
+				poll = cfg.PollInterval
+			}
 		}
-		w, err := NewWorker(def, agents, conc, hideStore, artStore, deps, qmgr, router, log)
+		w, err := NewWorker(def, agents, conc, poll, hideStore, artStore, deps, qmgr, router, log)
 		if err != nil {
 			return nil, err
 		}
