@@ -57,12 +57,16 @@ gpg --list-secret-keys "$LEATHER_GIT_SIGNING_KEY" >/dev/null 2>&1 || \
 
 WORK_DIR="$(mktemp -d /tmp/leather-git-demo.XXXXXX)"
 DEMO_CLEANED=0
+DEMO_KEEP=0
 cleanup() {
-  if [ "$DEMO_CLEANED" = "0" ]; then
+  if [ "$DEMO_KEEP" = "1" ]; then
+    printf '\n\033[90mrepo kept at %s\033[0m\n' "$WORK_DIR"
+  elif [ "$DEMO_CLEANED" = "0" ]; then
     printf '\n\033[90mcleaning up %s\033[0m\n' "$WORK_DIR"
     rm -rf "$WORK_DIR"
   fi
 }
+trap 'DEMO_KEEP=1; exit 130' INT
 trap cleanup EXIT
 
 # Purge any leftover queue state from prior interrupted runs so stale items
@@ -101,7 +105,7 @@ run_workflow() {
         --tannery tannery.yaml \
         --kind    cli.git.commit_all \
         --source  cli \
-        --settle  2s
+        --settle  500ms
   )
 }
 
@@ -392,7 +396,7 @@ run_workflow "Phase 2: commit modifications (server wiring, config validation, u
 show_log
 
 printf '\n\033[90mDemo repo is at %s\033[0m\n' "$WORK_DIR"
-pause "Demo complete. Press Enter to clean up."
+pause "Demo complete."
 DEMO_CLEANED=1
 rm -rf "$WORK_DIR"
 printf '\033[90mcleaned up.\033[0m\n'
