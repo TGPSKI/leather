@@ -32,14 +32,14 @@ Step 1 — survey: call git_changed_files_with_diffs once. For any file whose
 diff shows "-- new file (untracked) --" and whose content is truncated, call
 git_file_diff for that file. For modifications that fit in the preview, skip it.
 
-Step 2 — enqueue: for each changed file, call git_enqueue_file_commit exactly
-once with:
+Step 2 — enqueue: call git_enqueue_file_commit once for every file listed in
+the TOTAL count from Step 1. Each call requires:
 - file: the exact repo-relative path from git status
 - message: a commit message using the verb rules above; read the diff, not the filename
 - signing_key: the SIGNING_KEY from the hide, unchanged
 
-Call git_enqueue_file_commit for every file before stopping. Each file gets
-exactly one call — do not call it again for a file you have already enqueued.
+The number of git_enqueue_file_commit calls must equal the TOTAL file count.
+Each file gets exactly one call — do not repeat a file already enqueued.
 
 ---
 
