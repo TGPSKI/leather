@@ -46,6 +46,7 @@ Each subcommand has:
 | `run` | `RunOnce` | Load and execute a single agent, then exit |
 | `validate` | `RunValidate` | Parse and validate agent files; report errors |
 | `test-agent` | `RunTestAgent` | Execute an agent with `MockLLM` and print the turn transcript |
+| `dlq` | `RunDLQ` | Inspect and requeue outbound dead-letter queue items |
 | `status` | `RunStatus` | Print scheduler state, job history, token usage |
 | `ingest` | `RunIngest` | Store raw bytes as a hide and optionally enqueue for curing |
 | `snapshot` | `RunSnapshot` → `RunSnapshotSave` / `RunSnapshotRestore` | Save or restore a `tar.gz` point-in-time archive of runtime state |
@@ -212,7 +213,18 @@ cache_dir: ""               # empty = serve uses <state_dir>/cache
 mcp_servers_file: ""        # empty = run/serve/validate use ~/.leather/mcp-servers.yaml
 loop: 1                     # repeat leather run N times
 tannery: ""                 # path to tannery.yaml; empty = tannery disabled
+
+tools:
+  rate_limits:              # per-host token-bucket rate limits for outbound tool calls
+    api.github.com: "60/m"  # format: "N/s", "N/m", or "N/h"
+    api.example.com: "10/s"
 ```
+
+`tools.rate_limits` is a nested map. Each key is a hostname (no port, no
+scheme); the value is a rate spec in the form `N/<unit>` where unit is `s`
+(seconds), `m` (minutes), or `h` (hours). The second call to the same host
+within the interval blocks until the next token is available. Unknown hosts
+pass through immediately with no limiting.
 
 YAML keys are the snake_case equivalents of the flag names (strip `--`,
 replace `-` with `_`).
@@ -254,6 +266,24 @@ All endpoints live in `internal/cli/api_tannery.go`.
 | `/artifacts/{id}` | GET | `dispatchArtifact` | Get one artifact by ID |
 | `/curings` | GET | `handleCurings` | List curing definitions with queue depth |
 | `/intake` | POST | `handleIntake` | Direct-ingest endpoint; writes hide from request body |
+
+### `leather dlq` subcommand (`internal/cli/cmd_dlq.go`)
+
+`RunDLQ(args, stdout, stderr)` dispatches `inspect` and `requeue`:
+
+```
+leather dlq inspect [--queue outbound-dlq] [--state-dir ...]
+leather dlq requeue [--queue outbound-dlq] [--work-queue <name>] [--state-dir ...] <item-id>
+```
+
+- **`inspect`** — lists all items in the DLQ; prints `ID | tool | agent | attempt | enqueued_at | error`.
+- **`requeue`** — moves the named item from the DLQ to `--work-queue`, resetting
+  `AttemptCount` to 0 so it gets a fresh retry budget. Default `--work-queue` is
+  the DLQ name with the `-dlq` suffix stripped.
+
+**Important**: `<item-id>` must come **after** all flags. Go's `flag.FlagSet`
+stops parsing at the first non-flag token, so placing `<item-id>` before flags
+silently ignores the remaining flags.
 
 ### `leather ingest` subcommand (`internal/cli/cmd_ingest.go`)
 
@@ -378,6 +408,7 @@ internal/schema  →  internal/config
 | Flag name doesn't match env var | `--flag-name` → `LEATHER_FLAG_NAME`; check both |
 | Skipping graceful shutdown | Always call `scheduler.Drain` before returning from `RunServe` |
 | Flags after positional arg in `leather run` | Go's `flag.FlagSet` stops at the first non-flag token. The agent file path must come **last**: `leather run --config=... --var k=v agent.md` — not `leather run agent.md --config ...` |
+| `<item-id>` before flags in `leather dlq requeue` | Same issue: item-id must be **last** after all flags: `leather dlq requeue --state-dir ... <item-id>` |
 | `leather init` overwriting without `--overwrite` | `RunInit` fails closed: any pre-existing file causes a non-zero exit and reports `--overwrite` hint. Never silently clobber. |
 | Calling `RunValidate` from `RunInit` for post-write validation | `RunValidate` performs a full semantic check including model resolution (fails without `LEATHER_MODEL`). `RunInit` uses schema-only validation (`runInitValidate`) which is syntax-only and does not require a model to be set. |
 

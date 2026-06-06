@@ -14,6 +14,7 @@ Commands:
   validate    parse and validate agent definition files; report errors
   test-agent  run an agent with a mock LLM and print the turn transcript
   status      show scheduler state, job history, token budget usage
+  dlq         inspect and requeue outbound dead-letter queue items
   ingest      store raw bytes as a hide and optionally enqueue for curing
   replay      replay a captured snapshot or runs directory via the API
   snapshot    save or restore a point-in-time archive of runtime state

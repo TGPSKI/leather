@@ -132,6 +132,35 @@ re-serialize the full slice. Files are mode 0600; directories mode 0700.
 - `Payload` — `map[string]any`; template variables available in agent prompts
 - `EnqueuedAt` — Unix timestamp
 - `AttemptCount` — incremented by the runner on each dequeue-and-run attempt
+- `ToolName` — non-empty for outbound DLQ items; the failed tool's name
+- `ToolTarget` — non-empty for outbound DLQ items; the URL or `server/tool` string
+
+#### Outbound DLQ (`outbound-dlq`)
+
+Tool execution failures that are permanent or that exhaust their retry budget
+are enqueued to the well-known `outbound-dlq` queue by `tool.Executor`. These
+items are **not** processed by `internal/curing` workers (`CuringName == ""`).
+They are surfaced for operator inspection and manual requeue via `leather dlq`.
+
+Outbound DLQ item shape:
+
+| Field | Meaning |
+|---|---|
+| `ID` | `odlq_<date>_<time>_<hex>` |
+| `AgentName` | Agent that triggered the tool call |
+| `ToolName` | Name of the failed tool |
+| `ToolTarget` | URL (HTTP tools) or `server/tool` (MCP tools) |
+| `AttemptCount` | Number of attempts made before giving up |
+| `EnqueuedAt` | Unix timestamp |
+| `Payload["tool"]` | Tool name (duplicate for backward compat) |
+| `Payload["args"]` | Tool arguments at time of failure |
+| `Payload["error"]` | Last error message |
+| `Payload["attempt"]` | Attempt count at time of failure |
+
+**DLQ enqueue path**: `tool.Executor.Execute` → final attempt fails or
+`isTransient=false` → `QueueMgr.Enqueue("outbound-dlq", item)`. Enqueue
+failure is logged at `warn` and does not affect the `ToolResult` returned to
+the runner. DLQ is disabled when `Executor.QueueMgr` is nil.
 
 ---
 

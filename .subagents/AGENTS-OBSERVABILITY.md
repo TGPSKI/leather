@@ -176,6 +176,10 @@ metric requires a dashboard update note in the PR description.
 | `leather_cache_hits_total` | counter | `kind` | Response-cache hits. |
 | `leather_cache_misses_total` | counter | `kind` | Response-cache misses. |
 | `leather_build_info` | gauge=1 | `version`, `commit` | Build metadata. |
+| `leather_tool_retry_total` | counter | _(none)_ | Tool call attempts beyond the first; tells the operator how often transient failures occur across all tools. |
+| `leather_tool_backoff_total` | counter | _(none)_ | Times a backoff sleep was applied (retry-after or exponential); indicates rate-limiting pressure from upstream services. |
+| `leather_tool_rate_limit_wait_total` | counter | _(none)_ | Times a tool call waited for a per-host token-bucket token; nonzero means the configured rate limits are actively throttling traffic. |
+| `leather_outbound_dlq_depth` | gauge | _(none)_ | Current item count in `outbound-dlq`; nonzero means tool failures need operator attention (`leather dlq inspect`). |
 
 Rules:
 

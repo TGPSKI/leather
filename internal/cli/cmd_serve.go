@@ -897,6 +897,16 @@ func RunServe(args []string, stdout, stderr io.Writer, version, commit string) i
 	devtoolsBus := bus.New(4096)
 	devtoolsSrc := sources.Wire(devtoolsBus, sources.Deps{})
 
+	var toolLimiter *tool.HostLimiter
+	if len(cfg.ToolRateLimits) > 0 {
+		var limErr error
+		toolLimiter, limErr = tool.NewHostLimiter(cfg.ToolRateLimits)
+		if limErr != nil {
+			log.Warn("tool rate limits: invalid config, rate limiting disabled", "error", limErr)
+			toolLimiter = nil
+		}
+	}
+
 	regDeps := agentRegDeps{
 		sched:          sched,
 		metrics:        metrics,
@@ -905,6 +915,7 @@ func RunServe(args []string, stdout, stderr io.Writer, version, commit string) i
 		queueMgr:       queueMgr,
 		notifiers:      notifiers,
 		mcpReg:         mcpReg,
+		toolLimiter:    toolLimiter,
 		cfg:            cfg,
 		log:            log,
 		stdout:         stdout,
@@ -1264,6 +1275,7 @@ type agentRegDeps struct {
 	queueMgr       *queue.Manager
 	notifiers      map[string]notify.Notifier
 	mcpReg         *mcp.Registry
+	toolLimiter    *tool.HostLimiter
 	cfg            model.Config
 	log            *logging.Logger
 	stdout         io.Writer
@@ -1297,6 +1309,7 @@ func registerAgentJob(deps agentRegDeps, a model.Agent) error {
 		QueueMgr:      deps.queueMgr,
 		Notifiers:     deps.notifiers,
 		MCPRegistry:   deps.mcpReg,
+		ToolLimiter:   deps.toolLimiter,
 	}
 	deps.metrics.registerAgent(agentCopy)
 	// Curing-driven agents have no schedule or queue input; the curing worker wakes
@@ -1651,6 +1664,11 @@ type configResponse struct {
 // metricsResponse is the JSON shape returned by GET /metrics.
 type metricsResponse struct {
 	Agents map[string]agentMetricSummary `json:"agents"`
+	// Outbound tool resilience counters (issues #7–#9).
+	ToolRetryTotal         int64 `json:"leather_tool_retry_total"`
+	ToolBackoffTotal       int64 `json:"leather_tool_backoff_total"`
+	ToolRateLimitWaitTotal int64 `json:"leather_tool_rate_limit_wait_total"`
+	OutboundDLQDepth       int   `json:"leather_outbound_dlq_depth"`
 }
 
 // snapshotResponse is the JSON shape of GET /snapshot and of snapshot files on disk.
@@ -1910,6 +1928,11 @@ func apiMux(deps apiDeps) http.Handler {
 	})
 
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		retryTotal, backoffTotal, rateLimitWaitTotal := tool.MetricSnapshot()
+		dlqDepth := 0
+		if deps.queueMgr != nil {
+			dlqDepth = deps.queueMgr.Depth("outbound-dlq")
+		}
 		var body metricsResponse
 		if deps.replay != nil {
 			body = metricsResponse{Agents: deps.replay.Metrics}
@@ -1918,6 +1941,10 @@ func apiMux(deps apiDeps) http.Handler {
 		} else {
 			body = metricsResponse{Agents: deps.metrics.summaries()}
 		}
+		body.ToolRetryTotal = retryTotal
+		body.ToolBackoffTotal = backoffTotal
+		body.ToolRateLimitWaitTotal = rateLimitWaitTotal
+		body.OutboundDLQDepth = dlqDepth
 		httpx.WriteJSON(w, http.StatusOK, body)
 	})
 

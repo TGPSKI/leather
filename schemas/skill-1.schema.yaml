@@ -142,3 +142,37 @@ properties:
             tool:
               type: string
               description: MCP tool name to invoke on the server.
+
+        retry:
+          type: object
+          additionalProperties: false
+          description: |
+            Optional per-tool retry policy for transient failures (5xx, 429, network errors).
+            When omitted, no retries are performed (single attempt, legacy behaviour).
+            Defaults apply when a field is omitted but max_attempts is set.
+          properties:
+            max_attempts:
+              type: integer
+              minimum: 1
+              description: |
+                Total number of attempts (initial + retries). 1 disables retries.
+                Default: 3 when the retry block is present and this field is omitted.
+              examples: [3]
+            base_delay:
+              type: string
+              description: |
+                Initial backoff duration (e.g. "1s", "500ms"). Doubles each retry up
+                to max_delay. Default: "1s".
+              examples: ["1s", "500ms"]
+            max_delay:
+              type: string
+              description: |
+                Backoff ceiling. Delays are capped at this value before jitter is added.
+                Default: "30s".
+              examples: ["30s", "60s"]
+            honor_retry_after:
+              type: boolean
+              description: |
+                When true, use the Retry-After response header value as the backoff
+                delay instead of the computed exponential value. Default: true.
+              default: true
