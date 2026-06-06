@@ -7,7 +7,7 @@ discipline, queue and dead-letter recovery, DevTools authentication,
 upgrades, and troubleshooting.
 
 If you are looking for *how to write an agent*, see [README.md](../README.md)
-and [GUIDE.md](GUIDE.md). For trust boundaries and the v0.1 security
+and [GUIDE.md](GUIDE.md). For trust boundaries and the v0.2 security
 posture, see [SECURITY.md](../SECURITY.md). For architecture context, see
 [ARCHITECTURE.md](ARCHITECTURE.md). For the day-2 ops roadmap, see
 [ROADMAP.md](../ROADMAP.md).
@@ -149,7 +149,7 @@ Returns a JSON object — **not** Prometheus exposition format. The shape is:
 ```
 
 If you need Prometheus, scrape this endpoint and adapt it externally. A
-native Prometheus exporter is not in v0.1.
+native Prometheus exporter is not in v0.2.
 
 ### `GET /cache/stats`
 
@@ -359,7 +359,7 @@ in.
 
 ## Upgrading
 
-leather is a single static binary with no runtime data migrations in v0.1.
+leather is a single static binary with no runtime data migrations in v0.2.
 
 1. Stop the service: `systemctl stop leather` (releases `leather.lock`).
 2. Replace the binary: `install -m 0755 leather /usr/local/bin/leather`.
@@ -393,13 +393,11 @@ For deeper debugging, `--log-level debug` increases verbosity across the
 runtime. Logs identify components and agent names but never include token
 content, API keys, or hide payloads.
 
-## What is NOT in v0.1
+## What is NOT in v0.2
 
 The following commonly-requested operational features are explicitly
 deferred. See [ROADMAP.md](../ROADMAP.md) for the full deferral list.
 
-- **`leather snapshot save/restore`** — built-in backup tooling.
-  Use the stop-then-tar procedure documented above.
 - **Prometheus exposition** — `/metrics` returns JSON. Adapt externally.
 - **Hot config reload** — `SIGHUP` reloads the worker supervisor but not
   every config field. For substantive changes, restart the process.

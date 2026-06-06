@@ -82,12 +82,21 @@ If any row is missing, add it before committing.
 
 ## Step 5 — Commit and push
 
+Stay on the **current branch** — do not switch to or push directly to `main`.
 Stage all changed files and create one commit:
 
 ```
+CURRENT_BRANCH=$(git branch --show-current)
 git add CHANGELOG.md README.md docs/ .subagents/
 git commit -m "chore(release): prepare NEXT_VERSION"
-git push origin main
+git push origin "$CURRENT_BRANCH"
+```
+
+If the current branch already has an open PR, the commit is added to it
+automatically. If not, open a new PR targeting `main`:
+
+```
+gh pr create --title "chore(release): prepare NEXT_VERSION" --body "..."
 ```
 
 Do not tag in this step. Tagging is the job of `leather-release-tag`.
@@ -100,5 +109,6 @@ Do not tag in this step. Tagging is the job of `leather-release-tag`.
 - [ ] CHANGELOG has the new section with at least one bullet
 - [ ] No stale version string remains in docs (grep clean)
 - [ ] Subcommand tables are in sync
-- [ ] Commit is on origin/main
+- [ ] Commit is pushed to current branch (not directly to main)
+- [ ] PR is open targeting main (create one if it doesn't exist)
 - [ ] Working tree is clean (`git status` shows nothing)

@@ -295,6 +295,8 @@ make example-01      # runs a mock-LLM example end-to-end
 | `leather validate` | Validate config, agents, lifecycles, skills, workers, and MCP servers. |
 | `leather test-agent` | Run an agent against `MockLLM` and print the transcript. |
 | `leather status` | Print scheduler state and current token‑budget settings. |
+| `leather snapshot` | Save or restore a point-in-time `tar.gz` archive of runtime state. |
+| `leather attach` | Join a running `serve` instance and stream pretty-printed runtime events. |
 | `leather replay` | Replay a snapshot or live session. |
 | `leather version` / `leather help` | The obvious. |
 

@@ -7,6 +7,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-06-05 "weathered"
+
 ### Added
 
 - **Shared stdlib leaf utilities** (`internal/fileutil`, `internal/jsonstore`,
@@ -351,7 +353,8 @@ Intentionally out of scope for v0.1.0; tracked for v0.2:
 See [ROADMAP.md](ROADMAP.md) for the full deferred-item list with
 rationales and proposed shapes.
 
-[Unreleased]: https://github.com/tgpski/leather/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/tgpski/leather/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/tgpski/leather/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/tgpski/leather/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/tgpski/leather/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/tgpski/leather/compare/v0.1.0...v0.1.1
