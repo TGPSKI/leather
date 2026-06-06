@@ -3,9 +3,6 @@
 // handles scalar key/value pairs, flow-style lists (key: [a, b]), and
 // block-style lists (key:\n  - a). Nested maps are not supported. Inline "#"
 // comments and surrounding quotes are stripped from scalar values.
-//
-// TODO(#3): line-number tracking, to support "file:line" prefixes on schema
-// violations, will be added here as the next step of the shared-utility work.
 package yamlx
 
 import (
@@ -125,6 +122,58 @@ func ParseFlat(r io.Reader) (vals map[string]string, lists map[string][]string, 
 		return nil, nil, fmt.Errorf("yamlx.ParseFlat: %w", err)
 	}
 	return vals, lists, nil
+}
+
+// ParseFlatLines is like ParseFlat but also returns a lines map that records
+// the 1-indexed source line number at which each scalar key was parsed.
+// List keys are not tracked. A key absent from lines has line 0 (unknown).
+func ParseFlatLines(r io.Reader) (vals map[string]string, lists map[string][]string, lines map[string]int, err error) {
+	vals = make(map[string]string)
+	lists = make(map[string][]string)
+	lines = make(map[string]int)
+
+	sc := bufio.NewScanner(r)
+	lineNum := 0
+	for sc.Scan() {
+		lineNum++
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") || line == "---" {
+			continue
+		}
+
+		idx := strings.Index(line, ":")
+		if idx < 0 {
+			continue
+		}
+
+		key := strings.TrimSpace(line[:idx])
+		raw := strings.TrimSpace(line[idx+1:])
+
+		if ci := strings.Index(raw, " #"); ci >= 0 {
+			raw = strings.TrimSpace(raw[:ci])
+		}
+
+		if strings.HasPrefix(raw, "[") && strings.HasSuffix(raw, "]") {
+			inner := raw[1 : len(raw)-1]
+			var items []string
+			for _, item := range strings.Split(inner, ",") {
+				item = strings.TrimSpace(item)
+				item = StripQuotes(item)
+				if item != "" {
+					items = append(items, item)
+				}
+			}
+			lists[key] = items
+		} else {
+			vals[key] = StripQuotes(raw)
+			lines[key] = lineNum
+		}
+	}
+
+	if err := sc.Err(); err != nil {
+		return nil, nil, nil, fmt.Errorf("yamlx.ParseFlatLines: %w", err)
+	}
+	return vals, lists, lines, nil
 }
 
 // SplitKV splits a "key: value" line into its key and value, returning

@@ -10,7 +10,7 @@ func TestValidateFlat_RequiredMissing(t *testing.T) {
 	s := Schema{
 		"agent": {Type: TypeString, Required: true},
 	}
-	vs := ValidateFlat(map[string]string{}, map[string][]string{}, s)
+	vs := ValidateFlat(map[string]string{}, map[string][]string{}, nil, s)
 	if len(vs) != 1 || vs[0].Field != "agent" {
 		t.Fatalf("expected 1 violation on 'agent', got %v", vs)
 	}
@@ -18,7 +18,7 @@ func TestValidateFlat_RequiredMissing(t *testing.T) {
 
 func TestValidateFlat_RequiredPresent(t *testing.T) {
 	s := Schema{"agent": {Type: TypeString, Required: true}}
-	vs := ValidateFlat(map[string]string{"agent": "my-agent"}, map[string][]string{}, s)
+	vs := ValidateFlat(map[string]string{"agent": "my-agent"}, map[string][]string{}, nil, s)
 	if len(vs) != 0 {
 		t.Fatalf("expected no violations, got %v", vs)
 	}
@@ -27,12 +27,12 @@ func TestValidateFlat_RequiredPresent(t *testing.T) {
 func TestValidateFlat_RequiredList(t *testing.T) {
 	s := Schema{"tools": {IsList: true, Required: true}}
 	// empty list → violation
-	vs := ValidateFlat(map[string]string{}, map[string][]string{}, s)
+	vs := ValidateFlat(map[string]string{}, map[string][]string{}, nil, s)
 	if len(vs) != 1 || vs[0].Field != "tools" {
 		t.Fatalf("expected 1 violation on 'tools', got %v", vs)
 	}
 	// non-empty list → ok
-	vs = ValidateFlat(map[string]string{}, map[string][]string{"tools": {"t1"}}, s)
+	vs = ValidateFlat(map[string]string{}, map[string][]string{"tools": {"t1"}}, nil, s)
 	if len(vs) != 0 {
 		t.Fatalf("expected no violations, got %v", vs)
 	}
@@ -65,7 +65,7 @@ func TestValidateFlat_FieldTypes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			s := Schema{tc.field: {Type: tc.ft, AllowedValues: []string{"http_poll"}}}
-			vs := ValidateFlat(map[string]string{tc.field: tc.val}, map[string][]string{}, s)
+			vs := ValidateFlat(map[string]string{tc.field: tc.val}, map[string][]string{}, nil, s)
 			if tc.wantErr && len(vs) == 0 {
 				t.Errorf("expected violation, got none")
 			}
@@ -89,7 +89,7 @@ func TestValidateFlat_IntegerBounds(t *testing.T) {
 		{"20", false},
 		{"21", true},
 	} {
-		vs := ValidateFlat(map[string]string{"rounds": tc.val}, nil, s)
+		vs := ValidateFlat(map[string]string{"rounds": tc.val}, nil, nil, s)
 		if tc.wantErr && len(vs) == 0 {
 			t.Errorf("val=%q expected violation, got none", tc.val)
 		}
@@ -106,7 +106,7 @@ func TestValidateFlat_OptionalAbsent(t *testing.T) {
 		"temperature": {Type: TypeNumber},
 		"tool_rounds": {Type: TypeInteger, HasMin: true, IntMin: 1},
 	}
-	vs := ValidateFlat(map[string]string{}, nil, s)
+	vs := ValidateFlat(map[string]string{}, nil, nil, s)
 	if len(vs) != 0 {
 		t.Fatalf("expected no violations for absent optional fields, got %v", vs)
 	}

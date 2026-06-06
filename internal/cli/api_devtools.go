@@ -11,6 +11,7 @@ import (
 
 	"github.com/tgpski/leather/internal/devtools/bus"
 	"github.com/tgpski/leather/internal/devtools/causality"
+	"github.com/tgpski/leather/internal/httpx"
 	"github.com/tgpski/leather/internal/queue"
 	"github.com/tgpski/leather/internal/worker"
 )
@@ -53,7 +54,7 @@ func NewDevtoolsHandler(deps DevtoolsHandlerDeps) http.Handler {
 			"bus_stats":     deps.Bus.Stats(),
 			"recent_events": events,
 		}
-		writeJSON(w, http.StatusOK, body)
+		httpx.WriteJSON(w, http.StatusOK, body)
 	})
 
 	mux.HandleFunc("/api/devtools/inspect/", func(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +62,7 @@ func NewDevtoolsHandler(deps DevtoolsHandlerDeps) http.Handler {
 		rest := strings.TrimPrefix(r.URL.Path, "/api/devtools/inspect/")
 		parts := strings.SplitN(rest, "/", 2)
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			writeJSONError(w, "expected /api/devtools/inspect/{kind}/{id}", http.StatusBadRequest)
+			httpx.WriteError(w, http.StatusBadRequest, "expected /api/devtools/inspect/{kind}/{id}")
 			return
 		}
 		kind := parts[0]
@@ -69,10 +70,10 @@ func NewDevtoolsHandler(deps DevtoolsHandlerDeps) http.Handler {
 
 		payload, found := inspectEntity(deps, kind, id)
 		if !found {
-			writeJSON(w, http.StatusNotFound, map[string]any{"error": map[string]string{"code": "not_found", "message": "entity not found"}})
+			httpx.WriteJSON(w, http.StatusNotFound, map[string]any{"error": map[string]string{"code": "not_found", "message": "entity not found"}})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"kind": kind, "id": id, "payload": payload})
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"kind": kind, "id": id, "payload": payload})
 	})
 
 	mux.HandleFunc("/api/devtools/trace/", func(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +81,7 @@ func NewDevtoolsHandler(deps DevtoolsHandlerDeps) http.Handler {
 		seqStr := strings.TrimPrefix(r.URL.Path, "/api/devtools/trace/")
 		seq, err := strconv.ParseUint(seqStr, 10, 64)
 		if err != nil || seq == 0 {
-			writeJSONError(w, "invalid seq", http.StatusBadRequest)
+			httpx.WriteError(w, http.StatusBadRequest, "invalid seq")
 			return
 		}
 		depth := parsePositiveInt(r.URL.Query().Get("depth"), 6)
@@ -89,10 +90,10 @@ func NewDevtoolsHandler(deps DevtoolsHandlerDeps) http.Handler {
 		}
 		result := deps.Causality.Trace(context.Background(), deps.Bus, seq, causality.TraceOptions{Depth: depth, Breadth: 512})
 		if len(result.Nodes) == 0 {
-			writeJSON(w, http.StatusNotFound, map[string]any{"error": map[string]string{"code": "not_found", "message": "seq not present in ring"}})
+			httpx.WriteJSON(w, http.StatusNotFound, map[string]any{"error": map[string]string{"code": "not_found", "message": "seq not present in ring"}})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"root_seq": result.RootSeq, "depth": depth, "nodes": result.Nodes})
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"root_seq": result.RootSeq, "depth": depth, "nodes": result.Nodes})
 	})
 
 	mux.Handle("/api/devtools/events", makeDevtoolsSSEHandler(deps.Bus))

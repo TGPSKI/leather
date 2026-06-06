@@ -27,6 +27,17 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `internal/queue`, `internal/artifact`, `internal/hide`, `internal/cli`
   migrated onto the new packages. `internal/config/yaml.go` deleted; its YAML
   tests moved to `internal/yamlx`.
+- **`internal/httpx`** — `WriteJSON(w, status, v)` and `WriteError(w, status, msg)`:
+  shared HTTP response helpers extracted from `internal/cli`. Eliminates 25+
+  inline `w.Header().Set("Content-Type", "application/json")` +
+  `json.NewEncoder(w).Encode(…)` clusters across `cmd_serve.go`,
+  `api_tannery.go`, and `api_devtools.go` (issue #17, phase 2).
+- **`yamlx.ParseFlatLines`** — like `ParseFlat` but also returns a
+  `map[string]int` of field name → 1-indexed source line number, enabling
+  `file:line` prefixes in schema violation output (issue #17, phase 2).
+- **`schema.Violation.Line`** — new `Line int` field (0 = unknown) populated
+  by `ValidateFlat` when line data is available. `leather validate` now emits
+  `schema: file:N:  field "…": …` for config/skill/toolset/worker YAML files.
 
 ## [0.1.3] - 2026-06-05
 

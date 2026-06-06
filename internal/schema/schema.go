@@ -52,14 +52,17 @@ type Schema map[string]Field
 // Violation is a single schema validation failure.
 type Violation struct {
 	Field   string // YAML field name
+	Line    int    // 1-indexed source line; 0 means unknown (e.g. ParseBlock callers)
 	Message string // human-readable description of the failure
 }
 
 // ValidateFlat checks flat YAML data against s.
 // vals holds scalar field values; lists holds list field values (from yamlx.ParseBlock).
+// lines maps field names to their 1-indexed source line numbers; pass nil when
+// line information is unavailable (violations will have Line == 0).
 // Returns violations for: missing required fields, type mismatches, enum violations,
 // and out-of-range integers. Unknown fields are not flagged (forward-compatible).
-func ValidateFlat(vals map[string]string, lists map[string][]string, s Schema) []Violation {
+func ValidateFlat(vals map[string]string, lists map[string][]string, lines map[string]int, s Schema) []Violation {
 	var vs []Violation
 	for name, f := range s {
 		if f.IsList {
@@ -74,14 +77,14 @@ func ValidateFlat(vals map[string]string, lists map[string][]string, s Schema) [
 		}
 		val := vals[name]
 		if f.Required && val == "" {
-			vs = append(vs, Violation{Field: name, Message: "required field missing"})
+			vs = append(vs, Violation{Field: name, Line: lines[name], Message: "required field missing"})
 			continue
 		}
 		if val == "" {
 			continue // optional field absent — skip further checks
 		}
 		if msg := checkValue(val, f); msg != "" {
-			vs = append(vs, Violation{Field: name, Message: msg})
+			vs = append(vs, Violation{Field: name, Line: lines[name], Message: msg})
 		}
 	}
 	return vs
@@ -150,7 +153,7 @@ func validCron(s string) bool {
 // src should be the YAML block between the --- delimiters (excluding the delimiters themselves).
 func ValidateAgentFrontmatter(src string) []Violation {
 	vals, lists := yamlx.ParseBlock(src)
-	return ValidateFlat(vals, lists, AgentFrontmatterSchema)
+	return ValidateFlat(vals, lists, nil, AgentFrontmatterSchema)
 }
 
 // ValidateLifecycleYAML parses src as lifecycle YAML and returns field violations.
@@ -159,7 +162,7 @@ func ValidateAgentFrontmatter(src string) []Violation {
 // against the allowed enum values [file, queue, http, notify].
 func ValidateLifecycleYAML(src string) []Violation {
 	vals, lists := yamlx.ParseBlock(src)
-	viols := ValidateFlat(vals, lists, LifecycleSchema)
+	viols := ValidateFlat(vals, lists, nil, LifecycleSchema)
 	viols = append(viols, validateLifecycleOutputRoutes(src)...)
 	return viols
 }
@@ -236,27 +239,31 @@ func checkEnum(val string, allowed []string) string {
 // ValidateConfigYAML parses src as config.yaml content and returns field violations.
 // The notify: nested block is not validated (parsed separately by the config loader).
 func ValidateConfigYAML(src string) []Violation {
-	vals, lists := yamlx.ParseBlock(src)
-	return ValidateFlat(vals, lists, ConfigSchema)
+	_, lists := yamlx.ParseBlock(src)
+	vals, _, lines, _ := yamlx.ParseFlatLines(strings.NewReader(src))
+	return ValidateFlat(vals, lists, lines, ConfigSchema)
 }
 
 // ValidateSkillYAML parses src as skill YAML and returns field violations.
 // Tool-level nested objects are not validated here.
 func ValidateSkillYAML(src string) []Violation {
-	vals, lists := yamlx.ParseBlock(src)
-	return ValidateFlat(vals, lists, SkillSchema)
+	_, lists := yamlx.ParseBlock(src)
+	vals, _, lines, _ := yamlx.ParseFlatLines(strings.NewReader(src))
+	return ValidateFlat(vals, lists, lines, SkillSchema)
 }
 
 // ValidateToolsetYAML parses src as toolset YAML and returns field violations.
 func ValidateToolsetYAML(src string) []Violation {
-	vals, lists := yamlx.ParseBlock(src)
-	return ValidateFlat(vals, lists, ToolsetSchema)
+	_, lists := yamlx.ParseBlock(src)
+	vals, _, lines, _ := yamlx.ParseFlatLines(strings.NewReader(src))
+	return ValidateFlat(vals, lists, lines, ToolsetSchema)
 }
 
 // ValidateWorkerYAML parses src as worker YAML and returns field violations.
 func ValidateWorkerYAML(src string) []Violation {
-	vals, lists := yamlx.ParseBlock(src)
-	return ValidateFlat(vals, lists, WorkerSchema)
+	_, lists := yamlx.ParseBlock(src)
+	vals, _, lines, _ := yamlx.ParseFlatLines(strings.NewReader(src))
+	return ValidateFlat(vals, lists, lines, WorkerSchema)
 }
 
 // ValidateMCPServersYAML validates the flat fields of each item under the
@@ -266,7 +273,7 @@ func ValidateMCPServersYAML(src string) []Violation {
 	items := splitMCPItems(src)
 	var viols []Violation
 	for i, item := range items {
-		for _, v := range ValidateFlat(item, nil, MCPServersItemSchema) {
+		for _, v := range ValidateFlat(item, nil, nil, MCPServersItemSchema) {
 			v.Field = fmt.Sprintf("[%d].%s", i, v.Field)
 			viols = append(viols, v)
 		}
@@ -360,7 +367,7 @@ func splitSchemaKV(line string) (string, string) {
 func ValidateTanneryYAML(src string) []Violation {
 	// Flat top-level fields (hide_dir, curing_dir, artifact_dir).
 	vals, _ := yamlx.ParseBlock(src)
-	viols := ValidateFlat(vals, nil, TanneryConfigSchema)
+	viols := ValidateFlat(vals, nil, nil, TanneryConfigSchema)
 
 	src = strings.ReplaceAll(src, "\r\n", "\n")
 	lines := strings.Split(src, "\n")
@@ -379,7 +386,7 @@ func walkTanneryRoutes(lines []string) []Violation {
 	items := splitTanneryListBlock(lines, "routes")
 	var viols []Violation
 	for i, it := range items {
-		for _, v := range ValidateFlat(it.vals, nil, TanneryRouteSchema) {
+		for _, v := range ValidateFlat(it.vals, nil, nil, TanneryRouteSchema) {
 			v.Field = fmt.Sprintf("routes[%d].%s", i, v.Field)
 			viols = append(viols, v)
 		}
@@ -411,7 +418,7 @@ func walkTanneryQueues(lines []string) []Violation {
 	entries := splitTanneryMapBlock(lines, "queues")
 	var viols []Violation
 	for name, vals := range entries {
-		for _, v := range ValidateFlat(vals, nil, TanneryQueueSchema) {
+		for _, v := range ValidateFlat(vals, nil, nil, TanneryQueueSchema) {
 			v.Field = fmt.Sprintf("queues.%s.%s", name, v.Field)
 			viols = append(viols, v)
 		}
@@ -424,7 +431,7 @@ func walkTanneryWebhooks(lines []string) []Violation {
 	items := splitTanneryListBlock(lines, "webhooks")
 	var viols []Violation
 	for i, it := range items {
-		for _, v := range ValidateFlat(it.vals, nil, TanneryWebhookSchema) {
+		for _, v := range ValidateFlat(it.vals, nil, nil, TanneryWebhookSchema) {
 			v.Field = fmt.Sprintf("webhooks[%d].%s", i, v.Field)
 			viols = append(viols, v)
 		}
@@ -437,13 +444,13 @@ func walkTanneryWebhooks(lines []string) []Violation {
 // CuringOutputSchema.
 func ValidateCuringYAML(src string) []Violation {
 	vals, lists := yamlx.ParseBlock(src)
-	viols := ValidateFlat(vals, lists, CuringSchema)
+	viols := ValidateFlat(vals, lists, nil, CuringSchema)
 
 	// Walk nested output: block.
 	src = strings.ReplaceAll(src, "\r\n", "\n")
 	lines := strings.Split(src, "\n")
 	for name, sub := range collectTopLevelMaps(lines, []string{"output"}) {
-		for _, v := range ValidateFlat(sub, nil, CuringOutputSchema) {
+		for _, v := range ValidateFlat(sub, nil, nil, CuringOutputSchema) {
 			v.Field = fmt.Sprintf("%s.%s", name, v.Field)
 			viols = append(viols, v)
 		}
