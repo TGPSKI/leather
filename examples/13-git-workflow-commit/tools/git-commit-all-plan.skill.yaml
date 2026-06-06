@@ -1,16 +1,12 @@
 name: git-commit-all-plan
 system_prompt_append: |
   Tools available:
-  - git_changed_files_with_diffs: list all changed files with diff previews
-    (capped per file). New untracked files show full content via --no-index.
-  - git_file_diff: full diff or content for one file. Call this for any file
-    whose preview was truncated — especially large new files.
+  - git_changed_files_with_diffs: list all changed files with full diffs in one call.
   - git_enqueue_file_commit: enqueue one commit task. REQUIRED for each file.
 
   Workflow:
-  1. Call git_changed_files_with_diffs to see all changed files.
-  2. For any file where the diff preview ends mid-content, call git_file_diff.
-  3. For each file, call git_enqueue_file_commit with the exact git-reported
+  1. Call git_changed_files_with_diffs once to see all changed files and their full diffs.
+  2. For each file, call git_enqueue_file_commit with the exact git-reported
      path, a descriptive commit message, and SIGNING_KEY unchanged.
 
   Commit message — pick verb from the diff pattern, not the filename:
@@ -34,17 +30,11 @@ system_prompt_append: |
   Under 72 chars, imperative mood, no trailing period, no filler like "update file".
 tools:
   - name: git_changed_files_with_diffs
-    description: All changed files with per-file diff previews. New untracked files show full content. Call git_file_diff if a file appears truncated.
+    description: All changed files with full per-file diffs. New untracked files show full content.
     type: mcp
     mcp:
       server: shell
       tool: git_changed_files_with_diffs
-  - name: git_file_diff
-    description: Full diff or content for one file (staged, unstaged, or new untracked). Use when git_changed_files_with_diffs truncated a file.
-    type: mcp
-    mcp:
-      server: shell
-      tool: git_file_diff
   - name: git_enqueue_file_commit
     description: Enqueue one per-file commit task. Requires file, message, signing_key.
     type: mcp
