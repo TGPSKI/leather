@@ -238,6 +238,16 @@ const DtFlow = (() => {
         }
       }
 
+      // Queue-run: scheduler dequeued an item and began a direct agent run ─────
+      if (ev.kind === "queue.run") {
+        const q    = p.queue || "queue";
+        const qnid = addNode("q:" + q, "queue", queueLabel(q), seq, lane);
+        if (isEphemeralQueue(q)) ephemeralNodeIds.add(qnid);
+        const aname = p.agent || ev.entity_id || "agent";
+        const anid  = addNode("ag:" + aname, "agent", shortLabel(aname, 15), seq, lane);
+        addEdge(qnid, anid);
+      }
+
       // Curing lifecycle events ───────────────────────────────────────────────
       if (ev.kind === "curing.start" || ev.kind === "curing.complete" || ev.kind === "curing.step") {
         const c = p.curing || ev.entity_id || "curing";
@@ -810,6 +820,8 @@ const DtFlow = (() => {
         return "\u2192 " + shortQueueName(p.dest_queue || p.queue || "");
       if (k === "queue.dequeue")
         return "\u2190 " + shortQueueName(p.queue || "") + (p.curing ? "  (" + p.curing + ")" : "");
+      if (k === "queue.run")
+        return "\u25b6 " + shortQueueName(p.queue || "") + " \u2192 " + (p.agent || "");
       if (k === "agent.run" || k === "agent.response")
         return (p.agent || "") + (p.response ? ": " + String(p.response).slice(0, 100) : "");
       if (k === "tool.call")

@@ -3,10 +3,12 @@ package sources
 
 import (
 	"encoding/json"
+	"sort"
 	"time"
 
 	"github.com/tgpski/leather/internal/curing"
 	"github.com/tgpski/leather/internal/devtools/bus"
+	"github.com/tgpski/leather/internal/model"
 	"github.com/tgpski/leather/internal/runner"
 )
 
@@ -177,6 +179,35 @@ func (w *Wiring) PublishTannery(ev curing.TanneryEvent) uint64 {
 		EntityID:   ev.ItemID,
 		Payload:    toRaw(payload),
 		Err:        ev.Err,
+	}))
+}
+
+// PublishQueueRun emits a queue.run event when the scheduler dequeues an item
+// and begins an agent run. It carries queue context without exposing payload values.
+func (w *Wiring) PublishQueueRun(agentName, queueName string, item model.QueueItem) uint64 {
+	if w == nil || w.bus == nil {
+		return 0
+	}
+	keys := make([]string, 0, len(item.Payload))
+	for k := range item.Payload {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return w.bus.Publish(bus.RedactEvent(bus.Event{
+		At:         w.now().Unix(),
+		Kind:       "queue.run",
+		Source:     "scheduler",
+		EntityKind: "queue_item",
+		EntityID:   item.ID,
+		Payload: toRaw(map[string]any{
+			"agent":        agentName,
+			"queue":        queueName,
+			"item_id":      item.ID,
+			"hide_id":      item.HideID,
+			"hide_kind":    item.HideKind,
+			"attempt":      item.AttemptCount,
+			"payload_keys": keys,
+		}),
 	}))
 }
 

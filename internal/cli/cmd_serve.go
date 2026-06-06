@@ -914,6 +914,7 @@ func RunServe(args []string, stdout, stderr io.Writer, version, commit string) i
 		statCompletion: &statCompletion,
 		onJobDone:      onJobDone,
 		devtoolsSrc:    devtoolsSrc,
+		devtoolsBus:    devtoolsBus,
 		agentHashes:    make(map[string]string),
 	}
 	for _, a := range agents {
@@ -1272,6 +1273,7 @@ type agentRegDeps struct {
 	statCompletion *int64
 	onJobDone      func()
 	devtoolsSrc    *sources.Wiring
+	devtoolsBus    *bus.Bus
 	// agentHashes tracks the content hash of each currently registered agent's
 	// source files so SIGHUP reload (T2.7) can detect in-place edits. Map is
 	// mutated only from the serve loop's reload handler, which is serial.
@@ -1327,9 +1329,13 @@ func registerAgentJob(deps agentRegDeps, a model.Agent) error {
 				}
 				jobRunner, prettyPrinter := configurePrettyRunner(*agentRunner, deps.stdout, deps.cfg)
 				if deps.devtoolsSrc != nil {
+					queueRunSeq := deps.devtoolsSrc.PublishQueueRun(agentCopy.Name, agentCopy.QueueInput, item)
 					baseProgress := jobRunner.ProgressFn
 					jobRunner.ProgressFn = func(ev runner.ProgressEvent) {
-						deps.devtoolsSrc.PublishRunner("", agentCopy.Name, ev)
+						evSeq := deps.devtoolsSrc.PublishRunner("", agentCopy.Name, ev)
+						if queueRunSeq != 0 && deps.devtoolsBus != nil {
+							deps.devtoolsBus.AppendCause(queueRunSeq, evSeq)
+						}
 						if baseProgress != nil {
 							baseProgress(ev)
 						}

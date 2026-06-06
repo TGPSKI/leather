@@ -215,26 +215,29 @@ stderr for the corresponding `agent load error` log line.
 
 ## Backup and restore
 
-**There is no built-in backup or restore command in v0.1.** Built-in
-snapshot tooling (`leather snapshot save / restore`) is on the v0.2
-roadmap — see [ROADMAP.md](../ROADMAP.md).
-Until then:
+Use `leather snapshot save` and `leather snapshot restore`. Both commands
+require that `leather serve` is **not running** — they detect the lock file
+and exit with an error if the service is active.
 
-1. **Stop** `leather serve` (`systemctl stop leather`). Do not skip this.
-2. `tar czf leather-state-$(date +%F).tgz -C <parent> <state-dir-name>`.
-3. If you use a tannery, also archive `hide_dir/` and `artifact_dir/`.
-4. Start the service again.
+```bash
+# Save a snapshot (defaults to leather-snapshot-<timestamp>.tar.gz)
+leather snapshot save --output /backups/leather-$(date +%F).tar.gz
 
-**Why stop first.** Queues are append-only JSONL files. A tarball taken
-during a write can capture a partial trailing line. The runtime treats a
-truncated final record as end-of-file on next read, which means a hot
-backup may silently drop the most recent enqueue. Stopping the process
-flushes pending writes and releases `leather.lock`.
+# Restore into an existing state directory (--force required if non-empty)
+leather snapshot restore \
+  --input /backups/leather-2026-06-05.tar.gz \
+  --force
+```
 
-Restore is the reverse: stop the service, extract the tarball over an
-empty `<state-dir>`, fix ownership (`chown -R leather:leather`), start the
-service. Queues and history resume from where they left off because both
-formats are append-only.
+The archive includes `queues/`, `runs/`, and `cache/` from `state_dir`, plus
+`hide_dir/` and `artifact_dir/` when tannery is configured. Transient files
+(`leather.lock`, `devtools.token`) are excluded from saves and not written
+on restore.
+
+**Why stop first.** Queues are append-only JSONL files. A snapshot taken
+during a write can capture a partial trailing line, silently dropping the
+most recent enqueue. Stopping the service flushes pending writes and
+releases `leather.lock`, which the snapshot commands check before proceeding.
 
 ## Log rotation
 
