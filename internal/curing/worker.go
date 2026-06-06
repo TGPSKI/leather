@@ -214,6 +214,9 @@ func (w *Worker) Run(ctx context.Context) {
 		})
 
 		// Acquire semaphore before spawning goroutine to bound concurrency.
+		// The goroutine receives context.Background() so that cancelling the
+		// Run loop (to stop polling) does not abort in-flight LLM calls.
+		// Per-item timeouts are applied inside process() via TimeoutSeconds.
 		w.sem <- struct{}{}
 		w.inflight.Add(1)
 		go func(it model.QueueItem) {
@@ -224,7 +227,7 @@ func (w *Worker) Run(ctx context.Context) {
 					w.log.Error("curing/Run: panic recovered", "curing", w.def.Name, "panic", r)
 				}
 			}()
-			w.handleItem(ctx, it)
+			w.handleItem(context.Background(), it)
 		}(item)
 	}
 }
@@ -315,7 +318,7 @@ func (w *Worker) runCollect(ctx context.Context) {
 				w.log.Error("curing/runCollect: panic recovered", "curing", w.def.Name, "panic", r)
 			}
 		}()
-		w.handleCollected(ctx, items)
+		w.handleCollected(context.Background(), items)
 	}(matched)
 }
 
@@ -390,7 +393,7 @@ func (w *Worker) runPrefixScan(ctx context.Context) {
 					}
 				}()
 				// handleItemFromQueue applies retry/DLQ using the actual queue name.
-				w.handleItemFromQueue(ctx, it, queueName)
+				w.handleItemFromQueue(context.Background(), it, queueName)
 				// GC the single-use queue if it is now empty.
 				sq, err := w.qmgr.Get(queueName)
 				if err == nil && sq.Len() == 0 {
@@ -468,7 +471,7 @@ func (w *Worker) runCollectFromQueue(ctx context.Context, queueName string, q *q
 					"curing", w.def.Name, "panic", r)
 			}
 		}()
-		w.handleCollected(ctx, items)
+		w.handleCollected(context.Background(), items)
 		// GC the single-use queue; handleCollected owns success semantics.
 		if err := w.qmgr.Delete(qn); err != nil {
 			w.log.Warn("curing/runCollectFromQueue: GC failed",
