@@ -115,18 +115,19 @@ type RunnerDeps struct {
 // Each Worker polls its queue at 1-second intervals. Concurrent item processing
 // is bounded by the semaphore channel capacity (QueueConcurrencyConfig.Concurrency).
 type Worker struct {
-	def       model.CuringDefinition
-	agents    map[string]model.Agent
-	hideStore *hide.Store
-	artStore  *artifact.Store
-	deps      *RunnerDeps
-	q         *queue.FileQueue // pre-fetched queue handle for this curing
-	qmgr      *queue.Manager   // for output routing enqueues and DLQ
-	log       *logging.Logger
-	sem       chan struct{}    // bounded by QueueConcurrencyConfig.Concurrency
-	inflight  sync.WaitGroup  // tracks goroutines spawned by Run; joined on shutdown
-	active    atomic.Int32    // count of items currently being processed
-	eventMu   sync.Mutex      // T4.8: serializes EventFn unless EventFnConcurrent is set
+	def          model.CuringDefinition
+	agents       map[string]model.Agent
+	hideStore    *hide.Store
+	artStore     *artifact.Store
+	deps         *RunnerDeps
+	q            *queue.FileQueue // pre-fetched queue handle for this curing
+	qmgr         *queue.Manager   // for output routing enqueues and DLQ
+	log          *logging.Logger
+	sem          chan struct{}  // bounded by QueueConcurrencyConfig.Concurrency
+	inflight     sync.WaitGroup // tracks goroutines spawned by Run; joined on shutdown
+	active       atomic.Int32   // count of items currently being processed
+	eventMu      sync.Mutex     // T4.8: serializes EventFn unless EventFnConcurrent is set
+	pollInterval time.Duration  // how long to sleep between queue polls
 }
 
 // NewWorker constructs a Worker for the given CuringDefinition.
@@ -137,6 +138,7 @@ func NewWorker(
 	def model.CuringDefinition,
 	agents map[string]model.Agent,
 	concurrency int,
+	pollInterval time.Duration,
 	hideStore *hide.Store,
 	artStore *artifact.Store,
 	deps *RunnerDeps,
@@ -147,18 +149,22 @@ func NewWorker(
 	if concurrency <= 0 {
 		concurrency = 1
 	}
+	if pollInterval <= 0 {
+		pollInterval = time.Second
+	}
 	if _, ok := agents[def.Agent]; !ok {
 		return nil, fmt.Errorf("curing/NewWorker %s: agent %q not found in loaded agents", def.Name, def.Agent)
 	}
 	w := &Worker{
-		def:       def,
-		agents:    agents,
-		hideStore: hideStore,
-		artStore:  artStore,
-		deps:      deps,
-		qmgr:      qmgr,
-		log:       log,
-		sem:       make(chan struct{}, concurrency),
+		def:          def,
+		agents:       agents,
+		hideStore:    hideStore,
+		artStore:     artStore,
+		deps:         deps,
+		qmgr:         qmgr,
+		log:          log,
+		sem:          make(chan struct{}, concurrency),
+		pollInterval: pollInterval,
 	}
 	// Prefix-based workers discover their queues dynamically; no static queue needed.
 	if def.QueuePrefix == "" {
@@ -181,7 +187,7 @@ func (w *Worker) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(time.Second):
+		case <-time.After(w.pollInterval):
 		}
 
 		// Prefix-based workers scan for single-use queues dynamically.
