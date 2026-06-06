@@ -28,9 +28,8 @@ Commit message verb rules — pick the verb based on the diff, not the filename:
 ---
 skills: [git-commit-all-plan]
 
-Step 1 — survey: call git_changed_files_with_diffs once. For any file whose
-diff shows "-- new file (untracked) --" and whose content is truncated, call
-git_file_diff for that file. For modifications that fit in the preview, skip it.
+Step 1 — survey: call git_changed_files_with_diffs once. Full diffs are included
+for every file — no follow-up calls needed.
 
 Step 2 — enqueue: call git_enqueue_file_commit once for every file listed in
 the TOTAL count from Step 1. Each call requires:
