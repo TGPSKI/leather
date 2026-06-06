@@ -16,7 +16,9 @@ queues:
     concurrency: 1
     max_attempts: 1
     max_depth: 5
+    poll_interval: 100ms
   cli-git-commit-file-in:
     concurrency: 16
     max_attempts: 1
     max_depth: 500
+    poll_interval: 100ms
