@@ -48,6 +48,7 @@ Each subcommand has:
 | `test-agent` | `RunTestAgent` | Execute an agent with `MockLLM` and print the turn transcript |
 | `status` | `RunStatus` | Print scheduler state, job history, token usage |
 | `ingest` | `RunIngest` | Store raw bytes as a hide and optionally enqueue for curing |
+| `snapshot` | `RunSnapshot` → `RunSnapshotSave` / `RunSnapshotRestore` | Save or restore a `tar.gz` point-in-time archive of runtime state |
 | `version` | `RunVersion` | Print version, commit, Go runtime version |
 
 `cli.Run` also accepts `help`, `--help`, and `-h`, which print `usage`
@@ -397,4 +398,4 @@ Before opening a PR touching this domain:
 
 ---
 
-_Last reviewed: 2026-06-04_
+_Last reviewed: 2026-06-05_
