@@ -1,4 +1,4 @@
-# 15-rpi-hailo-local-status-ingest
+# rpi-03-hailo-local-status-ingest
 
 A real-value tiny endpoint ingest example.
 

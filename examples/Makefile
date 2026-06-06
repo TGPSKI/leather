@@ -5,13 +5,15 @@
 #   make smoke		     build + run example 01 (no LLM)
 #   make all             validate every example config with LLM
 #   make 01              run example 01 (and so on)
+#   make rpi-01          run RPi/Hailo example rpi-01 (and so on)
 #   make reset           wipe per-example state
 #
 
 .PHONY: help all clean reset ensure-bin ensure-shell-mcp \
-	01 02 03 04 05 06 07 08 08-requeue 09 10 11 12 13 14 15 \
+	01 02 03 04 05 06 07 08 08-requeue 09 10 11 12 13 \
 	09-live 10-live 11-live 12-live \
-	validate-02 validate-13 validate-14 validate-15 summary view
+	rpi-01 rpi-02 rpi-03 \
+	validate-02 validate-rpi-01 validate-rpi-02 validate-rpi-03 summary view
 
 # Resolve absolute path to the leather binary at repo root.
 ROOT     := $(abspath ..)
@@ -36,7 +38,7 @@ export LEATHER_LLM_ENDPOINT LEATHER_MODEL
 help:
 	@echo "leather examples"
 	@echo ""
-	@echo "Targets:"
+	@echo "Mainline targets:"
 	@echo "  01   hello-mock          no-LLM smoke test (test-agent + MockLLM)"
 	@echo "  02   scheduled-agent     leather serve with a cron'd agent"
 	@echo "  03   shell-skill         agent calling shell tools via shell-mcp"
@@ -49,18 +51,21 @@ help:
 	@echo "  09   land-tracker        fetch real property URLs, diff prices/status, notify Telegram"
 	@echo "  10   ci-gate             GitHub PR webhook -> decide FULL_EVAL or SKIP (voice eval pipeline)"
 	@echo "  11   high-volume-ci      25-100 webhooks with variable timing + parallel bursts (load experiment)"
-	@echo "  12   spa-maintenance      scheduled site-health + dep-audit + content-drift + deploy-check webhook"
-	@echo "  13   rpi-hailo-canary    local Hailo/OpenAI endpoint canary"
-	@echo "  14   rpi-hailo-digest    local status snapshot -> scheduled digest"
-	@echo "  15   rpi-hailo-ingest    local status snapshot -> hide -> curing -> artifact"
+	@echo "  12   spa-maintenance     scheduled site-health + dep-audit + content-drift + deploy-check webhook"
+	@echo "  13   git-workflow-commit concurrent fan-out: planner enqueues per-file GPG commits"
 	@echo ""
 	@echo "Live-mode variants (real APIs; require auth / network — see per-example READMEs):"
 	@echo "  09-live  10-live  11-live  12-live"
 	@echo "  (plain '09'..'12' run in dry mode by default: outbound calls are mocked with fixtures.)"
 	@echo ""
+	@echo "RPi/Hailo targets (require Hailo-Ollama at http://localhost:8080):"
+	@echo "  rpi-01  hailo-endpoint-canary      local OpenAI-compatible endpoint canary"
+	@echo "  rpi-02  hailo-local-status-digest  local status snapshot -> scheduled digest"
+	@echo "  rpi-03  hailo-local-status-ingest  local status snapshot -> hide -> curing -> artifact"
+	@echo ""
 	@echo "  smoke                    smoke check: build + run example 01 (no LLM)"
-	@echo "  all                      validate every example config with LLM"
-	@echo "  validate-13 validate-14 validate-15 validate RPi/Hailo examples without running the endpoint"
+	@echo "  all                      run every mainline example end-to-end"
+	@echo "  validate-rpi-01 validate-rpi-02 validate-rpi-03   validate RPi configs without the endpoint"
 	@echo "  reset                    wipe per-example runtime state (.state/ dirs)"
 	@echo "  summary                  print runtime overview of last run (.state/ rollup)"
 	@echo "  view EX=NN               start a live viewer (DevTools UI) against example NN's .state"
@@ -176,27 +181,45 @@ ensure-shell-mcp:
 	@echo "==> 12-spa-maintenance (scheduled health + dep-audit + content-drift + deploy-check)  [dry mode]"
 	@LEATHER_DEMO_MODE=dry bash 12-spa-maintenance/scripts/run-demo.sh
 
-13: ensure-bin
-	@echo "==> 13-rpi-hailo-endpoint-canary (requires Hailo proxy at http://localhost:8080)"
-	@cd 13-rpi-hailo-endpoint-canary && $(MAKE) LEATHER="$(LEATHER)" \
-	  LEATHER_LLM_ENDPOINT="$(LEATHER_RPI_LLM_ENDPOINT)" \
-	  LEATHER_MODEL="$(LEATHER_RPI_MODEL)" run
-
-14: ensure-bin
-	@echo "==> 14-rpi-hailo-local-status-digest (requires Hailo proxy at http://localhost:8080)"
-	@cd 14-rpi-hailo-local-status-digest && $(MAKE) LEATHER="$(LEATHER)" \
-	  LEATHER_LLM_ENDPOINT="$(LEATHER_RPI_LLM_ENDPOINT)" \
-	  LEATHER_MODEL="$(LEATHER_RPI_MODEL)" run
-
-15: ensure-bin
-	@echo "==> 15-rpi-hailo-local-status-ingest (requires Hailo proxy at http://localhost:8080)"
-	@cd 15-rpi-hailo-local-status-ingest && $(MAKE) LEATHER="$(LEATHER)" \
-	  LEATHER_LLM_ENDPOINT="$(LEATHER_RPI_LLM_ENDPOINT)" \
-	  LEATHER_MODEL="$(LEATHER_RPI_MODEL)" run
-
 12-live: ensure-bin ensure-shell-mcp
 	@echo "==> 12-spa-maintenance  [LIVE mode — real HTTP/TLS checks against configured URLs]"
 	@LEATHER_DEMO_MODE=live bash 12-spa-maintenance/scripts/run-demo.sh
+
+13: ensure-bin ensure-shell-mcp
+	@echo "==> 13-git-workflow-commit (concurrent fan-out: planner + executor curings)"
+	@echo "    Requires: LEATHER_GIT_SIGNING_KEY, a git repo with uncommitted changes"
+	@if [ -z "$(LEATHER_GIT_SIGNING_KEY)" ]; then \
+	  echo "error: LEATHER_GIT_SIGNING_KEY is not set"; exit 1; fi
+	@cd 13-git-workflow-commit && mkdir -p .state && \
+	  printf 'Commit all changed files in cwd: %s\nSIGNING_KEY: %s\n' \
+	    "$$(git rev-parse --show-toplevel 2>/dev/null || pwd)" \
+	    "$(LEATHER_GIT_SIGNING_KEY)" | \
+	  $(LEATHER) workflow run \
+	    --config config.yaml \
+	    --tannery tannery.yaml \
+	    --kind cli.git.commit_all \
+	    --source cli \
+	    --settle 2s
+
+# --- RPi/Hailo targets --------------------------------------------------------
+
+rpi-01: ensure-bin
+	@echo "==> rpi-01-hailo-endpoint-canary (requires Hailo proxy at http://localhost:8080)"
+	@cd rpi-01-hailo-endpoint-canary && $(MAKE) LEATHER="$(LEATHER)" \
+	  LEATHER_LLM_ENDPOINT="$(LEATHER_RPI_LLM_ENDPOINT)" \
+	  LEATHER_MODEL="$(LEATHER_RPI_MODEL)" run
+
+rpi-02: ensure-bin
+	@echo "==> rpi-02-hailo-local-status-digest (requires Hailo proxy at http://localhost:8080)"
+	@cd rpi-02-hailo-local-status-digest && $(MAKE) LEATHER="$(LEATHER)" \
+	  LEATHER_LLM_ENDPOINT="$(LEATHER_RPI_LLM_ENDPOINT)" \
+	  LEATHER_MODEL="$(LEATHER_RPI_MODEL)" run
+
+rpi-03: ensure-bin
+	@echo "==> rpi-03-hailo-local-status-ingest (requires Hailo proxy at http://localhost:8080)"
+	@cd rpi-03-hailo-local-status-ingest && $(MAKE) LEATHER="$(LEATHER)" \
+	  LEATHER_LLM_ENDPOINT="$(LEATHER_RPI_LLM_ENDPOINT)" \
+	  LEATHER_MODEL="$(LEATHER_RPI_MODEL)" run
 
 # --- validation-only targets (no LLM, no network) ----------------------------
 # Each validate target cd's into its example dir so relative paths in
@@ -207,17 +230,17 @@ ensure-shell-mcp:
 # so we only run full validate against examples that ship a *.lifecycle.yaml.
 
 validate-02: ensure-bin; @cd 02-scheduled-agent && $(LEATHER) validate --config config.yaml
-validate-13: ensure-bin; @cd 13-rpi-hailo-endpoint-canary && $(LEATHER) validate --config config.yaml
-validate-14: ensure-bin; @cd 14-rpi-hailo-local-status-digest && $(MAKE) LEATHER="$(LEATHER)" \
+validate-rpi-01: ensure-bin; @cd rpi-01-hailo-endpoint-canary && $(LEATHER) validate --config config.yaml
+validate-rpi-02: ensure-bin; @cd rpi-02-hailo-local-status-digest && $(MAKE) LEATHER="$(LEATHER)" \
 	  LEATHER_LLM_ENDPOINT="$(LEATHER_RPI_LLM_ENDPOINT)" \
 	  LEATHER_MODEL="$(LEATHER_RPI_MODEL)" validate
-validate-15: ensure-bin; @cd 15-rpi-hailo-local-status-ingest && $(LEATHER) validate --config config.yaml --tannery tannery.yaml
+validate-rpi-03: ensure-bin; @cd rpi-03-hailo-local-status-ingest && $(LEATHER) validate --config config.yaml --tannery tannery.yaml
 
 # `smoke` is the cheap CI smoke: builds + runs the no-LLM example end-to-end.
-smoke: ensure-bin 01 validate-02 validate-13 validate-14 validate-15
+smoke: ensure-bin 01 validate-02 validate-rpi-01 validate-rpi-02 validate-rpi-03
 	@echo ""; echo "examples: smoke checks passed"
 
-all: 01 02 03 04 05 06 07 08 08-requeue 09 10 11 12
+all: 01 02 03 04 05 06 07 08 08-requeue 09 10 11 12 13
 	@echo ""; echo "examples: validation checks passed"
 	@bash $(ROOT)/examples/scripts/examples-summary.sh || true
 
@@ -227,13 +250,13 @@ summary:
 
 # Live viewer: start `leather serve` against an example's existing .state/ so
 # the DevTools UI is browsable after `make all` has torn down per-example
-# servers. Usage: make view EX=10 [ADDR=0.0.0.0:7749]
+# servers. Usage: make view EX=NN [ADDR=0.0.0.0:7749]
 EX ?=
 ADDR ?= 127.0.0.1:7749
 view: ensure-bin
 	@if [ -z "$(EX)" ]; then \
 	  echo "usage: make view EX=NN [ADDR=host:port]   (e.g. EX=10, ADDR=0.0.0.0:7749 for LAN access)"; \
-	  echo "available:"; ls -1d [0-9]*-* | sed 's/^/  /'; exit 2; fi
+	  echo "available:"; ls -1d [0-9]*-* rpi-*-* 2>/dev/null | sed 's/^/  /'; exit 2; fi
 	@dir=$$(ls -1d $(EX)-* 2>/dev/null | head -1); \
 	if [ -z "$$dir" ] || [ ! -d "$$dir" ]; then \
 	  echo "view: no example matches EX=$(EX)"; exit 2; fi; \

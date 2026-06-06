@@ -1,0 +1,54 @@
+{
+  "output_cap_bytes": 24000,
+  "tools": [
+    {
+      "name": "git_changed_files_with_diffs",
+      "description": "Changed files with per-file diff sections in the current repository cwd.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "set -u; dl=${LEATHER_GIT_DIFF_LINES:-12}; status=$(git status --porcelain --untracked-files=all); if [ -z \"$status\" ]; then exit 0; fi; printf '%s\\n' \"$status\" | while IFS= read -r line; do code=${line:0:2}; f=${line:3}; case \"$f\" in *' -> '*) f=${f##* -> };; esac; printf '\\n===== FILE: %s STATUS: %s =====\\n' \"$f\" \"$code\"; printf '-- staged --\\n'; staged=$(git diff --cached -- \"$f\" 2>/dev/null); if [ -n \"$staged\" ]; then printf '%s\\n' \"$staged\" | head -n \"$dl\"; else git diff --no-index -- /dev/null \"$f\" 2>/dev/null | head -n \"$dl\" || true; fi; printf '\\n-- unstaged --\\n'; git diff -- \"$f\" | head -n \"$dl\"; if git ls-files --others --exclude-standard -- \"$f\" | grep -qxF \"$f\"; then printf '\\n-- untracked --\\n'; git diff --no-index -- /dev/null \"$f\" 2>/dev/null | head -n \"$dl\" || true; fi; done"
+      ]
+    },
+    {
+      "name": "git_file_diff",
+      "description": "Staged, unstaged, and untracked diff/content for one file. Requires: file.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "set -u; f=$1; dl=${LEATHER_GIT_FILE_DIFF_LINES:-60}; printf 'FILE: %s\\n\\n-- staged --\\n' \"$f\"; staged=$(git diff --cached -- \"$f\" 2>/dev/null); if [ -n \"$staged\" ]; then printf '%s\\n' \"$staged\" | head -n \"$dl\"; else git diff --no-index -- /dev/null \"$f\" 2>/dev/null | head -n \"$dl\" || true; fi; printf '\\n-- unstaged --\\n'; git diff -- \"$f\" | head -n \"$dl\"; if git ls-files --others --exclude-standard -- \"$f\" | grep -qxF \"$f\"; then printf '\\n-- untracked --\\n'; git diff --no-index -- /dev/null \"$f\" 2>/dev/null | head -n \"$dl\" || true; fi",
+        "--",
+        "{{file}}"
+      ],
+      "required": ["file"]
+    },
+    {
+      "name": "git_enqueue_file_commit",
+      "description": "Enqueue one per-file commit task via the caller's intake endpoint. Requires: file, message, signing_key.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "set -eu; f=$1; msg=$2; key=$3; tmp=$(mktemp); trap 'rm -f \"$tmp\"' EXIT; chmod 600 \"$tmp\"; printf 'FILE: %s\\nMESSAGE: %s\\nSIGNING_KEY: %s\\n' \"$f\" \"$msg\" \"$key\" > \"$tmp\"; curl -sf -X POST \"${LEATHER_INTAKE_URL}?kind=cli.git.file_commit&curing=cli-git-commit-file&queue=cli-git-commit-file-in\" --data-binary @\"$tmp\"",
+        "--",
+        "{{file}}",
+        "{{message}}",
+        "{{signing_key}}"
+      ],
+      "required": ["file", "message", "signing_key"]
+    },
+    {
+      "name": "git_commit_file_signed",
+      "description": "Stage and GPG-sign commit exactly one file. Requires: file, message, signing_key.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "set -u; f=$1; msg=$2; key=$3; lock=\"$(git rev-parse --git-dir)/leather-commit.lock\"; exec 9>\"$lock\"; flock 9; git add -- \"$f\" && git commit -m \"$msg\" --gpg-sign=\"$key\" -- \"$f\"",
+        "--",
+        "{{file}}",
+        "{{message}}",
+        "{{signing_key}}"
+      ],
+      "required": ["file", "message", "signing_key"]
+    }
+  ]
+}
