@@ -85,6 +85,7 @@ func RunWorkflow(args []string, stdout, stderr io.Writer) int {
 // Returns exit code: 0 success, 1 error, 2 usage error.
 func RunWorkflowRun(args []string, stdout, stderr io.Writer) int {
 	fs := newFlagSet("workflow run", stderr)
+	fs.Usage = func() { fmt.Fprint(stderr, workflowRunUsage) }
 	config.BindFlags(fs)
 	curingName := fs.String("curing", "", "explicit curing name")
 	queueName := fs.String("queue", "", "explicit queue name (required with --curing)")
