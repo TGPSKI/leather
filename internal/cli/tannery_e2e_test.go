@@ -151,6 +151,7 @@ func TestTanneryPipeline_E2E(t *testing.T) {
 		curingDef,
 		map[string]model.Agent{"pr-agent": agentDef},
 		1,
+		50*time.Millisecond,
 		hideStore,
 		artStore,
 		runnerDeps,
