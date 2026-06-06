@@ -88,12 +88,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   the API `tool_calls` array now parse and execute correctly. Truncated
   trailing blocks (finish_reason=length) are silently dropped so the run
   continues on the next round.
-- **Examples 13–15** — Raspberry Pi 5 + AI HAT+ 2 (Hailo-10H) examples
-  validated on live hardware against `qwen3:1.7b`:
-  - `13-rpi-hailo-endpoint-canary`: endpoint sanity check.
-  - `14-rpi-hailo-local-status-digest`: shell evidence collection → scheduled
+- **RPi examples rpi-01–rpi-03** — Raspberry Pi 5 + AI HAT+ 2 (Hailo-10H) examples
+  validated on live hardware against `qwen3:1.7b` (renamed from 13–15 to give the
+  RPi track its own stable namespace):
+  - `rpi-01-hailo-endpoint-canary`: endpoint sanity check.
+  - `rpi-02-hailo-local-status-digest`: shell evidence collection → scheduled
     digest without tannery.
-  - `15-rpi-hailo-local-status-ingest`: evidence → hide → curing → artifact.
+  - `rpi-03-hailo-local-status-ingest`: evidence → hide → curing → artifact.
 - `docs/integrations/rpi-hailo.md` integration guide for Raspberry Pi 5 +
   Hailo-10H.
 - `make install` target and `LEATHER_RPI_*` env vars in the examples Makefile.

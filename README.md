@@ -74,8 +74,8 @@ make example-06
 <br/>
 
 
-The full catalog lives in [examples/](examples/) — twelve runnable demos from
-`hello-mock` to a high-volume CI gate.
+The full catalog lives in [examples/](examples/) — thirteen runnable mainline demos
+from `hello-mock` to a concurrent git workflow, plus dedicated RPi/Hailo examples.
 
 
 ## Capabilities

@@ -187,19 +187,10 @@ ensure-shell-mcp:
 
 13: ensure-bin ensure-shell-mcp
 	@echo "==> 13-git-workflow-commit (concurrent fan-out: planner + executor curings)"
-	@echo "    Requires: LEATHER_GIT_SIGNING_KEY, a git repo with uncommitted changes"
-	@if [ -z "$(LEATHER_GIT_SIGNING_KEY)" ]; then \
-	  echo "error: LEATHER_GIT_SIGNING_KEY is not set"; exit 1; fi
-	@cd 13-git-workflow-commit && mkdir -p .state && \
-	  printf 'Commit all changed files in cwd: %s\nSIGNING_KEY: %s\n' \
-	    "$$(git rev-parse --show-toplevel 2>/dev/null || pwd)" \
-	    "$(LEATHER_GIT_SIGNING_KEY)" | \
-	  $(LEATHER) workflow run \
-	    --config config.yaml \
-	    --tannery tannery.yaml \
-	    --kind cli.git.commit_all \
-	    --source cli \
-	    --settle 2s
+	@LEATHER="$(LEATHER)" SHELLMCP="$(SHELLMCP)" \
+	  LEATHER_LLM_ENDPOINT="$(LEATHER_LLM_ENDPOINT)" \
+	  LEATHER_MODEL="$(LEATHER_MODEL)" \
+	  bash 13-git-workflow-commit/scripts/run-demo.sh
 
 # --- RPi/Hailo targets --------------------------------------------------------
 

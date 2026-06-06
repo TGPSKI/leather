@@ -107,7 +107,7 @@ help:
 	@echo "  clean                           remove build artifacts"
 	@echo "  build-shell-mcp                 compile shell-mcp binary"
 	@echo "  examples                        list runnable examples (see examples/README.md)"
-	@echo "  example-NN                      run a single example (e.g. example-02, example-09-live)"
+	@echo "  example-NN                      run a single example (e.g. example-02, example-13, example-rpi-01)"
 	@echo "  examples-smoke                	 validate every example config (no LLM)"
 	@echo "  examples-all               	 validate every example config with LLM"
 	@echo "  examples-reset             	 wipe per-example runtime state (.state/ dirs)"
