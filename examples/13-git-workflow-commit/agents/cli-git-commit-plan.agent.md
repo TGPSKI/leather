@@ -28,21 +28,18 @@ Commit message verb rules — pick the verb based on the diff, not the filename:
 ---
 skills: [git-commit-all-plan]
 
-Call git_changed_files_with_diffs to get every changed file and a preview of
-its diff. For any file whose diff shows "-- new file (untracked) --" AND whose
-content is truncated, call git_file_diff to read the full content. For small
-modifications that fit in the preview, no additional call is needed.
+Step 1 — survey: call git_changed_files_with_diffs once. For any file whose
+diff shows "-- new file (untracked) --" and whose content is truncated, call
+git_file_diff for that file. For modifications that fit in the preview, skip it.
 
----
-skills: [git-commit-all-plan]
-
-For each changed file, call git_enqueue_file_commit with:
+Step 2 — enqueue: for each changed file, call git_enqueue_file_commit exactly
+once with:
 - file: the exact repo-relative path from git status
-- message: a commit message — read the actual diff to pick the right verb; never
-  use "add" for modifications to existing files; never guess from the filename
+- message: a commit message using the verb rules above; read the diff, not the filename
 - signing_key: the SIGNING_KEY from the hide, unchanged
 
-Make all git_enqueue_file_commit calls now. After all calls return, stop.
+Call git_enqueue_file_commit for every file before stopping. Each file gets
+exactly one call — do not call it again for a file you have already enqueued.
 
 ---
 
