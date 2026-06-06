@@ -168,7 +168,18 @@ func RunWorkflowRun(args []string, stdout, stderr io.Writer) int {
 	hideStore := hide.NewStore(tannCfg.HideDir)
 	artStore := artifact.NewStore(tannCfg.ArtifactDir)
 	qmgr := queue.NewManager(filepath.Join(cfg.StateDir, "queues"))
-	log := buildLogger(cfg, stderr)
+
+	logDest := io.Writer(stderr)
+	if cfg.LogFile != "" {
+		f, err := os.OpenFile(cfg.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			fmt.Fprintf(stderr, "leather workflow run: open log file %s: %v\n", cfg.LogFile, err)
+			return 1
+		}
+		defer f.Close()
+		logDest = f
+	}
+	log := buildLogger(cfg, logDest)
 
 	agents, agentErrs := agent.LoadDir(cfg.AgentDir)
 	for _, e := range agentErrs {
