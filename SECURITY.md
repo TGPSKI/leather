@@ -4,13 +4,15 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| 0.3.x   | :white_check_mark: |
+| 0.2.x   | :x:                |
+| 0.1.x   | :x:                |
 
 ## Reporting a Vulnerability
 
 If you discover a potential security vulnerability, please submit a GitHub issue.
 
-## Trust model and known limits in v0.1
+## Trust model and known limits in v0.3
 
 Leather is a **single-user runtime**. The threat model assumes a single
 trusted operator on the local machine; there is no isolation between agents

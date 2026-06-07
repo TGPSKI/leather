@@ -7,6 +7,47 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-06-07
+
+### Added
+
+- **`leather workflow run`** — bounded one-shot tannery workflow execution from
+  the CLI. The command ingests a hide from a file or stdin, resolves a curing
+  by route or explicit `--curing`/`--queue`, starts the needed curing workers,
+  drains queues to quiescence, and exits with clear status codes for success,
+  runtime failure, timeout, or DLQ items.
+- **Outbound tool resilience** — per-tool retry configuration, transient error
+  classification, exponential backoff with optional `Retry-After` handling,
+  per-host rate limits, outbound DLQ routing, `leather dlq inspect/requeue`,
+  and tool retry/backoff/rate-limit/DLQ metrics.
+- **Queue poll interval configuration** — `poll_interval` is now parsed from
+  queue concurrency config and applied by workers, with a 1s default and faster
+  intervals in examples/tests where short runs matter.
+- **Log file support** — `--log-file` / `LEATHER_LOG_FILE` writes structured
+  logs to a file and falls back cleanly to stderr when file setup fails.
+- **Concurrent git workflow example** — `examples/13-git-workflow-commit`
+  demonstrates `leather workflow run` with a planner curing that fans out
+  per-file signed git commit tasks to executor curings.
+
+### Changed
+
+- Git workflow agents, skills, and shell tools now collect fuller per-file
+  diffs, use more concrete commit-message rules, avoid duplicate enqueue
+  calls, and allow additional tool rounds for reliable metadata extraction.
+- Raspberry Pi / Hailo examples use the dedicated `rpi-01`–`rpi-03` namespace
+  so mainline example numbering can continue independently.
+
+### Fixed
+
+- `leather workflow run` now waits for both empty queues and in-flight worker
+  handlers before declaring quiescence, preventing skipped Phase 1 commits and
+  stale Phase 2 queue processing.
+- `leather workflow run` sets `LEATHER_INTAKE_URL` before MCP servers start so
+  child shell-MCP tools inherit the correct intake endpoint.
+- Workflow help text, usage wiring, shell-tool diff caps, and git commit
+  command handling were corrected to avoid confusing output and silent
+  failures.
+
 ## [0.2.0] — 2026-06-05 "weathered"
 
 ### Added
@@ -354,7 +395,8 @@ Intentionally out of scope for v0.1.0; tracked for v0.2:
 See [ROADMAP.md](ROADMAP.md) for the full deferred-item list with
 rationales and proposed shapes.
 
-[Unreleased]: https://github.com/tgpski/leather/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/tgpski/leather/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/tgpski/leather/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/tgpski/leather/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/tgpski/leather/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/tgpski/leather/compare/v0.1.1...v0.1.2
