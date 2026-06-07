@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tgpski/leather/internal/model"
 	"github.com/tgpski/leather/internal/yamlx"
@@ -326,6 +327,11 @@ func parseTanneryQueueLine(trimmed string, indent int, curName *string, cur **mo
 		n, err := strconv.Atoi(v)
 		if err == nil {
 			(*cur).MaxDepth = n
+		}
+	case "poll_interval":
+		d, err := time.ParseDuration(v)
+		if err == nil {
+			(*cur).PollInterval = d
 		}
 	}
 }

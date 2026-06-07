@@ -1,0 +1,54 @@
+{
+  "output_cap_bytes": 24000,
+  "tools": [
+    {
+      "name": "git_changed_files_with_diffs",
+      "description": "Changed files with per-file diff previews (capped at LEATHER_GIT_DIFF_LINES per file). New untracked files show full content via --no-index. Call git_file_diff for any file whose diff appears truncated.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "set -u; dl=${LEATHER_GIT_DIFF_LINES:-50}; git_status=$(git status --porcelain --untracked-files=all); if [ -z \"$git_status\" ]; then printf 'no changes\\n'; exit 0; fi; total=$(printf '%s\\n' \"$git_status\" | wc -l | tr -d ' '); printf 'TOTAL: %s files to commit\\n' \"$total\"; printf '%s\\n' \"$git_status\" | while IFS= read -r line; do code=${line:0:2}; f=${line:3}; case \"$f\" in *' -> '*) f=${f##* -> };; esac; printf '\\n===== FILE: %s STATUS: %s =====\\n' \"$f\" \"$code\"; is_new=0; if git ls-files --others --exclude-standard -- \"$f\" | grep -qxF \"$f\"; then is_new=1; fi; if [ \"$is_new\" = '1' ]; then printf '%s\\n' '-- new file (untracked) --'; git diff --no-index -- /dev/null \"$f\" 2>/dev/null | head -n \"$dl\" || true; else staged=$(git diff --cached -- \"$f\" 2>/dev/null); if [ -n \"$staged\" ]; then printf '%s\\n' '-- staged --'; printf '%s\\n' \"$staged\" | head -n \"$dl\"; else printf '%s\\n' '-- staged -- (none)'; fi; unstaged=$(git diff -- \"$f\" 2>/dev/null); if [ -n \"$unstaged\" ]; then printf '%s\\n' '-- unstaged --'; printf '%s\\n' \"$unstaged\" | head -n \"$dl\"; fi; fi; done"
+      ]
+    },
+    {
+      "name": "git_file_diff",
+      "description": "Full diff or content for one file — staged, unstaged, or new untracked. Use when git_changed_files_with_diffs truncated a file. Requires: file.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "set -u; f=$1; dl=${LEATHER_GIT_FILE_DIFF_LINES:-200}; printf 'FILE: %s\\n\\n' \"$f\"; if git ls-files --others --exclude-standard -- \"$f\" | grep -qxF \"$f\"; then printf '%s\\n' '-- new file (untracked) --'; git diff --no-index -- /dev/null \"$f\" 2>/dev/null | head -n \"$dl\" || true; else staged=$(git diff --cached -- \"$f\" 2>/dev/null); if [ -n \"$staged\" ]; then printf '%s\\n' '-- staged --'; printf '%s\\n' \"$staged\" | head -n \"$dl\"; else printf '%s\\n' '-- staged -- (none)'; fi; unstaged=$(git diff -- \"$f\" 2>/dev/null); if [ -n \"$unstaged\" ]; then printf '%s\\n\\n' '-- unstaged --'; printf '%s\\n' \"$unstaged\" | head -n \"$dl\"; fi; fi",
+        "--",
+        "{{file}}"
+      ],
+      "required": ["file"]
+    },
+    {
+      "name": "git_enqueue_file_commit",
+      "description": "Enqueue one per-file commit task via the caller's intake endpoint. Requires: file, message, signing_key.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "set -eu; f=$1; msg=$2; key=$3; tmp=$(mktemp); trap 'rm -f \"$tmp\"' EXIT; chmod 600 \"$tmp\"; printf 'FILE: %s\\nMESSAGE: %s\\nSIGNING_KEY: %s\\n' \"$f\" \"$msg\" \"$key\" > \"$tmp\"; curl -sf -X POST \"${LEATHER_INTAKE_URL}?kind=cli.git.file_commit&curing=cli-git-commit-file&queue=cli-git-commit-file-in\" --data-binary @\"$tmp\"",
+        "--",
+        "{{file}}",
+        "{{message}}",
+        "{{signing_key}}"
+      ],
+      "required": ["file", "message", "signing_key"]
+    },
+    {
+      "name": "git_commit_file_signed",
+      "description": "Stage and GPG-sign commit exactly one file. Requires: file, message, signing_key.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "set -u; f=$1; msg=$2; key=$3; lock=\"$(git rev-parse --git-dir)/leather-commit.lock\"; exec 9>\"$lock\"; flock 9; git add -- \"$f\" && git commit -q -m \"$msg\" --gpg-sign=\"$key\" -- \"$f\" >/dev/null && printf 'committed: %s\\n' \"$f\"",
+        "--",
+        "{{file}}",
+        "{{message}}",
+        "{{signing_key}}"
+      ],
+      "required": ["file", "message", "signing_key"]
+    }
+  ]
+}

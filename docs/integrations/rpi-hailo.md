@@ -39,11 +39,11 @@ make 15
 
 Examples:
 
-- `examples/13-rpi-hailo-endpoint-canary/` checks that a tiny local endpoint can
+- `examples/rpi-01-hailo-endpoint-canary/` checks that a tiny local endpoint can
   return a strict three-line summary.
-- `examples/14-rpi-hailo-local-status-digest/` collects deterministic local
+- `examples/rpi-02-hailo-local-status-digest/` collects deterministic local
   evidence and runs a scheduled digest without tannery.
-- `examples/15-rpi-hailo-local-status-ingest/` collects deterministic local
+- `examples/rpi-03-hailo-local-status-ingest/` collects deterministic local
   evidence, ingests it as a hide, and cures it into an operational artifact.
 
 The useful pattern is:

@@ -62,8 +62,8 @@ fi
 now_iso="$(date +'%Y-%m-%d %H:%M:%S')"
 host="$(hostname 2>/dev/null || echo localhost)"
 
-# Discover example dirs (numeric prefix) in sorted order.
-mapfile -t examples < <(find "${EX_DIR}" -maxdepth 1 -mindepth 1 -type d -name '[0-9]*-*' | sort)
+# Discover example dirs (numeric or rpi-NN prefix) in sorted order.
+mapfile -t examples < <(find "${EX_DIR}" -maxdepth 1 -mindepth 1 -type d \( -name '[0-9]*-*' -o -name 'rpi-[0-9]*-*' \) | sort)
 
 # Globals (accumulators).
 g_examples=0

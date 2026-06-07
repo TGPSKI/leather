@@ -1185,9 +1185,11 @@ my-project/
 | `leather chat` | Interactive multi-turn chat with an agent. |
 | `leather validate` | Parse and schema-check all files; report errors. |
 | `leather ingest` | Write a file as a hide and optionally enqueue it. |
+| `leather workflow` | Run bounded one-shot tannery workflows to queue quiescence. |
 | `leather status` | Print job history, token usage, scheduler state. |
 | `leather test-agent` | Run an agent against `MockLLM` and print the transcript. |
 | `leather snapshot` | Save or restore a point-in-time `tar.gz` archive of runtime state. |
+| `leather dlq` | Inspect and requeue outbound dead-letter queue items. |
 | `leather attach` | Join a running `serve` instance and stream pretty-printed runtime events. |
 | `leather replay` | Replay a snapshot or live session. |
 | `leather version` / `leather help` | The obvious. |

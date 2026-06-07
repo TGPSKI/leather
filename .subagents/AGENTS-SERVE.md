@@ -49,6 +49,7 @@ Each subcommand has:
 | `dlq` | `RunDLQ` | Inspect and requeue outbound dead-letter queue items |
 | `status` | `RunStatus` | Print scheduler state, job history, token usage |
 | `ingest` | `RunIngest` | Store raw bytes as a hide and optionally enqueue for curing |
+| `workflow` | `RunWorkflow` | Run bounded one-shot tannery workflows to queue quiescence |
 | `snapshot` | `RunSnapshot` → `RunSnapshotSave` / `RunSnapshotRestore` | Save or restore a `tar.gz` point-in-time archive of runtime state |
 | `attach` | `RunAttach` | Join a running `serve` instance and stream pretty-printed DevTools events |
 | `version` | `RunVersion` | Print version, commit, Go runtime version |
@@ -430,4 +431,4 @@ Before opening a PR touching this domain:
 
 ---
 
-_Last reviewed: 2026-06-05_
+_Last reviewed: 2026-06-07_

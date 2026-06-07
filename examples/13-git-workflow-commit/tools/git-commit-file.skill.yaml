@@ -1,0 +1,17 @@
+name: git-commit-file
+system_prompt_append: |
+  You can commit exactly one changed file in the current working directory.
+
+  - git_commit_file_signed: git add <file> and git commit -m <message>
+    --gpg-sign=<signing_key> -- <file>.
+
+  Parse FILE, MESSAGE, and SIGNING_KEY from the hide. Call
+  git_commit_file_signed once with signing_key=SIGNING_KEY. Do not change any
+  other path.
+tools:
+  - name: git_commit_file_signed
+    description: Stage and GPG-sign commit exactly one file. Requires file, message, and signing_key.
+    type: mcp
+    mcp:
+      server: shell
+      tool: git_commit_file_signed

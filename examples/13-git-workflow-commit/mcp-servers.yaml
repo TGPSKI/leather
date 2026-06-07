@@ -1,0 +1,4 @@
+servers:
+  - name: shell
+    command: shell-mcp tools/shell-tools.json
+    transport: stdio

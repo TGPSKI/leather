@@ -122,7 +122,7 @@ func runWorker(t *testing.T, h *tanneryHarness, def model.CuringDefinition, agen
 		MaxToolRounds: 1,
 		QueueMgr:      h.qmgr,
 	}
-	w, err := curing.NewWorker(def, agents, 1, h.hideStore, h.artStore, rdeps, h.qmgr, nil, h.deps.log)
+	w, err := curing.NewWorker(def, agents, 1, 50*time.Millisecond, h.hideStore, h.artStore, rdeps, h.qmgr, nil, h.deps.log)
 	if err != nil {
 		t.Fatalf("NewWorker: %v", err)
 	}
@@ -355,7 +355,7 @@ func TestCuringWorker_RetryExhaustion_DLQ(t *testing.T) {
 	// directly invoking through a real worker.
 	rdeps := &curing.RunnerDeps{Client: mock, ToolReg: tool.NewRegistry(),
 		Log: h.deps.log, MaxToolRounds: 1, QueueMgr: h.qmgr}
-	w, err := curing.NewWorker(def, agents, 1, h.hideStore, h.artStore, rdeps, h.qmgr, nil, h.deps.log)
+	w, err := curing.NewWorker(def, agents, 1, 50*time.Millisecond, h.hideStore, h.artStore, rdeps, h.qmgr, nil, h.deps.log)
 	if err != nil {
 		t.Fatal(err)
 	}

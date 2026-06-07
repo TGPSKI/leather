@@ -1,4 +1,4 @@
-# 13-rpi-hailo-endpoint-canary
+# rpi-01-hailo-endpoint-canary
 
 A scheduled tiny local endpoint summarization canary.
 

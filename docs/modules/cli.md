@@ -8,12 +8,11 @@
 shared flags, loads configuration, assembles the runtime dependencies for each
 command, starts the scheduler and worker supervisor in `serve`, exposes the
 HTTP API and replay endpoints, and provides testable command handlers for
-`init`, `doctor`, `chat`, `run`, `validate`, `test-agent`, `status`, and `version`.
+`init`, `doctor`, `chat`, `run`, `validate`, `test-agent`, `status`,
+`ingest`, `workflow`, `replay`, `snapshot`, `dlq`, `attach`, and `version`.
 
 ## Public API
 
-| Symbol | Signature | Description |
-|--------|-----------|-------------|
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
 | `Run` | `func Run(args []string, stdout, stderr io.Writer, version, commit string) int` | Main command dispatcher used by `cmd/leather/main.go`. |
@@ -26,8 +25,10 @@ HTTP API and replay endpoints, and provides testable command handlers for
 | `RunTestAgent` | `func RunTestAgent(args []string, stdout, stderr io.Writer) int` | Run an agent with `MockLLM` and optional fake tool responses. |
 | `RunStatus` | `func RunStatus(args []string, stdout, stderr io.Writer) int` | Print current config summary and persisted scheduler state. |
 | `RunIngest` | `func RunIngest(args []string, stdout, stderr io.Writer) int` | Store raw bytes as a hide and optionally enqueue for curing. |
+| `RunWorkflow` | `func RunWorkflow(args []string, stdout, stderr io.Writer) int` | Dispatch `leather workflow` subcommands, including bounded one-shot tannery runs. |
 | `RunReplay` | `func RunReplay(args []string, stdout, stderr io.Writer, version, commit string) int` | Replay a captured snapshot or runs directory via the API. |
 | `RunSnapshot` | `func RunSnapshot(args []string, stdout, stderr io.Writer) int` | Save or restore a point-in-time `tar.gz` archive of runtime state. |
+| `RunDLQ` | `func RunDLQ(args []string, stdout, stderr io.Writer) int` | Inspect and requeue outbound dead-letter queue items. |
 | `RunAttach` | `func RunAttach(args []string, stdout, stderr io.Writer) int` | Join a running `serve` instance and stream pretty-printed DevTools events. |
 | `RunVersion` | `func RunVersion(_ []string, stdout, _ io.Writer, version, commit string) int` | Print build metadata. |
 

@@ -1,0 +1,43 @@
+name: git-commit-all-plan
+system_prompt_append: |
+  Tools available:
+  - git_changed_files_with_diffs: list all changed files with full diffs in one call.
+  - git_enqueue_file_commit: enqueue one commit task. REQUIRED for each file.
+
+  Workflow:
+  1. Call git_changed_files_with_diffs once to see all changed files and their full diffs.
+  2. For each file, call git_enqueue_file_commit with the exact git-reported
+     path, a descriptive commit message, and SIGNING_KEY unchanged.
+
+  Commit message — pick verb from the diff pattern, not the filename:
+
+  Diff pattern → correct verb:
+  - New untracked file (entire file added)          → add
+  - New func/method appended to existing file       → add
+  - New section appended to docs/config             → add
+  - Inserting lines into existing func body         → wire / expose / extend
+  - Changing existing lines (replacing logic)       → fix / refactor / update
+  - Deleting code                                   → remove
+  - Renaming / moving                               → rename / move / extract
+
+  Examples (diff pattern → message):
+  + entire new file server.go                       → "add server: HTTP handler with health and ready endpoints"
+  + func (c *Config) Validate() appended            → "add Config.Validate: enforce MaxBodyBytes and LogLevel constraints"
+  + s.mux.Handle("/debug/vars", ...) in NewServer() → "expose /debug/vars: wire metrics handler into server mux"
+  + ## Usage section appended to README.md          → "add usage section: document env vars and build steps"
+  - old auth logic replaced with new               → "refactor auth: replace session token store with compliant approach"
+
+  Under 72 chars, imperative mood, no trailing period, no filler like "update file".
+tools:
+  - name: git_changed_files_with_diffs
+    description: All changed files with full per-file diffs. New untracked files show full content.
+    type: mcp
+    mcp:
+      server: shell
+      tool: git_changed_files_with_diffs
+  - name: git_enqueue_file_commit
+    description: Enqueue one per-file commit task. Requires file, message, signing_key.
+    type: mcp
+    mcp:
+      server: shell
+      tool: git_enqueue_file_commit

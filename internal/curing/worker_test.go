@@ -75,7 +75,7 @@ func testWorker(
 	}
 	deps.QueueMgr = qmgr
 
-	w, err := NewWorker(def, agents, 1, hs, as, deps, qmgr, nil, log)
+	w, err := NewWorker(def, agents, 1, 50*time.Millisecond, hs, as, deps, qmgr, nil, log)
 	if err != nil {
 		t.Fatalf("NewWorker: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestWorker_ProcessAgentNotFound(t *testing.T) {
 	def := testDef("pr-review", "nonexistent-agent", "default")
 	deps := &RunnerDeps{ToolReg: tool.NewRegistry(), Log: log}
 
-	_, err := NewWorker(def, map[string]model.Agent{}, 1, hs, as, deps, qmgr, nil, log)
+	_, err := NewWorker(def, map[string]model.Agent{}, 1, 50*time.Millisecond, hs, as, deps, qmgr, nil, log)
 	if err == nil {
 		t.Fatal("expected NewWorker error for missing agent, got nil")
 	}

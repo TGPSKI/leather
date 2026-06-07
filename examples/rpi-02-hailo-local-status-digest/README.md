@@ -1,4 +1,4 @@
-# 14-rpi-hailo-local-status-digest
+# rpi-02-hailo-local-status-digest
 
 A real-value tiny endpoint example.
 

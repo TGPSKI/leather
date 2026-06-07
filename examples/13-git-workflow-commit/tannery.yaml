@@ -1,0 +1,24 @@
+hide_dir: .state/hides
+artifact_dir: .state/artifacts
+curing_dir: curings
+
+routes:
+  - name: cli-git-commit-all
+    match:
+      source: cli
+      event_type: cli.git.commit_all
+    hide_kind: cli.git.commit_all
+    curing: cli-git-commit-all
+    queue: cli-git-commit-all-in
+
+queues:
+  cli-git-commit-all-in:
+    concurrency: 1
+    max_attempts: 1
+    max_depth: 5
+    poll_interval: 100ms
+  cli-git-commit-file-in:
+    concurrency: 16
+    max_attempts: 1
+    max_depth: 500
+    poll_interval: 100ms

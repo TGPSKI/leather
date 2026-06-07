@@ -3,6 +3,7 @@ package curing
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/tgpski/leather/internal/artifact"
 	"github.com/tgpski/leather/internal/hide"
@@ -36,10 +37,16 @@ func NewSupervisor(
 	s := &Supervisor{}
 	for _, def := range defs {
 		conc := 1
-		if cfg, ok := concMap[def.Queue]; ok && cfg.Concurrency > 0 {
-			conc = cfg.Concurrency
+		poll := time.Second
+		if cfg, ok := concMap[def.Queue]; ok {
+			if cfg.Concurrency > 0 {
+				conc = cfg.Concurrency
+			}
+			if cfg.PollInterval > 0 {
+				poll = cfg.PollInterval
+			}
 		}
-		w, err := NewWorker(def, agents, conc, hideStore, artStore, deps, qmgr, router, log)
+		w, err := NewWorker(def, agents, conc, poll, hideStore, artStore, deps, qmgr, router, log)
 		if err != nil {
 			return nil, err
 		}
@@ -58,6 +65,17 @@ func (s *Supervisor) Start(ctx context.Context) {
 			w.Run(ctx)
 		}(w)
 	}
+}
+
+// TotalActive returns the sum of in-flight item handlers across all workers.
+// A non-zero value means workers are still processing items even if all queues
+// report depth 0 (items are dequeued before processing begins).
+func (s *Supervisor) TotalActive() int {
+	total := 0
+	for _, w := range s.workers {
+		total += w.ActiveCount()
+	}
+	return total
 }
 
 // Drain waits for all worker Run loops to exit AND for any in-flight item

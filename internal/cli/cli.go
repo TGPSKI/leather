@@ -42,6 +42,8 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		return RunInit(rest, stdout, stderr)
 	case "ingest":
 		return RunIngest(rest, stdout, stderr)
+	case "workflow":
+		return RunWorkflow(rest, stdout, stderr)
 	case "replay":
 		return RunReplay(rest, stdout, stderr, version, commit)
 	case "snapshot":

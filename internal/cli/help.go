@@ -16,6 +16,7 @@ Commands:
   status      show scheduler state, job history, token budget usage
   dlq         inspect and requeue outbound dead-letter queue items
   ingest      store raw bytes as a hide and optionally enqueue for curing
+  workflow    ingest a hide and drain all curing queues concurrently to completion
   replay      replay a captured snapshot or runs directory via the API
   snapshot    save or restore a point-in-time archive of runtime state
   attach      join a running serve instance and stream pretty-printed runtime logs

@@ -1,0 +1,9 @@
+name: cli-git-commit-file
+description: Commit one queued file task with GPG signing.
+agent: cli-git-commit-file
+hide_types:
+  - cli.git.file_commit
+queue: cli-git-commit-file-in
+page_size_bytes: 1000
+max_attempts: 1
+timeout_seconds: 180

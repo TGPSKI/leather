@@ -1,0 +1,9 @@
+name: cli-git-commit-all
+description: Inspect all changed files and enqueue one signed commit task per file.
+agent: cli-git-commit-plan
+hide_types:
+  - cli.git.commit_all
+queue: cli-git-commit-all-in
+page_size_bytes: 3800
+max_attempts: 1
+timeout_seconds: 300
