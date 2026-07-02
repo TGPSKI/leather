@@ -6,8 +6,10 @@
 
 `model` is the foundation of the internal dependency graph. It defines the
 structs and enums that other packages exchange, persist, expose through APIs,
-or serialize in tool and replay flows. The package intentionally contains no
-business logic and imports only the standard library.
+or serialize in tool and replay flows. The package is otherwise free of
+business logic and imports only the standard library, with one narrow
+exception: `LookupReserve`, a small static lookup table for reasoning-model
+`completion_reserve` defaults (see below).
 
 ## Public API
 
@@ -52,6 +54,7 @@ business logic and imports only the standard library.
 | `JobStatusSuccess` | `const JobStatusSuccess JobStatus = "success"` | Successful run state. |
 | `JobStatusError` | `const JobStatusError JobStatus = "error"` | Failed run state. |
 | `JobStatusSkipped` | `const JobStatusSkipped JobStatus = "skipped"` | Skipped scheduler state. |
+| `LookupReserve` | `func LookupReserve(modelName string) (int, bool)` | Suggested `completion_reserve` for a known reasoning model (substring match against `Agent.Model`), and whether one was found. |
 
 ## Internal Design
 
@@ -67,12 +70,22 @@ The exported types cluster into a few durable groups:
 
 Most runtime-facing structs carry JSON tags because they are serialized in run
 history, APIs, queue files, tool requests, or MCP responses. The package stays
-logic-free so other packages can depend on these shapes without introducing
-import cycles.
+otherwise logic-free so other packages can depend on these shapes without
+introducing import cycles.
+
+`reasoning.go` is the one exception: a static `map[string]int` of known
+reasoning-model name substrings (e.g. `qwen3`, `qwq`, `deepseek-r1`) to a
+suggested `completion_reserve`, checked case-insensitively against
+`Agent.Model` by `LookupReserve`. It lives here rather than in `runner` or
+`cli` because both `curing/worker.go` and `cli/cmd_serve.go` need it when
+resolving a `TokenBudget`, and putting it in `model` avoids a new import edge
+between those two packages. It is intentionally tiny and leather-internal —
+no external manifest, no vanity coupling — and callers always let an explicit
+per-agent `CompletionReserve` override win over the lookup's suggestion.
 
 ## Dependencies
 
-None. `model` imports only `time` from the standard library.
+`model` imports only `time` and `strings` from the standard library.
 
 ## Data Flow
 
@@ -90,8 +103,10 @@ flowchart LR
 
 ## Test Surface
 
-`internal/model` has no direct tests. Its correctness is exercised indirectly
-through the packages that parse, transform, persist, and expose these types.
+`internal/model/reasoning_test.go` directly tests `LookupReserve` against
+known and unknown model names. The rest of the package has no direct tests;
+its correctness is exercised indirectly through the packages that parse,
+transform, persist, and expose these types.
 
 ## Related Docs
 

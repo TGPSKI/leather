@@ -583,6 +583,9 @@ func (w *Worker) handleCollected(ctx context.Context, items []model.QueueItem) {
 	if ag.MaxTokens > 0 {
 		budget.MaxTokens = ag.MaxTokens
 	}
+	if suggested, ok := model.LookupReserve(ag.Model); ok {
+		budget.CompletionReserve = suggested
+	}
 	if ag.CompletionReserve > 0 {
 		budget.CompletionReserve = ag.CompletionReserve
 	}
@@ -814,6 +817,9 @@ func (w *Worker) process(ctx context.Context, item model.QueueItem) error {
 	budget := w.deps.Budget
 	if ag.MaxTokens > 0 {
 		budget.MaxTokens = ag.MaxTokens
+	}
+	if suggested, ok := model.LookupReserve(ag.Model); ok {
+		budget.CompletionReserve = suggested
 	}
 	if ag.CompletionReserve > 0 {
 		budget.CompletionReserve = ag.CompletionReserve

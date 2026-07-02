@@ -363,6 +363,26 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 			totalTokens.Total += resp.TotalTokens
 			lastResp = resp
 
+			// Self-healing retry: a reasoning model's <think> trace can exhaust
+			// max_tokens before any answer content or tool call exists. Retry once
+			// with a bumped reserve, bounded by the model's remaining context.
+			if resp.FinishReason == "length" && resp.Content == "" && len(resp.ToolCalls) == 0 {
+				if bumped, ok := retryReserveBump(opts.MaxTokens, budget.MaxTokens, resp.PromptTokens); ok {
+					r.Log.Warn("completion truncated before any content; retrying with larger reserve",
+						"agent", a.Name, "round", round, "prev_max_tokens", opts.MaxTokens, "retry_max_tokens", bumped)
+					opts.MaxTokens = bumped
+					resp, err = r.Client.Complete(callCtx, a.Model, sess.Messages(), opts)
+					if err != nil {
+						wErr := fmt.Errorf("runner/Run %s round %d retry: %w", a.Name, round, err)
+						return r.errorRecord(a, startTs, wErr), wErr
+					}
+					totalTokens.Prompt += resp.PromptTokens
+					totalTokens.Response += resp.CompletionTokens
+					totalTokens.Total += resp.TotalTokens
+					lastResp = resp
+				}
+			}
+
 			if len(resp.ToolCalls) == 0 {
 				// Final text response — record the turn and continue to next prompt.
 				r.Log.Info("agent completed", "agent", a.Name,
@@ -730,6 +750,26 @@ func (r *Runner) currentHidePage(hideID string) (int, bool) {
 	}
 	page, ok := r.hidePages[hideID]
 	return page, ok
+}
+
+// retryReserveBump computes a doubled max_tokens for a self-healing retry
+// after a completion was truncated (finish_reason "length") before producing
+// any content or tool call. The bump is capped by the model's remaining
+// context window given the prompt size of the truncated call. Returns
+// ok == false when there is no room left to grow into.
+func retryReserveBump(current, maxTokens, promptTokens int) (bumped int, ok bool) {
+	ceiling := maxTokens - promptTokens
+	if ceiling <= current {
+		return 0, false
+	}
+	bumped = current * 2
+	if bumped > ceiling {
+		bumped = ceiling
+	}
+	if bumped <= current {
+		return 0, false
+	}
+	return bumped, true
 }
 
 func intArg(args map[string]any, name string) (int, bool) {
