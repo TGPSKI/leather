@@ -1252,15 +1252,20 @@ func executeAgent(ctx context.Context, a model.Agent, budget model.TokenBudget, 
 	return resp, nil
 }
 
-// resolveTokenBudget returns a TokenBudget for a, overriding max_tokens if set.
+// resolveTokenBudget returns a TokenBudget for a, overriding max_tokens and
+// completion_reserve if set.
 func resolveTokenBudget(cfg model.Config, a model.Agent) model.TokenBudget {
 	maxTokens := cfg.MaxTokens
 	if a.MaxTokens > 0 {
 		maxTokens = a.MaxTokens
 	}
+	completionReserve := cfg.CompletionReserve
+	if a.CompletionReserve > 0 {
+		completionReserve = a.CompletionReserve
+	}
 	return model.TokenBudget{
 		MaxTokens:          maxTokens,
-		CompletionReserve:  cfg.CompletionReserve,
+		CompletionReserve:  completionReserve,
 		SummarizeThreshold: cfg.SummarizeThreshold,
 	}
 }

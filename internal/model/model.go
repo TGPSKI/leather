@@ -348,6 +348,10 @@ type Agent struct {
 	UserPrompts []string
 	// MaxTokens overrides the global token budget for this agent. Zero means use the global default.
 	MaxTokens int
+	// CompletionReserve overrides the global completion token reserve for this agent.
+	// Zero means use the global default. Useful for reasoning models, whose
+	// <think> trace can consume the default reserve before any answer content exists.
+	CompletionReserve int
 	// Timeout overrides the global LLM request timeout. Zero means use the global default.
 	Timeout time.Duration
 	// Temperature is the sampling temperature sent to the model.

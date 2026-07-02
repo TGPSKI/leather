@@ -76,6 +76,7 @@ whitespace.
 | `schedule` | string | — | Cron expression or `"once"`. Required somewhere (here or lifecycle). |
 | `model` | string | — | LLM model name. Required somewhere. |
 | `max_tokens` | int | `LEATHER_MAX_TOKENS` | Token budget override. |
+| `completion_reserve` | int | `LEATHER_COMPLETION_RESERVE` | Per-agent completion token reserve override. Useful for reasoning models, whose `<think>` trace can exceed the global default before any answer content exists. |
 | `timeout` | duration | `LEATHER_LLM_TIMEOUT` | Per-call timeout. |
 | `temperature` | float | `0.7` | Sampling temperature. |
 | `enabled` | bool | `true` | Set `false` to disable without deleting. |
@@ -171,6 +172,7 @@ human-readable convention only and is never parsed.
 | `name` | string | `agent` value | Job-name override (singleton only). |
 | `enabled` | bool | `true` | Set `false` to suspend without deleting. |
 | `max_tokens` | int | `LEATHER_MAX_TOKENS` | Token budget override. |
+| `completion_reserve` | int | `LEATHER_COMPLETION_RESERVE` | Per-agent completion token reserve override. Useful for reasoning models, whose `<think>` trace can exceed the global default before any answer content exists. |
 | `timeout` | duration | `LEATHER_LLM_TIMEOUT` | Per-call timeout. |
 | `temperature` | float | `0.7` | Sampling temperature. |
 | `prompt` | string | — | Single user prompt override. |

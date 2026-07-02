@@ -4,18 +4,19 @@ package schema
 // Only the flat scalar and list fields are covered; body text is not validated.
 var AgentFrontmatterSchema = Schema{
 	// version is a reserved forward-compatibility field; default "1". (T5.10)
-	"version":     {Type: TypeString},
-	"name":        {Type: TypeString, Required: true},
-	"schedule":    {Type: TypeCron},
-	"model":       {Type: TypeString},
-	"tool_rounds": {Type: TypeInteger, HasMin: true, IntMin: 1, HasMax: true, IntMax: 100},
-	"max_tokens":  {Type: TypeInteger, HasMin: true, IntMin: 1},
-	"timeout":     {Type: TypeDuration},
-	"temperature": {Type: TypeNumber},
-	"enabled":     {Type: TypeBoolean},
-	"queue_input": {Type: TypeString},
-	"skills":      {IsList: true},
-	"tags":        {IsList: true},
+	"version":            {Type: TypeString},
+	"name":               {Type: TypeString, Required: true},
+	"schedule":           {Type: TypeCron},
+	"model":              {Type: TypeString},
+	"tool_rounds":        {Type: TypeInteger, HasMin: true, IntMin: 1, HasMax: true, IntMax: 100},
+	"max_tokens":         {Type: TypeInteger, HasMin: true, IntMin: 1},
+	"completion_reserve": {Type: TypeInteger, HasMin: true, IntMin: 1},
+	"timeout":            {Type: TypeDuration},
+	"temperature":        {Type: TypeNumber},
+	"enabled":            {Type: TypeBoolean},
+	"queue_input":        {Type: TypeString},
+	"skills":             {IsList: true},
+	"tags":               {IsList: true},
 }
 
 // LifecycleSchema validates the flat scalar and list fields of *.lifecycle.yaml files.
@@ -32,6 +33,7 @@ var LifecycleSchema = Schema{
 	"enabled":            {Type: TypeBoolean},
 	"disable":            {Type: TypeBoolean},
 	"max_tokens":         {Type: TypeInteger, HasMin: true, IntMin: 1},
+	"completion_reserve": {Type: TypeInteger, HasMin: true, IntMin: 1},
 	"timeout":            {Type: TypeDuration},
 	"temperature":        {Type: TypeNumber},
 	"tool_rounds":        {Type: TypeInteger, HasMin: true, IntMin: 1},

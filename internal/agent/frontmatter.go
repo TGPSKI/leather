@@ -11,17 +11,18 @@ import (
 
 // frontMatter holds the raw parsed values from the YAML header of a *.agent.md file.
 type frontMatter struct {
-	Name        string
-	Schedule    string
-	Model       string
-	MaxTokens   int
-	Timeout     time.Duration
-	Temperature float64
-	Enabled     bool
-	Tags        []string
-	Skills      []string
-	Toolsets    []string
-	ToolRounds  int
+	Name              string
+	Schedule          string
+	Model             string
+	MaxTokens         int
+	CompletionReserve int
+	Timeout           time.Duration
+	Temperature       float64
+	Enabled           bool
+	Tags              []string
+	Skills            []string
+	Toolsets          []string
+	ToolRounds        int
 }
 
 // parseFrontMatter extracts and parses the YAML front matter from src.
@@ -121,6 +122,12 @@ func applyFrontMatterFields(yamlBlock string, fm *frontMatter) error {
 				return fmt.Errorf("invalid max_tokens %q: %w", raw, err)
 			}
 			fm.MaxTokens = n
+		case "completion_reserve":
+			n, err := strconv.Atoi(raw)
+			if err != nil {
+				return fmt.Errorf("invalid completion_reserve %q: %w", raw, err)
+			}
+			fm.CompletionReserve = n
 		case "timeout":
 			d, err := time.ParseDuration(raw)
 			if err != nil {

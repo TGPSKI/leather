@@ -22,29 +22,30 @@ import (
 //
 // YAML field values are always authoritative. The filename is never parsed.
 type lifecycleRecord struct {
-	AgentName        string // from required `agent:` field
-	JobName          string // from optional `name:` field; defaults to AgentName for singletons
-	Schedule         string // required
-	Model            string // required (LLM model name)
-	Enabled          bool
-	EnabledSet       bool // true when `enabled:` was explicitly present in YAML (T5.1)
-	MaxTokens        int
-	Timeout          time.Duration
-	Temperature      float64
-	Tags             []string
-	Skills           []string            // skill names for tool calling
-	Toolsets         []string            // named toolsets for tool calling
-	ToolRounds       int                 // max tool-call cycles per run; 0 = global default
-	QueueInput       string              // named queue to dequeue one item per tick for prompt substitution
-	QueueBatchSize   int                 // max items dequeued per scheduler tick (0/1 = default)
-	QueueMaxAttempts int                 // max retries before DLQ promotion; 0 = disabled
-	UserPrompt       string              // per-instantiation user message sent at each execution
-	UserPrompts      []string            // ordered chain of user messages; non-empty replaces UserPrompt
-	Cache            model.CacheConfig   // response caching config
-	OutputRoutes     []model.OutputRoute // output routing destinations
-	Hooks            model.AgentHooks    // lifecycle shell hooks
-	Parameters       map[string]string   // from parameters: block; empty-string values prompt the user
-	SourcePath       string
+	AgentName         string // from required `agent:` field
+	JobName           string // from optional `name:` field; defaults to AgentName for singletons
+	Schedule          string // required
+	Model             string // required (LLM model name)
+	Enabled           bool
+	EnabledSet        bool // true when `enabled:` was explicitly present in YAML (T5.1)
+	MaxTokens         int
+	CompletionReserve int
+	Timeout           time.Duration
+	Temperature       float64
+	Tags              []string
+	Skills            []string            // skill names for tool calling
+	Toolsets          []string            // named toolsets for tool calling
+	ToolRounds        int                 // max tool-call cycles per run; 0 = global default
+	QueueInput        string              // named queue to dequeue one item per tick for prompt substitution
+	QueueBatchSize    int                 // max items dequeued per scheduler tick (0/1 = default)
+	QueueMaxAttempts  int                 // max retries before DLQ promotion; 0 = disabled
+	UserPrompt        string              // per-instantiation user message sent at each execution
+	UserPrompts       []string            // ordered chain of user messages; non-empty replaces UserPrompt
+	Cache             model.CacheConfig   // response caching config
+	OutputRoutes      []model.OutputRoute // output routing destinations
+	Hooks             model.AgentHooks    // lifecycle shell hooks
+	Parameters        map[string]string   // from parameters: block; empty-string values prompt the user
+	SourcePath        string
 }
 
 // loadLifecycleFile reads a *.lifecycle.yaml file and returns one or more records.
@@ -332,6 +333,13 @@ func applyLifecycleFields(vals map[string]string, lists map[string][]string, rec
 			return fmt.Errorf("invalid max_tokens %q: %w", v, err)
 		}
 		rec.MaxTokens = n
+	}
+	if v, ok := vals["completion_reserve"]; ok {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("invalid completion_reserve %q: %w", v, err)
+		}
+		rec.CompletionReserve = n
 	}
 	if v, ok := vals["timeout"]; ok {
 		d, err := time.ParseDuration(v)

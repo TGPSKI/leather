@@ -147,6 +147,9 @@ func applyLifecycle(a *model.Agent, rec lifecycleRecord) {
 	if rec.MaxTokens > 0 {
 		a.MaxTokens = rec.MaxTokens
 	}
+	if rec.CompletionReserve > 0 {
+		a.CompletionReserve = rec.CompletionReserve
+	}
 	if rec.Timeout > 0 {
 		a.Timeout = rec.Timeout
 	}
@@ -218,23 +221,24 @@ func LoadFile(path string) (model.Agent, error) {
 	sysPrompt, turnPrompts, turnTools, turnSkills, turnToolsets := splitAgentBody(body)
 
 	return model.Agent{
-		Name:         fm.Name,
-		Schedule:     fm.Schedule,
-		Model:        fm.Model,
-		SystemPrompt: sysPrompt,
-		UserPrompts:  turnPrompts,
-		TurnTools:    turnTools,
-		MaxTokens:    fm.MaxTokens,
-		Timeout:      fm.Timeout,
-		Temperature:  fm.Temperature,
-		Enabled:      fm.Enabled,
-		Tags:         fm.Tags,
-		Skills:       fm.Skills,
-		Toolsets:     fm.Toolsets,
-		ToolRounds:   fm.ToolRounds,
-		TurnSkills:   turnSkills,
-		TurnToolsets: turnToolsets,
-		SourcePath:   path,
+		Name:              fm.Name,
+		Schedule:          fm.Schedule,
+		Model:             fm.Model,
+		SystemPrompt:      sysPrompt,
+		UserPrompts:       turnPrompts,
+		TurnTools:         turnTools,
+		MaxTokens:         fm.MaxTokens,
+		CompletionReserve: fm.CompletionReserve,
+		Timeout:           fm.Timeout,
+		Temperature:       fm.Temperature,
+		Enabled:           fm.Enabled,
+		Tags:              fm.Tags,
+		Skills:            fm.Skills,
+		Toolsets:          fm.Toolsets,
+		ToolRounds:        fm.ToolRounds,
+		TurnSkills:        turnSkills,
+		TurnToolsets:      turnToolsets,
+		SourcePath:        path,
 	}, nil
 }
 
