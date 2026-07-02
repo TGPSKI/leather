@@ -21,8 +21,13 @@ type Supervisor struct {
 }
 
 // NewSupervisor constructs one Worker per CuringDefinition.
-// concMap maps queue name to QueueConcurrencyConfig. Missing queue entries default to
-// concurrency=1, max_attempts=3. deps is shared (by pointer) across all workers.
+// concMap maps queue name to QueueConcurrencyConfig. For prefix-scan curings
+// (QueuePrefix set, Queue empty — see model.CuringDefinition), the lookup
+// falls back to QueuePrefix, since these curings never have a static Queue
+// name to key on: each queue_pattern-routed webhook creates its own
+// single-use queue, and the worker scans all queues matching the prefix.
+// Missing queue entries default to concurrency=1, max_attempts=3. deps is
+// shared (by pointer) across all workers.
 func NewSupervisor(
 	defs []model.CuringDefinition,
 	agents map[string]model.Agent,
@@ -38,7 +43,11 @@ func NewSupervisor(
 	for _, def := range defs {
 		conc := 1
 		poll := time.Second
-		if cfg, ok := concMap[def.Queue]; ok {
+		concKey := def.Queue
+		if concKey == "" {
+			concKey = def.QueuePrefix
+		}
+		if cfg, ok := concMap[concKey]; ok {
 			if cfg.Concurrency > 0 {
 				conc = cfg.Concurrency
 			}

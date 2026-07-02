@@ -185,7 +185,7 @@ func RunWorkflowRun(args []string, stdout, stderr io.Writer) int {
 	for _, e := range agentErrs {
 		log.Warn("workflow run: agent load error", "error", e)
 	}
-	agentsMap := agentsByName(agents)
+	agentsMap := agentsByName(cfg, agents)
 
 	var llmClient session.LLMClient
 	if workflowLLMClient != nil {

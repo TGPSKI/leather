@@ -182,7 +182,7 @@ func TestAgentsByName(t *testing.T) {
 		{Name: "alpha"},
 		{Name: "beta"},
 	}
-	m := agentsByName(agents)
+	m := agentsByName(model.Config{}, agents)
 	if len(m) != 2 {
 		t.Errorf("len = %d, want 2", len(m))
 	}
@@ -191,6 +191,21 @@ func TestAgentsByName(t *testing.T) {
 	}
 	if _, ok := m["beta"]; !ok {
 		t.Error("beta missing")
+	}
+}
+
+func TestAgentsByName_AppliesConfigModelDefault(t *testing.T) {
+	cfg := model.Config{Model: "qwen36-35b-a3b-nvfp4", Temperature: 0.5}
+	agents := []model.Agent{
+		{Name: "no-model"},                        // should inherit cfg.Model
+		{Name: "explicit-model", Model: "llama3"}, // should keep its own
+	}
+	m := agentsByName(cfg, agents)
+	if got := m["no-model"].Model; got != "qwen36-35b-a3b-nvfp4" {
+		t.Errorf("no-model.Model = %q, want cfg default %q", got, cfg.Model)
+	}
+	if got := m["explicit-model"].Model; got != "llama3" {
+		t.Errorf("explicit-model.Model = %q, want unchanged %q", got, "llama3")
 	}
 }
 

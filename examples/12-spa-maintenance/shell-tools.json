@@ -10,6 +10,9 @@
         "--",
         "{{url}}"
       ],
+      "required": [
+        "url"
+      ],
       "timeout_seconds": 20,
       "output_cap_bytes": 300
     },
@@ -22,6 +25,9 @@
         "if [ \"${LEATHER_DEMO_MODE:-dry}\" = live ]; then echo | openssl s_client -connect \"$1\":443 -servername \"$1\" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null || echo 'notAfter=unknown (TLS check failed)'; else echo 'notAfter=Sep 30 23:59:59 2026 GMT  # dry-mode fixture'; fi",
         "--",
         "{{hostname}}"
+      ],
+      "required": [
+        "hostname"
       ],
       "timeout_seconds": 15,
       "output_cap_bytes": 200
@@ -36,6 +42,9 @@
         "--",
         "{{repo_path}}"
       ],
+      "required": [
+        "repo_path"
+      ],
       "timeout_seconds": 5,
       "output_cap_bytes": 4000
     },
@@ -49,6 +58,9 @@
         "--",
         "{{repo_path}}"
       ],
+      "required": [
+        "repo_path"
+      ],
       "timeout_seconds": 60,
       "output_cap_bytes": 4000
     },
@@ -61,6 +73,9 @@
         "if [ \"${LEATHER_DEMO_MODE:-dry}\" = live ]; then cd \"$1\" && npm audit --summary 2>&1 || true; else printf '0 vulnerabilities (0 low, 0 moderate, 0 high, 0 critical)  # dry-mode fixture\\n'; fi",
         "--",
         "{{repo_path}}"
+      ],
+      "required": [
+        "repo_path"
       ],
       "timeout_seconds": 60,
       "output_cap_bytes": 2000
@@ -76,6 +91,10 @@
         "{{repo_path}}",
         "{{count}}"
       ],
+      "required": [
+        "repo_path",
+        "count"
+      ],
       "timeout_seconds": 15,
       "output_cap_bytes": 3000
     },
@@ -88,6 +107,9 @@
         "cat \"$1\" 2>/dev/null | head -c 4000 || echo 'ERROR: file not found: '$1",
         "--",
         "{{path}}"
+      ],
+      "required": [
+        "path"
       ],
       "timeout_seconds": 5,
       "output_cap_bytes": 4000

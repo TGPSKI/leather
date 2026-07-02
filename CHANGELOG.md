@@ -9,6 +9,39 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- **Curing-driven agents never inherited the global default model** —
+  `curing/worker.go`'s runner path (webhook → queue → curing worker,
+  used by `leather serve`'s tannery integration and `leather workflow run`)
+  never applied `cfg.Model` for agents with no `model:` front-matter field,
+  unlike the scheduler and `leather run` paths. Every such agent was sent to
+  the LLM client with an empty model name. `agentsByName` now resolves each
+  agent through the same `resolveAgent` defaulting used elsewhere before
+  handing the map to `curing.NewSupervisor`.
+- **Prefix-scan curings silently locked at `concurrency: 1`** — curings using
+  `queue_prefix` (one single-use queue per event, e.g. via a route's
+  `queue_pattern`) have no static `Queue` name, so `NewSupervisor`'s
+  `concMap[def.Queue]` lookup never matched any `queues:` entry in
+  `tannery.yaml` and silently defaulted to `concurrency: 1` regardless of
+  what was configured — serializing what `queue_pattern` is specifically
+  meant to parallelize. `NewSupervisor` now falls back to `concMap[def.QueuePrefix]`
+  when `Queue` is empty, so a `queues:` entry keyed by the prefix name (e.g.
+  `pr-meta: {concurrency: 8}`) takes effect. `examples/11-high-volume-ci`'s
+  `tannery.yaml` now declares real concurrency for its four prefix-scan
+  curings, surfaced by #28's `examples-all` validation on `ego-killer`.
+- **`shell-tools.json` tool schemas missing `required`, so models never learn
+  which arguments to supply** — `cmd/shell-mcp`'s `tools/list` handler builds
+  each tool's `inputSchema.properties` only from its `required`/`defaults`
+  fields; a tool with neither declares an empty schema. Examples 10, 11, and
+  12's `shell-tools.json` declared no `required` field on any tool, so the
+  model never learned it needed to supply e.g. `pr_number`/`repo`, and every
+  `{{pr_number}}`/`{{repo}}` placeholder in the tool's shell command passed
+  through unsubstituted. Example 10's dry-mode fallback happened to mask
+  this (an unsubstituted placeholder just produces a nonexistent filename,
+  falling back to a default fixture); example 11's dry-mode fallback does
+  shell arithmetic on the same value and failed loudly (`arithmetic syntax
+  error`) on every single call. All three files now declare `required`
+  matching their `{{key}}` placeholders.
+
 - **System-prompt-only agents rejected by strict backends** (#41) — agents
   with no `prompt:`/`prompts:` configured (pure system-prompt + scheduled
   tool use) sent completion requests with zero user-role messages, which
