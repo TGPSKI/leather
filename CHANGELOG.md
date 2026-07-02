@@ -28,6 +28,19 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `pr-meta: {concurrency: 8}`) takes effect. `examples/11-high-volume-ci`'s
   `tannery.yaml` now declares real concurrency for its four prefix-scan
   curings, surfaced by #28's `examples-all` validation on `ego-killer`.
+- **`shell-tools.json` tool schemas missing `required`, so models never learn
+  which arguments to supply** — `cmd/shell-mcp`'s `tools/list` handler builds
+  each tool's `inputSchema.properties` only from its `required`/`defaults`
+  fields; a tool with neither declares an empty schema. Examples 10, 11, and
+  12's `shell-tools.json` declared no `required` field on any tool, so the
+  model never learned it needed to supply e.g. `pr_number`/`repo`, and every
+  `{{pr_number}}`/`{{repo}}` placeholder in the tool's shell command passed
+  through unsubstituted. Example 10's dry-mode fallback happened to mask
+  this (an unsubstituted placeholder just produces a nonexistent filename,
+  falling back to a default fixture); example 11's dry-mode fallback does
+  shell arithmetic on the same value and failed loudly (`arithmetic syntax
+  error`) on every single call. All three files now declare `required`
+  matching their `{{key}}` placeholders.
 
 - **System-prompt-only agents rejected by strict backends** (#41) — agents
   with no `prompt:`/`prompts:` configured (pure system-prompt + scheduled

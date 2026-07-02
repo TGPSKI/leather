@@ -11,6 +11,10 @@
         "{{pr_number}}",
         "{{repo}}"
       ],
+      "required": [
+        "pr_number",
+        "repo"
+      ],
       "timeout_seconds": 20,
       "output_cap_bytes": 4000
     },
@@ -24,6 +28,10 @@
         "--",
         "{{pr_number}}",
         "{{repo}}"
+      ],
+      "required": [
+        "pr_number",
+        "repo"
       ],
       "timeout_seconds": 30,
       "output_cap_bytes": 4000
@@ -40,6 +48,11 @@
         "{{repo}}",
         "{{body}}"
       ],
+      "required": [
+        "pr_number",
+        "repo",
+        "body"
+      ],
       "timeout_seconds": 15
     },
     {
@@ -53,6 +66,11 @@
         "{{pr_number}}",
         "{{repo}}",
         "{{label}}"
+      ],
+      "required": [
+        "pr_number",
+        "repo",
+        "label"
       ],
       "timeout_seconds": 15
     }

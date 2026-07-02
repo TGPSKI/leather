@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -276,6 +277,61 @@ func TestResolveConfigPathArg(t *testing.T) {
 	}
 	if got != tmp {
 		t.Errorf("got %q, want %q", got, tmp)
+	}
+}
+
+// --- example shell-tools.json schema consistency ---
+
+var placeholderRE = regexp.MustCompile(`\{\{(\w+)\}\}`)
+
+// TestExampleShellToolsJSON_PlaceholdersDeclared walks every
+// examples/*/shell-tools.json and asserts that each {{key}} placeholder
+// used in a tool's args is declared in required or defaults. toolList
+// builds inputSchema.properties only from those two fields — a tool with
+// neither leaves the model with an empty schema, so it never learns to
+// supply the argument, and the placeholder passes through unsubstituted
+// into the shell command at call time. Regression test for the bug found
+// via examples/11-high-volume-ci's shell-tools.json (unsubstituted
+// {{pr_number}} produced a literal, unparseable arithmetic expression).
+func TestExampleShellToolsJSON_PlaceholdersDeclared(t *testing.T) {
+	matches, err := filepath.Glob("../../examples/*/shell-tools.json")
+	if err != nil {
+		t.Fatalf("glob: %v", err)
+	}
+	if len(matches) == 0 {
+		t.Fatal("no examples/*/shell-tools.json files found — glob path likely wrong")
+	}
+	for _, path := range matches {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("%s: read: %v", path, err)
+		}
+		var cfg config
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			t.Fatalf("%s: unmarshal: %v", path, err)
+		}
+		for _, tool := range cfg.Tools {
+			declared := make(map[string]bool, len(tool.Required)+len(tool.Defaults))
+			for _, r := range tool.Required {
+				declared[r] = true
+			}
+			for k := range tool.Defaults {
+				declared[k] = true
+			}
+			seen := make(map[string]bool)
+			for _, arg := range tool.Args {
+				for _, m := range placeholderRE.FindAllStringSubmatch(arg, -1) {
+					key := m[1]
+					if seen[key] {
+						continue
+					}
+					seen[key] = true
+					if !declared[key] {
+						t.Errorf("%s: tool %q uses {{%s}} but does not declare it in required or defaults — the model will never learn to supply it", path, tool.Name, key)
+					}
+				}
+			}
+		}
 	}
 }
 
