@@ -34,7 +34,7 @@
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-EX_DIR="${ROOT}/examples"
+EX_DIR="${ROOT}"
 OUT="${EX_DIR}/.last-run-summary.md"
 USE_COLOR=1
 SHOW_DETAIL=1
