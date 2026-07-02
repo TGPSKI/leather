@@ -738,7 +738,7 @@ servers:
     transport: stdio
 ```
 
-**Run:** `leather chat --config config.yaml --agent agents/inspector.agent.md`
+**Run:** `leather run --config config.yaml agents/inspector.agent.md`
 
 ---
 
@@ -1182,7 +1182,6 @@ my-project/
 | `leather doctor` | Print every effective config value with source attribution; redacts secrets. |
 | `leather serve` | Start scheduler + HTTP API + optional tannery. |
 | `leather run` | Execute one agent once and exit. |
-| `leather chat` | Interactive multi-turn chat with an agent. |
 | `leather validate` | Parse and schema-check all files; report errors. |
 | `leather ingest` | Write a file as a hide and optionally enqueue it. |
 | `leather workflow` | Run bounded one-shot tannery workflows to queue quiescence. |

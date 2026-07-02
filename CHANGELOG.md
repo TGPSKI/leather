@@ -7,6 +7,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Removed
+
+- **`leather chat`** — the interactive chat subcommand is removed with no
+  deprecation cycle. Use `leather run` for one-shot agent execution; chat's
+  flags (`--system`, `--agent`, `--dev`) were local to the command and are
+  removed with it.
+
 ## [0.3.0] — 2026-06-07
 
 ### Added

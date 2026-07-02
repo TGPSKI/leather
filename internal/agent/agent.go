@@ -350,7 +350,7 @@ func ApplyLifecycleFile(agentPath string, a *model.Agent) error {
 //
 // schedule is intentionally not checked here either. Agents may be driven by
 // the cron scheduler (schedule required), by a curing (queue/hide driven),
-// by a webhook intake route, by `leather run`, by `leather chat`, or by
+// by a webhook intake route, by `leather run`, or by
 // `leather test-agent` — none of which require a cron expression. The
 // schedule requirement for scheduled jobs is enforced where it belongs:
 // inside the lifecycle loader (requireSchedule, internal/agent/lifecycle.go).

@@ -8,7 +8,7 @@
 shared flags, loads configuration, assembles the runtime dependencies for each
 command, starts the scheduler and worker supervisor in `serve`, exposes the
 HTTP API and replay endpoints, and provides testable command handlers for
-`init`, `doctor`, `chat`, `run`, `validate`, `test-agent`, `status`,
+`init`, `doctor`, `run`, `validate`, `test-agent`, `status`,
 `ingest`, `workflow`, `replay`, `snapshot`, `dlq`, `attach`, and `version`.
 
 ## Public API
@@ -19,7 +19,6 @@ HTTP API and replay endpoints, and provides testable command handlers for
 | `RunInit` | `func RunInit(args []string, stdout, stderr io.Writer) int` | Scaffold `~/.leather` with `.env`, `config.yaml`, example agent, and `Makefile`. Fails closed on existing files unless `--overwrite` is set. |
 | `RunDoctor` | `func RunDoctor(args []string, stdout, stderr io.Writer) int` | Print every effective config value with source attribution; redacts `llm_api_key`. |
 | `RunServe` | `func RunServe(args []string, stdout, stderr io.Writer, version, commit string) int` | Start the scheduler, optional API, optional replay modes, workers, and runtime wiring. |
-| `RunChat` | `func RunChat(args []string, stdin io.Reader, stdout, stderr io.Writer) int` | Start an interactive chat session backed by `session.Session`. |
 | `RunOnce` | `func RunOnce(args []string, stdout, stderr io.Writer) int` | Execute one `*.agent.md` file once, optionally using a co-located lifecycle file. |
 | `RunValidate` | `func RunValidate(args []string, stdout, stderr io.Writer) int` | Validate config, agents, lifecycles, skills, workers, and MCP server definitions. |
 | `RunTestAgent` | `func RunTestAgent(args []string, stdout, stderr io.Writer) int` | Run an agent with `MockLLM` and optional fake tool responses. |
@@ -59,10 +58,6 @@ front-matter and lifecycle schema checks, skill schemas, worker schemas, and
 swaps in `session.MockLLM` and optional canned tool results so agent logic can
 be exercised without a live model.
 
-`RunChat` supports `--system`, `--agent`, and `--dev`. The interactive loop
-handles `/quit`, `/exit`, `/reset`, `/stats`, `/show`, and `/help`, and it can
-emit compaction diagnostics and request payload previews in dev mode.
-
 ### Serve API
 
 When `--api` is enabled, `RunServe` exposes JSON endpoints including:
@@ -89,7 +84,7 @@ The API adds permissive CORS headers to these routes.
 | `internal/logging` | Structured log setup for all commands. |
 | `internal/model` | Shared config, agent, run, and API response types. |
 | `internal/runner` | Shared execution loop for `serve`, `run`, and `test-agent`. |
-| `internal/session` | HTTP and mock LLM clients plus chat sessions. |
+| `internal/session` | HTTP and mock LLM clients. |
 | `internal/tool` | Tool and toolset registry loading. |
 | `internal/mcp` | MCP server loading and startup. |
 | `internal/scheduler` | Scheduler state and execution dispatch. |
@@ -105,7 +100,6 @@ flowchart LR
     ARGS[os.Args] --> RUN[Run]
     RUN --> DISPATCH{subcommand}
     DISPATCH --> SERVE[RunServe]
-    DISPATCH --> CHAT[RunChat]
     DISPATCH --> ONCE[RunOnce]
     DISPATCH --> VAL[RunValidate]
     DISPATCH --> TEST[RunTestAgent]
@@ -117,15 +111,12 @@ flowchart LR
     AG --> RUNTIME[runner + scheduler + workers + API]
     ONCE --> ONEAG[agent.LoadFile + ApplyLifecycleFile]
     ONEAG --> RUNTIME
-    CHAT --> SESS[session.Session]
 ```
 
 ## Test Surface
 
 `internal/cli/cmd_test.go` covers top-level dispatch, `resolveAgent`, pretty
-output helpers, and core `run`/`status` behavior. `internal/cli/cmd_chat_test.go`
-covers interactive chat commands, stats/dev output, `/show`, reset behavior,
-EOF handling, and line wrapping. `internal/cli/cmd_test_agent_test.go` covers
+output helpers, and core `run`/`status` behavior. `internal/cli/cmd_test_agent_test.go` covers
 mock-agent execution with lifecycle and canned tool responses. `internal/cli/api_test.go`
 covers the HTTP API and CORS headers. `internal/cli/cmd_serve_test.go` covers
 latency percentile helpers used by serve-mode metrics.

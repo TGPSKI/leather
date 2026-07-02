@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 )
 
 // Run is leather's main entry point. It parses the first argument as a
@@ -21,8 +20,6 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 	switch cmd {
 	case "serve":
 		return RunServe(rest, stdout, stderr, version, commit)
-	case "chat":
-		return RunChat(rest, os.Stdin, stdout, stderr)
 	case "run":
 		return RunOnce(rest, stdout, stderr)
 	case "validate":

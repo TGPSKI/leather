@@ -42,7 +42,6 @@ Each subcommand has:
 | `doctor` | `RunDoctor` | Print effective config values with source attribution; redact secrets |
 | `init` | `RunInit` | Scaffold a new project directory with config, agent, and Makefile |
 | `serve` | `RunServe(args, stdout, stderr, version, commit)` | Start scheduler loop + optional HTTP API |
-| `chat` | `RunChat` | Interactive multi-turn chat session with a named agent |
 | `run` | `RunOnce` | Load and execute a single agent, then exit |
 | `validate` | `RunValidate` | Parse and validate agent files; report errors |
 | `test-agent` | `RunTestAgent` | Execute an agent with `MockLLM` and print the turn transcript |

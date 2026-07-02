@@ -138,7 +138,6 @@ curing that waits for N inputs sharing a correlation ID before running.
 | Command | Handler | Notes |
 |---|---|---|
 | `serve` | `RunServe` | Normal scheduler mode, replay mode, or live replay mode depending on flags. |
-| `chat` | `RunChat` | Interactive session with reset/show/stats/dev commands. |
 | `run` | `RunOnce` | Positional single-agent execution with optional lifecycle auto-merge. |
 | `validate` | `RunValidate` | Schema and semantic validation across config and definition files. |
 | `test-agent` | `RunTestAgent` | MockLLM-based agent harness with canned tool responses. |
