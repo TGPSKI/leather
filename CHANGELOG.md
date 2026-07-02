@@ -7,6 +7,26 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Reasoning-aware `completion_reserve`** — fixes reasoning-model completions
+  (Qwen3-class, thinking enabled) getting cut off mid-thought before any
+  answer content exists, because a single flat `completion_reserve` reserved
+  too few tokens for both the `<think>` trace and the answer.
+  - Per-agent `completion_reserve` override, declarable via `completion_reserve:`
+    in `*.agent.md` front matter or `*.lifecycle.yaml`, mirroring the existing
+    `max_tokens` override.
+  - New `reasoning_reserve` config field splits the budget: `completion_reserve`
+    now means answer content only, `reasoning_reserve` covers the `<think>`
+    trace, and `max_tokens` sent to the model is their sum. Global-only,
+    defaults to `0` (fully backward compatible).
+  - Self-healing retry: a completion truncated (`finish_reason: "length"`)
+    before producing any content or tool calls is retried once with a doubled
+    reserve, bounded by remaining context.
+  - Leather-internal model-aware defaults: agents targeting a known reasoning
+    model (Qwen3, QwQ, DeepSeek-R1) get a larger `completion_reserve`
+    automatically unless a per-agent override is set explicitly.
+
 ### Removed
 
 - **`leather chat`** — the interactive chat subcommand is removed with no

@@ -1245,3 +1245,144 @@ func TestRun_LastResponseEmpty_NoTurns(t *testing.T) {
 		t.Errorf("LastResponse should be empty on error run, got %q", rec.LastResponse)
 	}
 }
+
+func TestRetryReserveBump(t *testing.T) {
+	cases := []struct {
+		name            string
+		current, maxTok int
+		promptTokens    int
+		wantBumped      int
+		wantOK          bool
+	}{
+		{"doubles within ceiling", 1024, 8192, 100, 2048, true},
+		{"caps at remaining context", 1024, 2000, 500, 1500, true},
+		{"no room left", 1024, 1024, 100, 0, false},
+		{"already at ceiling", 1024, 1124, 100, 0, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, ok := retryReserveBump(c.current, c.maxTok, c.promptTokens)
+			if ok != c.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, c.wantOK)
+			}
+			if ok && got != c.wantBumped {
+				t.Errorf("bumped = %d, want %d", got, c.wantBumped)
+			}
+		})
+	}
+}
+
+// lengthThenStopClient returns a truncated (finish_reason "length", empty
+// content) response on its first call, then a normal completion. It records
+// the MaxTokens sent on each call so tests can assert the retry bump.
+type lengthThenStopClient struct {
+	mu        sync.Mutex
+	calls     int
+	sentMax   []int
+	promptTok int
+}
+
+func (c *lengthThenStopClient) Complete(_ context.Context, _ string, _ []model.Message, opts session.CompletionOptions) (model.LLMResponse, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	c.sentMax = append(c.sentMax, opts.MaxTokens)
+	if c.calls == 1 {
+		return model.LLMResponse{
+			FinishReason: "length",
+			PromptTokens: c.promptTok,
+			TotalTokens:  c.promptTok,
+		}, nil
+	}
+	return model.LLMResponse{
+		Content:      "final answer after retry",
+		FinishReason: "stop",
+	}, nil
+}
+
+func (c *lengthThenStopClient) CountTokens(messages []model.Message) (int, error) {
+	return 10 * len(messages), nil
+}
+
+func TestRun_SelfHealingRetry_OnTruncatedCompletion(t *testing.T) {
+	client := &lengthThenStopClient{promptTok: 100}
+	r := &Runner{
+		Client:        client,
+		Registry:      tool.NewRegistry(),
+		Log:           testLogger(t),
+		MaxToolRounds: 1,
+	}
+
+	a := testAgent("reasoning-agent")
+	a.UserPrompt = "think hard"
+	budget := model.TokenBudget{
+		MaxTokens:          8192,
+		CompletionReserve:  1024,
+		SummarizeThreshold: 0.85,
+	}
+	rec, err := r.Run(context.Background(), a, budget)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if rec.LastResponse != "final answer after retry" {
+		t.Errorf("LastResponse = %q, want retried content", rec.LastResponse)
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if client.calls != 2 {
+		t.Fatalf("Complete calls = %d, want 2 (truncated + retry)", client.calls)
+	}
+	if client.sentMax[0] != 1024 {
+		t.Errorf("first call max_tokens = %d, want 1024", client.sentMax[0])
+	}
+	if client.sentMax[1] <= client.sentMax[0] {
+		t.Errorf("retry max_tokens = %d, want > %d", client.sentMax[1], client.sentMax[0])
+	}
+}
+
+// lengthWithContentClient returns finish_reason "length" but with non-empty
+// content on every call, simulating a completion that was truncated after
+// producing a partial (but non-empty) answer — the retry guard should not
+// fire here, since resp.Content != "".
+type lengthWithContentClient struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (c *lengthWithContentClient) Complete(_ context.Context, _ string, _ []model.Message, _ session.CompletionOptions) (model.LLMResponse, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	return model.LLMResponse{
+		Content:      "partial answer",
+		FinishReason: "length",
+	}, nil
+}
+
+func (c *lengthWithContentClient) CountTokens(messages []model.Message) (int, error) {
+	return 10 * len(messages), nil
+}
+
+func TestRun_NoRetry_WhenContentAlreadyPresent(t *testing.T) {
+	client := &lengthWithContentClient{}
+	r := &Runner{
+		Client:        client,
+		Registry:      tool.NewRegistry(),
+		Log:           testLogger(t),
+		MaxToolRounds: 1,
+	}
+	a := testAgent("partial-answer-agent")
+	a.UserPrompt = "give a partial answer"
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if rec.LastResponse != "partial answer" {
+		t.Errorf("LastResponse = %q, want %q", rec.LastResponse, "partial answer")
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if client.calls != 1 {
+		t.Errorf("Complete calls = %d, want 1 (no retry when content is non-empty)", client.calls)
+	}
+}

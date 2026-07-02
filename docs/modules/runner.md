@@ -50,6 +50,14 @@ skill and toolset lists, but any turn that declares `TurnSkills`,
 Tool calls are validated against the current scope, then executed through
 `tool.Executor`, which can reach either HTTP or MCP tools.
 
+Self-healing retry: if a completion is truncated (`finish_reason: "length"`)
+before producing any content or tool calls — typical of a reasoning model
+whose `<think>` trace exhausts `max_tokens` before an answer exists — `Run`
+retries once with a doubled `max_tokens`, capped by the model's remaining
+context window for that call's prompt size. A warning is logged; no retry is
+attempted if there's no room left to grow into, or if the completion already
+produced content or tool calls.
+
 Output routing is intentionally non-fatal. `file` writes use 0600 permissions,
 `queue` routes enqueue `model.QueueItem` values, `http` routes send plain text
 with configurable method and headers, and `notify` routes deliver
@@ -91,8 +99,9 @@ flowchart LR
 
 `internal/runner/runner_test.go` covers no-tool runs, LLM failures, multi-round
 tool loops, unknown tool rejection, round-cap failures, turn skill/toolset/tool
-scope replacement, prompt payload substitution, and route-output behavior using
-mock notifiers, temp files, and queue managers.
+scope replacement, prompt payload substitution, route-output behavior, and the
+self-healing truncation retry (including the no-retry guard when content is
+already present) using mock notifiers, temp files, and queue managers.
 
 ## Related Docs
 

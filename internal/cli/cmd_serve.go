@@ -1253,13 +1253,18 @@ func executeAgent(ctx context.Context, a model.Agent, budget model.TokenBudget, 
 }
 
 // resolveTokenBudget returns a TokenBudget for a, overriding max_tokens and
-// completion_reserve if set.
+// completion_reserve if set. completion_reserve precedence, highest first:
+// explicit Agent.CompletionReserve, model.LookupReserve's suggestion for known
+// reasoning models, then the global config default.
 func resolveTokenBudget(cfg model.Config, a model.Agent) model.TokenBudget {
 	maxTokens := cfg.MaxTokens
 	if a.MaxTokens > 0 {
 		maxTokens = a.MaxTokens
 	}
 	completionReserve := cfg.CompletionReserve
+	if suggested, ok := model.LookupReserve(a.Model); ok {
+		completionReserve = suggested
+	}
 	if a.CompletionReserve > 0 {
 		completionReserve = a.CompletionReserve
 	}
