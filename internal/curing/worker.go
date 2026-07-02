@@ -583,6 +583,9 @@ func (w *Worker) handleCollected(ctx context.Context, items []model.QueueItem) {
 	if ag.MaxTokens > 0 {
 		budget.MaxTokens = ag.MaxTokens
 	}
+	if ag.CompletionReserve > 0 {
+		budget.CompletionReserve = ag.CompletionReserve
+	}
 
 	rec, err := r.Run(ctx, ag, budget)
 	if w.deps.OnRunRecord != nil {
@@ -811,6 +814,9 @@ func (w *Worker) process(ctx context.Context, item model.QueueItem) error {
 	budget := w.deps.Budget
 	if ag.MaxTokens > 0 {
 		budget.MaxTokens = ag.MaxTokens
+	}
+	if ag.CompletionReserve > 0 {
+		budget.CompletionReserve = ag.CompletionReserve
 	}
 
 	// 6. Run agent.

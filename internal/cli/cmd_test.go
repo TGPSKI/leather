@@ -218,6 +218,22 @@ func TestResolveTokenBudget_AgentOverridesMaxTokens(t *testing.T) {
 	}
 }
 
+func TestResolveTokenBudget_AgentOverridesCompletionReserve(t *testing.T) {
+	cfg := model.Config{
+		MaxTokens:          8192,
+		CompletionReserve:  1024,
+		SummarizeThreshold: 0.85,
+	}
+	a := model.Agent{Name: "test", CompletionReserve: 8192}
+	got := resolveTokenBudget(cfg, a)
+	if got.CompletionReserve != 8192 {
+		t.Errorf("CompletionReserve = %d, want 8192 (agent override)", got.CompletionReserve)
+	}
+	if got.MaxTokens != 8192 {
+		t.Errorf("MaxTokens = %d, want 8192 (unchanged)", got.MaxTokens)
+	}
+}
+
 // --- buildLogger ---
 
 func TestBuildLogger_TextFormat(t *testing.T) {
