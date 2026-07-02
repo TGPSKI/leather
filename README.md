@@ -172,7 +172,6 @@ prompt: Summarize the three most important things to do today.
 leather validate                                  # check everything parses
 leather run ~/.leather/agents/summarizer.agent.md # run once
 leather serve --pretty --stats                    # run on schedule
-leather chat --model llama3                       # talk to the model interactively
 ```
 
 ### 4. Add a workflow (when one agent isn't enough)
@@ -294,7 +293,6 @@ make example-01      # runs a mock-LLM example end-to-end
 | `leather doctor` | Print every effective config value with source attribution; redacts secrets. |
 | `leather serve` | Run scheduler, queue workers, and (when enabled) HTTP API, tannery, or replay. |
 | `leather run`   | Execute one agent definition once and exit. |
-| `leather chat`  | Interactive chat session with token‑budget management. |
 | `leather ingest`| Create a hide from a file or stdin and (optionally) enqueue a curing. |
 | `leather workflow` | Run bounded one-shot tannery workflows to queue quiescence. |
 | `leather validate` | Validate config, agents, lifecycles, skills, workers, and MCP servers. |

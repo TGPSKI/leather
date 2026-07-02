@@ -173,8 +173,7 @@ scheduler state.
 - Release on graceful shutdown or process death (`flock` does this
   automatically).
 
-`leather chat` and read-only subcommands (`status`, `validate`,
-`version`) may skip the lock.
+Read-only subcommands (`status`, `validate`, `version`) may skip the lock.
 
 ---
 

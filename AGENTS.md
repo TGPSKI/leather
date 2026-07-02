@@ -77,9 +77,8 @@ Binary: `leather`
    saturating the context window.
 6. **Scheduling and background execution** — `leather serve` runs scheduled agents,
    queue-backed jobs, and long-running worker processes.
-7. **Flexible runtimes** — `leather serve`, `leather run`, and `leather chat` are
-   core runtime modes: long-running services, one-shot runs, and interactive agent 
-   sessions.
+7. **Flexible runtimes** — `leather serve` and `leather run` are leather's two
+   core runtime modes: long-running services and one-shot runs.
 
 ---
 

@@ -672,18 +672,3 @@ func TestRunOnce_AgentWithoutModel_ReturnsError(t *testing.T) {
 		t.Errorf("stderr %q missing 'model' hint", errOut.String())
 	}
 }
-
-// --- RunChat error paths ---
-
-func TestRunChat_MissingModel_ReturnsError(t *testing.T) {
-	// No --model flag and no config → must report error.
-	dir := t.TempDir()
-	var errOut bytes.Buffer
-	code := RunChat([]string{"--config", dir + "/none.yaml"}, strings.NewReader(""), io.Discard, &errOut)
-	if code != 1 {
-		t.Errorf("exit code = %d, want 1; stderr: %s", code, errOut.String())
-	}
-	if !strings.Contains(errOut.String(), "model") {
-		t.Errorf("stderr %q missing 'model' hint", errOut.String())
-	}
-}
