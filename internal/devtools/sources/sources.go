@@ -157,6 +157,8 @@ func (w *Wiring) PublishTannery(ev curing.TanneryEvent) uint64 {
 		kind = "queue.retry"
 	case "dlq":
 		kind = "queue.dlq"
+	case "stale":
+		kind = "queue.stale"
 	}
 
 	payload := map[string]any{

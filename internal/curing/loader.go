@@ -73,6 +73,8 @@ func parseCuringYAML(src string) (model.CuringDefinition, error) {
 
 	// Track whether timeout_seconds was explicitly set.
 	timeoutSet := false
+	// Track whether collect_timeout_seconds was explicitly set.
+	collectTimeoutSet := false
 
 	lines := strings.Split(src, "\n")
 	for _, line := range lines {
@@ -185,6 +187,15 @@ func parseCuringYAML(src string) (model.CuringDefinition, error) {
 			}
 			def.TimeoutSeconds = n
 			timeoutSet = true
+		case "collect_timeout_seconds":
+			inHideTypes = false
+			inOutput = false
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return model.CuringDefinition{}, fmt.Errorf("invalid collect_timeout_seconds %q: %w", v, err)
+			}
+			def.CollectTimeoutSeconds = n
+			collectTimeoutSet = true
 		default:
 			inHideTypes = false
 			inOutput = false
@@ -220,6 +231,12 @@ func parseCuringYAML(src string) (model.CuringDefinition, error) {
 	// An explicit timeout_seconds: 0 means "no timeout" and must be preserved.
 	if !timeoutSet {
 		def.TimeoutSeconds = 900
+	}
+	// Only apply the default collect timeout when the field was absent.
+	// An explicit collect_timeout_seconds: 0 disables staleness eviction and
+	// must be preserved.
+	if !collectTimeoutSet {
+		def.CollectTimeoutSeconds = 900
 	}
 
 	return def, nil

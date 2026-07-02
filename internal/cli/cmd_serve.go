@@ -2397,7 +2397,7 @@ func clickableHost(addr string) string {
 // printTanneryEvent renders a TanneryEvent in the same visual language as
 // printProgressAt. The label encodes the event kind + direction icon; the
 // curing name appears as the first token in the content line.
-// Icons: → webhook, ↑ enqueue, ↓ dequeue, ↺ retry, ⊗ dead-letter.
+// Icons: → webhook, ↑ enqueue, ↓ dequeue, ↺ retry, ⊗ dead-letter, ✕ stale.
 func printTanneryEvent(w io.Writer, ev curing.TanneryEvent) {
 	ts := time.Now().Format("15:04:05")
 	switch ev.Kind {
@@ -2435,6 +2435,12 @@ func printTanneryEvent(w io.Writer, ev curing.TanneryEvent) {
 			lines = append(lines, dim(ev.Err))
 		}
 		prettyWriteEntry(w, ts, boldRed(prettyPadLabel("⊗ dlq")), lines)
+	case "stale":
+		lines := []string{ev.Curing + "  " + dim("queue="+ev.Queue)}
+		if ev.Err != "" {
+			lines = append(lines, dim(ev.Err))
+		}
+		prettyWriteEntry(w, ts, boldRed(prettyPadLabel("✕ stale")), lines)
 	}
 }
 

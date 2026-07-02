@@ -27,8 +27,11 @@ import (
 // EventFn receivers use this to drive pretty output, metrics, and alerting
 // without coupling the worker to any display or transport layer.
 type TanneryEvent struct {
-	// Kind is one of: "webhook", "enqueue", "dequeue", "retry", "dlq".
+	// Kind is one of: "webhook", "enqueue", "dequeue", "retry", "dlq", "stale".
 	// "webhook" is emitted by the HTTP webhook handler on successful enqueue.
+	// "stale" is emitted when a partial collect group is evicted to the DLQ
+	// after waiting longer than CollectTimeoutSeconds without reaching
+	// CollectSize (see evictStaleGroup).
 	Kind string
 	// Curing is the curing definition name (w.def.Name).
 	Curing string
@@ -256,8 +259,8 @@ func (w *Worker) runCollect(ctx context.Context) {
 
 	// Snapshot without dequeuing; find the first key that has >= n items.
 	all := w.q.Scan()
-	if len(all) < n {
-		return // not enough items yet regardless of grouping
+	if len(all) == 0 {
+		return
 	}
 
 	key := func(item model.QueueItem) string {
@@ -269,6 +272,33 @@ func (w *Worker) runCollect(ctx context.Context) {
 		default: // "hide_id"
 			return item.HideID
 		}
+	}
+
+	// Evict the first (queue-order) incomplete group that has gone stale,
+	// before looking for a ready group. Without this, a group missing a
+	// sibling leg that already exhausted its own retries and DLQ'd
+	// separately would block this check forever — see issue #44.
+	if w.def.CollectTimeoutSeconds > 0 {
+		byGroup := make(map[string][]model.QueueItem, len(all))
+		var order []string
+		for _, it := range all {
+			k := key(it)
+			if _, seen := byGroup[k]; !seen {
+				order = append(order, k)
+			}
+			byGroup[k] = append(byGroup[k], it)
+		}
+		for _, k := range order {
+			items := byGroup[k]
+			if len(items) < n && w.collectGroupStale(items) {
+				w.evictStaleGroup(w.q, w.def.Queue, items)
+				break // one stale group per tick; re-scan next tick
+			}
+		}
+	}
+
+	if len(all) < n {
+		return // not enough items yet regardless of grouping
 	}
 
 	counts := make(map[string]int, len(all))
@@ -447,6 +477,19 @@ func (w *Worker) runCollectFromQueue(ctx context.Context, queueName string, q *q
 	n := w.def.CollectSize
 	all := q.Scan()
 	if len(all) < n {
+		// A single-use queue holds exactly one fan-in group. If it has waited
+		// past CollectTimeoutSeconds without reaching CollectSize (typically
+		// because a sibling leg already exhausted its own retries and DLQ'd
+		// separately, so it will never deliver its item here), evict what's
+		// present to the DLQ and GC the queue instead of polling it forever.
+		// See issue #44.
+		if w.collectGroupStale(all) {
+			w.evictStaleGroup(q, queueName, all)
+			if err := w.qmgr.Delete(queueName); err != nil {
+				w.log.Warn("curing/runCollectFromQueue: GC stale queue failed",
+					"curing", w.def.Name, "queue", queueName, "error", err)
+			}
+		}
 		return // not enough items yet
 	}
 
@@ -500,6 +543,75 @@ func (w *Worker) runCollectFromQueue(ctx context.Context, queueName string, q *q
 				"curing", w.def.Name, "queue", qn, "error", err)
 		}
 	}(matched, queueName)
+}
+
+// collectGroupStale reports whether items — all belonging to one collect
+// group — have been waiting longer than CollectTimeoutSeconds without
+// reaching CollectSize. A CollectTimeoutSeconds of 0 disables staleness
+// eviction (the pre-#44-fix behavior: wait forever). Returns false for an
+// empty group, since there is nothing to measure a wait against.
+func (w *Worker) collectGroupStale(items []model.QueueItem) bool {
+	if w.def.CollectTimeoutSeconds <= 0 || len(items) == 0 {
+		return false
+	}
+	oldest := items[0].EnqueuedAt
+	for _, it := range items[1:] {
+		if it.EnqueuedAt < oldest {
+			oldest = it.EnqueuedAt
+		}
+	}
+	if oldest == 0 {
+		return false
+	}
+	return time.Now().Unix()-oldest >= int64(w.def.CollectTimeoutSeconds)
+}
+
+// evictStaleGroup dequeues every item in items from q and routes it to
+// "<queueName>-dlq" instead of leaving it to wait forever for a sibling leg
+// that will never arrive (e.g. it already exhausted its own retries and
+// DLQ'd separately — see issue #44). Hides are retained for manual
+// inspection, matching the per-item DLQ convention in handleItemFromQueue.
+func (w *Worker) evictStaleGroup(q *queue.FileQueue, queueName string, items []model.QueueItem) {
+	ids := make([]string, len(items))
+	for i, it := range items {
+		ids[i] = it.ID
+	}
+	matched, err := q.DequeueByIDs(ids)
+	if err != nil {
+		w.log.Warn("curing/evictStaleGroup: DequeueByIDs failed",
+			"curing", w.def.Name, "queue", queueName, "error", err)
+		return
+	}
+	if len(matched) == 0 {
+		return
+	}
+
+	oldest := matched[0].EnqueuedAt
+	for _, it := range matched[1:] {
+		if it.EnqueuedAt < oldest {
+			oldest = it.EnqueuedAt
+		}
+	}
+	waited := time.Since(time.Unix(oldest, 0)).Round(time.Second)
+	w.log.Warn("curing/evictStaleGroup: partial collect group stale, routing to DLQ",
+		"curing", w.def.Name, "queue", queueName, "got", len(matched), "want", w.def.CollectSize, "waited", waited)
+
+	target := queueName + "-dlq"
+	for _, it := range matched {
+		w.emit(TanneryEvent{
+			Kind:     "stale",
+			Curing:   w.def.Name,
+			Queue:    queueName,
+			HideID:   it.HideID,
+			HideKind: it.HideKind,
+			ItemID:   it.ID,
+			Err:      fmt.Sprintf("stale collect group: %d/%d after %s", len(matched), w.def.CollectSize, waited),
+		})
+		if err := w.qmgr.Enqueue(target, it); err != nil {
+			w.log.Error("curing/evictStaleGroup: enqueue to dlq failed; item dropped",
+				"curing", w.def.Name, "queue", target, "item", it.ID, "error", err)
+		}
+	}
 }
 
 // emit fires ev on deps.EventFn when it is set. It is a no-op otherwise.

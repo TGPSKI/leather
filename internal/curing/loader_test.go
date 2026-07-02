@@ -38,6 +38,22 @@ queue: fast-queue
 timeout_seconds: 0
 `
 
+const zeroCollectTimeoutCuring = `
+name: decision
+agent: decision-agent
+queue_prefix: analysis
+collect_size: 3
+collect_timeout_seconds: 0
+`
+
+const explicitCollectTimeoutCuring = `
+name: decision
+agent: decision-agent
+queue_prefix: analysis
+collect_size: 3
+collect_timeout_seconds: 120
+`
+
 func writeCuringFile(t *testing.T, dir, name, content string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
@@ -70,6 +86,9 @@ func TestParseCuringYAML_Minimal(t *testing.T) {
 	}
 	if def.TimeoutSeconds != 900 {
 		t.Errorf("TimeoutSeconds: got %d, want 900", def.TimeoutSeconds)
+	}
+	if def.CollectTimeoutSeconds != 900 {
+		t.Errorf("CollectTimeoutSeconds: got %d, want 900 (default)", def.CollectTimeoutSeconds)
 	}
 }
 
@@ -108,6 +127,26 @@ func TestParseCuringYAML_ZeroTimeout_Preserved(t *testing.T) {
 	}
 	if def.TimeoutSeconds != 0 {
 		t.Errorf("TimeoutSeconds: got %d, want 0 (explicit no-timeout)", def.TimeoutSeconds)
+	}
+}
+
+func TestParseCuringYAML_ZeroCollectTimeout_Preserved(t *testing.T) {
+	def, err := parseCuringYAML(zeroCollectTimeoutCuring)
+	if err != nil {
+		t.Fatalf("parseCuringYAML: %v", err)
+	}
+	if def.CollectTimeoutSeconds != 0 {
+		t.Errorf("CollectTimeoutSeconds: got %d, want 0 (explicit: staleness eviction disabled)", def.CollectTimeoutSeconds)
+	}
+}
+
+func TestParseCuringYAML_ExplicitCollectTimeout(t *testing.T) {
+	def, err := parseCuringYAML(explicitCollectTimeoutCuring)
+	if err != nil {
+		t.Fatalf("parseCuringYAML: %v", err)
+	}
+	if def.CollectTimeoutSeconds != 120 {
+		t.Errorf("CollectTimeoutSeconds: got %d, want 120", def.CollectTimeoutSeconds)
 	}
 }
 
