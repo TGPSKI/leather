@@ -38,6 +38,7 @@ func Load(fs *flag.FlagSet) (model.Config, error) {
 		Temperature:        envFloat("TEMPERATURE", DefaultTemperature),
 		MaxTokens:          envInt("MAX_TOKENS", DefaultMaxTokens),
 		CompletionReserve:  envInt("COMPLETION_RESERVE", DefaultCompletionReserve),
+		ReasoningReserve:   envInt("REASONING_RESERVE", DefaultReasoningReserve),
 		SummarizeThreshold: envFloat("SUMMARIZE_THRESHOLD", DefaultSummarizeThreshold),
 		LLMEndpoint:        envString("LLM_ENDPOINT", DefaultLLMEndpoint),
 		LLMTimeout:         envDuration("LLM_TIMEOUT", DefaultLLMTimeout),
@@ -132,6 +133,7 @@ func applyEnvOverrides(cfg *model.Config) {
 	cfg.Temperature = envFloat("TEMPERATURE", cfg.Temperature)
 	cfg.MaxTokens = envInt("MAX_TOKENS", cfg.MaxTokens)
 	cfg.CompletionReserve = envInt("COMPLETION_RESERVE", cfg.CompletionReserve)
+	cfg.ReasoningReserve = envInt("REASONING_RESERVE", cfg.ReasoningReserve)
 	cfg.SummarizeThreshold = envFloat("SUMMARIZE_THRESHOLD", cfg.SummarizeThreshold)
 	cfg.LLMEndpoint = envString("LLM_ENDPOINT", cfg.LLMEndpoint)
 	cfg.LLMTimeout = envDuration("LLM_TIMEOUT", cfg.LLMTimeout)
@@ -179,7 +181,8 @@ func BindFlags(fs *flag.FlagSet) {
 	fs.String("log-level", envString("LOG_LEVEL", DefaultLogLevel), "log verbosity: debug, info, warn, error (LEATHER_LOG_LEVEL)")
 	fs.String("log-format", envString("LOG_FORMAT", DefaultLogFormat), "log format: text, json (LEATHER_LOG_FORMAT)")
 	fs.Int("max-tokens", envInt("MAX_TOKENS", DefaultMaxTokens), "global token budget ceiling (LEATHER_MAX_TOKENS)")
-	fs.Int("completion-reserve", envInt("COMPLETION_RESERVE", DefaultCompletionReserve), "tokens reserved for model completion (LEATHER_COMPLETION_RESERVE)")
+	fs.Int("completion-reserve", envInt("COMPLETION_RESERVE", DefaultCompletionReserve), "tokens reserved for model completion answer content (LEATHER_COMPLETION_RESERVE)")
+	fs.Int("reasoning-reserve", envInt("REASONING_RESERVE", DefaultReasoningReserve), "tokens reserved for a reasoning model's <think> trace, on top of completion-reserve (LEATHER_REASONING_RESERVE)")
 	fs.Float64("summarize-threshold", envFloat("SUMMARIZE_THRESHOLD", DefaultSummarizeThreshold), "summarization trigger fraction (LEATHER_SUMMARIZE_THRESHOLD)")
 	fs.String("llm-endpoint", envString("LLM_ENDPOINT", DefaultLLMEndpoint), "LLM base URL (LEATHER_LLM_ENDPOINT)")
 	fs.Duration("llm-timeout", envDuration("LLM_TIMEOUT", DefaultLLMTimeout), "LLM request timeout (LEATHER_LLM_TIMEOUT)")
@@ -269,6 +272,11 @@ func applyYAML(r io.Reader, cfg *model.Config) error {
 	if v, ok := strVal("completion_reserve"); ok {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.CompletionReserve = n
+		}
+	}
+	if v, ok := strVal("reasoning_reserve"); ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.ReasoningReserve = n
 		}
 	}
 	if v, ok := strVal("max_concurrent_jobs"); ok {
@@ -409,6 +417,10 @@ func applyFlag(f *flag.Flag, cfg *model.Config) {
 	case "completion-reserve":
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.CompletionReserve = n
+		}
+	case "reasoning-reserve":
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.ReasoningReserve = n
 		}
 	case "summarize-threshold":
 		if f64, err := strconv.ParseFloat(v, 64); err == nil {

@@ -446,8 +446,11 @@ type Message struct {
 type TokenBudget struct {
 	// MaxTokens is the total context window size for the model.
 	MaxTokens int
-	// CompletionReserve is the number of tokens held back for the model's response.
+	// CompletionReserve is the number of tokens held back for the model's answer content.
 	CompletionReserve int
+	// ReasoningReserve is the number of tokens held back for a reasoning model's
+	// <think> trace, on top of CompletionReserve. Zero for non-reasoning models.
+	ReasoningReserve int
 	// SummarizeThreshold is the fraction of MaxTokens at which summarization is triggered.
 	SummarizeThreshold float64
 }
@@ -480,6 +483,7 @@ type Config struct {
 	Temperature        float64 // global default sampling temperature
 	MaxTokens          int
 	CompletionReserve  int
+	ReasoningReserve   int
 	SummarizeThreshold float64
 	LLMEndpoint        string
 	LLMTimeout         time.Duration

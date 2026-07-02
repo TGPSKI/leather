@@ -195,6 +195,7 @@ replay_live: ""             # live replay JSONL directory
 replay_speed: 1.0           # playback speed multiplier for replay_live
 max_tokens: 8192
 completion_reserve: 1024
+reasoning_reserve: 0        # extra tokens for a reasoning model's <think> trace
 summarize_threshold: 0.85
 llm_endpoint: http://localhost:11434
 llm_timeout: 60s
@@ -307,7 +308,7 @@ scheduler state at runtime (v1).
 | `/jobs` | GET | JSON array of current `model.Job` snapshots |
 | `/jobs/{name}` | GET | Single job record by agent name; 404 if not found |
 | `/status` | GET | Server status: `started_at`, `uptime_seconds`, `version`, `commit`, `llm_endpoint`, `agent_count`, `scheduler_tick`, `max_concurrent_jobs` |
-| `/config` | GET | Sanitised config (explicit allowlist, not raw `model.Config`): `agent_dir`, `log_level`, `log_format`, `model`, `temperature`, `max_tokens`, `completion_reserve`, `summarize_threshold`, `llm_endpoint`, `llm_timeout`, `scheduler_tick`, `max_concurrent_jobs`, `api_addr` |
+| `/config` | GET | Sanitised config (explicit allowlist, not raw `model.Config`): `agent_dir`, `log_level`, `log_format`, `model`, `temperature`, `max_tokens`, `completion_reserve`, `reasoning_reserve`, `summarize_threshold`, `llm_endpoint`, `llm_timeout`, `scheduler_tick`, `max_concurrent_jobs`, `api_addr` |
 | `/metrics` | GET | Per-agent aggregated stats + recent run history: `{"agents":{"name":{run_count, error_count, total_prompt_tokens, total_completion_tokens, avg_duration_ms, recent_runs:[…]}}}` |
 | `/history` | GET | All recent runs merged across agents, sorted `started_at` desc, capped at 500. Returns `[]model.RunRecord`. |
 

@@ -52,6 +52,27 @@ func TestSession_UsageAccounting(t *testing.T) {
 	}
 }
 
+func TestSession_UsageAccounting_ReasoningReserve(t *testing.T) {
+	budget := model.TokenBudget{
+		MaxTokens:          100,
+		CompletionReserve:  20,
+		ReasoningReserve:   15,
+		SummarizeThreshold: 0.5,
+	}
+	mock := NewMockLLM(MockConfig{TokensPerMessage: 10})
+	sess := New(budget, "llama3", mock)
+
+	_ = sess.Add(context.Background(), model.Message{Role: "user", Content: "a"})
+	used, remaining := sess.Usage()
+	if used != 10 {
+		t.Errorf("used = %d, want 10", used)
+	}
+	// remaining = MaxTokens(100) - CompletionReserve(20) - ReasoningReserve(15) - used(10) = 55
+	if remaining != 55 {
+		t.Errorf("remaining = %d, want 55", remaining)
+	}
+}
+
 func TestSession_SummarizationTrigger(t *testing.T) {
 	// TokensPerMessage=30, threshold=50 → two messages (60 tokens) will trigger.
 	mock := NewMockLLM(MockConfig{

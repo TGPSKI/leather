@@ -79,7 +79,7 @@ func (s *Session) Messages() []model.Message {
 
 // Usage returns the current token count and remaining capacity for completions.
 func (s *Session) Usage() (used, remaining int) {
-	remaining = s.budget.MaxTokens - s.budget.CompletionReserve - s.used
+	remaining = s.budget.MaxTokens - s.budget.CompletionReserve - s.budget.ReasoningReserve - s.used
 	if remaining < 0 {
 		remaining = 0
 	}
@@ -189,7 +189,7 @@ func (s *Session) summarize(ctx context.Context) error {
 
 	summaryReq := model.Message{Role: "user", Content: sb.String()}
 	opts := CompletionOptions{
-		MaxTokens:   s.budget.CompletionReserve,
+		MaxTokens:   s.budget.CompletionReserve + s.budget.ReasoningReserve,
 		Temperature: 0.3,
 	}
 	resp, err := s.client.Complete(ctx, s.model, []model.Message{summaryReq}, opts)
