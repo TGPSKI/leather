@@ -314,7 +314,7 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 		}
 
 		opts := session.CompletionOptions{
-			MaxTokens:   budget.CompletionReserve,
+			MaxTokens:   budget.CompletionReserve + budget.ReasoningReserve,
 			Temperature: a.Temperature,
 			Tools:       turnTools,
 		}

@@ -35,7 +35,7 @@ func TestLoad_Defaults(t *testing.T) {
 	// Unset all LEATHER_* vars that might be set in the environment.
 	for _, key := range []string{
 		"LEATHER_MAX_TOKENS", "LEATHER_LOG_LEVEL", "LEATHER_LLM_ENDPOINT",
-		"LEATHER_COMPLETION_RESERVE", "LEATHER_SUMMARIZE_THRESHOLD",
+		"LEATHER_COMPLETION_RESERVE", "LEATHER_REASONING_RESERVE", "LEATHER_SUMMARIZE_THRESHOLD",
 		"LEATHER_MAX_CONCURRENT_JOBS", "LEATHER_API",
 	} {
 		t.Setenv(key, "")
@@ -52,6 +52,9 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if cfg.LLMEndpoint != DefaultLLMEndpoint {
 		t.Errorf("LLMEndpoint = %q, want %q", cfg.LLMEndpoint, DefaultLLMEndpoint)
+	}
+	if cfg.ReasoningReserve != DefaultReasoningReserve {
+		t.Errorf("ReasoningReserve = %d, want %d", cfg.ReasoningReserve, DefaultReasoningReserve)
 	}
 }
 
@@ -95,6 +98,28 @@ func TestLoad_YAMLFile(t *testing.T) {
 	}
 	if cfg.LLMEndpoint != "http://localtest:9999" {
 		t.Errorf("LLMEndpoint = %q, want http://localtest:9999", cfg.LLMEndpoint)
+	}
+}
+
+func TestLoad_ReasoningReserveYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := dir + "/config.yaml"
+	content := "reasoning_reserve: 4096\n"
+	if err := os.WriteFile(cfgFile, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("LEATHER_CONFIG", cfgFile)
+	t.Setenv("LEATHER_REASONING_RESERVE", "") // clear env so YAML wins
+
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	BindFlags(fs)
+	cfg, err := Load(fs)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.ReasoningReserve != 4096 {
+		t.Errorf("ReasoningReserve = %d, want 4096", cfg.ReasoningReserve)
 	}
 }
 
@@ -155,7 +180,7 @@ func TestLoad_FlagOverrides(t *testing.T) {
 	for _, key := range []string{
 		"LEATHER_MAX_TOKENS", "LEATHER_LOG_LEVEL", "LEATHER_LLM_ENDPOINT",
 		"LEATHER_TEMPERATURE", "LEATHER_LOG_FORMAT", "LEATHER_API",
-		"LEATHER_COMPLETION_RESERVE", "LEATHER_SUMMARIZE_THRESHOLD",
+		"LEATHER_COMPLETION_RESERVE", "LEATHER_REASONING_RESERVE", "LEATHER_SUMMARIZE_THRESHOLD",
 		"LEATHER_LLM_TIMEOUT", "LEATHER_SCHEDULER_TICK", "LEATHER_MAX_CONCURRENT_JOBS",
 		"LEATHER_RUN_DURATION", "LEATHER_MAX_JOBS", "LEATHER_STATE_DIR",
 		"LEATHER_API_ADDR", "LEATHER_LOG_FILE", "LEATHER_PRETTY", "LEATHER_PRETTY_MODE", "LEATHER_STATS",
@@ -176,6 +201,7 @@ func TestLoad_FlagOverrides(t *testing.T) {
 		"--log-format", "json",
 		"--api",
 		"--completion-reserve", "512",
+		"--reasoning-reserve", "256",
 		"--summarize-threshold", "0.6",
 		"--llm-timeout", "45s",
 		"--scheduler-tick", "2m",
@@ -212,6 +238,7 @@ func TestLoad_FlagOverrides(t *testing.T) {
 		{"LogFormat", cfg.LogFormat, "json"},
 		{"API", cfg.API, true},
 		{"CompletionReserve", cfg.CompletionReserve, 512},
+		{"ReasoningReserve", cfg.ReasoningReserve, 256},
 		{"SummarizeThreshold", cfg.SummarizeThreshold, 0.6},
 		{"LLMTimeout", cfg.LLMTimeout, 45 * time.Second},
 		{"SchedulerTick", cfg.SchedulerTick, 2 * time.Minute},

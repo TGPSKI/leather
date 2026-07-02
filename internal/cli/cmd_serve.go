@@ -1266,6 +1266,7 @@ func resolveTokenBudget(cfg model.Config, a model.Agent) model.TokenBudget {
 	return model.TokenBudget{
 		MaxTokens:          maxTokens,
 		CompletionReserve:  completionReserve,
+		ReasoningReserve:   cfg.ReasoningReserve,
 		SummarizeThreshold: cfg.SummarizeThreshold,
 	}
 }
@@ -1658,6 +1659,7 @@ type configResponse struct {
 	Temperature        float64 `json:"temperature"`
 	MaxTokens          int     `json:"max_tokens"`
 	CompletionReserve  int     `json:"completion_reserve"`
+	ReasoningReserve   int     `json:"reasoning_reserve"`
 	SummarizeThreshold float64 `json:"summarize_threshold"`
 	LLMEndpoint        string  `json:"llm_endpoint"`
 	LLMTimeout         string  `json:"llm_timeout"`
@@ -1697,6 +1699,7 @@ func buildConfigResponse(c model.Config) configResponse {
 		Temperature:        c.Temperature,
 		MaxTokens:          c.MaxTokens,
 		CompletionReserve:  c.CompletionReserve,
+		ReasoningReserve:   c.ReasoningReserve,
 		SummarizeThreshold: c.SummarizeThreshold,
 		LLMEndpoint:        c.LLMEndpoint,
 		LLMTimeout:         c.LLMTimeout.String(),

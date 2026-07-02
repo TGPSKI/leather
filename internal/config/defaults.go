@@ -11,6 +11,7 @@ const (
 	DefaultTemperature                = 0.7
 	DefaultMaxTokens                  = 8192
 	DefaultCompletionReserve          = 1024
+	DefaultReasoningReserve           = 0
 	DefaultSummarizeThreshold         = 0.85
 	DefaultLLMEndpoint                = "http://localhost:11434"
 	DefaultLLMTimeout                 = 60 * time.Second

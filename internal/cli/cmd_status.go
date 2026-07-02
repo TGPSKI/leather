@@ -27,8 +27,8 @@ func RunStatus(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "agent dir:  %s\n", cfg.AgentDir)
 	fmt.Fprintf(stdout, "state dir:  %s\n", cfg.StateDir)
 	fmt.Fprintf(stdout, "endpoint:   %s\n", cfg.LLMEndpoint)
-	fmt.Fprintf(stdout, "max tokens: %d  reserve: %d  threshold: %.0f%%\n",
-		cfg.MaxTokens, cfg.CompletionReserve, cfg.SummarizeThreshold*100)
+	fmt.Fprintf(stdout, "max tokens: %d  completion reserve: %d  reasoning reserve: %d  threshold: %.0f%%\n",
+		cfg.MaxTokens, cfg.CompletionReserve, cfg.ReasoningReserve, cfg.SummarizeThreshold*100)
 
 	jobs, err := scheduler.LoadState(cfg.StateDir)
 	if err != nil {

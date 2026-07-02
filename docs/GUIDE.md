@@ -65,6 +65,7 @@ model: /path/to/model      # model name or path; override: LEATHER_MODEL=
 llm_timeout: 120s          # per-call timeout; override: LEATHER_LLM_TIMEOUT=
 max_tokens: 8192           # context window budget
 completion_reserve: 1024   # tokens reserved for model output
+reasoning_reserve: 0       # extra tokens for a reasoning model's <think> trace; override: LEATHER_REASONING_RESERVE=
 summarize_threshold: 0.85  # compress history at 85% of max_tokens
 
 # --- Runtime ---

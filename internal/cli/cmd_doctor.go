@@ -88,6 +88,7 @@ func buildDoctorRows(cfg model.Config) []doctorField {
 		// -- token budget --
 		{"max_tokens", fmt.Sprintf("%d", cfg.MaxTokens), srcInt(cfg.MaxTokens, config.DefaultMaxTokens)},
 		{"completion_reserve", fmt.Sprintf("%d", cfg.CompletionReserve), srcInt(cfg.CompletionReserve, config.DefaultCompletionReserve)},
+		{"reasoning_reserve", fmt.Sprintf("%d", cfg.ReasoningReserve), srcInt(cfg.ReasoningReserve, config.DefaultReasoningReserve)},
 		{"summarize_threshold", fmt.Sprintf("%.2f", cfg.SummarizeThreshold), src(fmt.Sprintf("%.2f", cfg.SummarizeThreshold), fmt.Sprintf("%.2f", config.DefaultSummarizeThreshold))},
 
 		// -- scheduler --

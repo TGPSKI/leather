@@ -94,6 +94,7 @@ var ConfigSchema = Schema{
 	"state_dir":           {Type: TypeString},
 	"max_tokens":          {Type: TypeInteger, HasMin: true, IntMin: 1},
 	"completion_reserve":  {Type: TypeInteger, HasMin: true, IntMin: 1},
+	"reasoning_reserve":   {Type: TypeInteger, HasMin: true, IntMin: 0},
 	"max_concurrent_jobs": {Type: TypeInteger, HasMin: true, IntMin: 1},
 	"summarize_threshold": {Type: TypeNumber},
 	"temperature":         {Type: TypeNumber},
