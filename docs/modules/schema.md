@@ -54,7 +54,7 @@ is a list of flat objects rather than a single flat map.
 flowchart LR
     SRC[YAML source] --> PB[config.ParseBlock]
     PB --> VF[ValidateFlat]
-    VF --> VIOLS[[]Violation]
+    VF --> VIOLS["[]Violation"]
     VF --> OK[no violations]
 ```
 
