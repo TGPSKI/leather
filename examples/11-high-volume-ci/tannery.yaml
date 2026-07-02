@@ -44,3 +44,21 @@ queues:
     max_attempts: 2
     max_depth: 50
 
+  # Prefix-scan curings (queue_prefix in their .curing.yaml, one single-use
+  # queue per webhook) have no static queue name, so they're keyed here by
+  # their queue_prefix instead — matches pr-metadata.curing.yaml's
+  # queue_prefix: pr-meta, pr-diff.curing.yaml's queue_prefix: pr-diff,
+  # pr-context.curing.yaml's queue_prefix: pr-ctx, and decision.curing.yaml's
+  # queue_prefix: analysis. max_attempts/max_depth are not read for these
+  # (per-item retry cap comes from each curing's own max_attempts:, and
+  # single-use queues never accumulate depth), but concurrency is — this is
+  # what actually bounds how many webhooks each curing processes in parallel.
+  pr-meta:
+    concurrency: 8
+  pr-diff:
+    concurrency: 8
+  pr-ctx:
+    concurrency: 8
+  analysis:
+    concurrency: 8
+

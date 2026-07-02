@@ -552,3 +552,58 @@ func TestSupervisor_StartDrain(t *testing.T) {
 		t.Error("Drain timed out; workers may be stuck")
 	}
 }
+
+// TestNewSupervisor_ConcurrencyLookup verifies that concurrency resolution
+// falls back to QueuePrefix for prefix-scan curings (Queue == ""), since
+// they have no static queue name to key concMap on. Regression test: before
+// this fix, every prefix-scan curing silently got concurrency=1 regardless
+// of what was declared in queues:, because the lookup only ever checked
+// def.Queue.
+func TestNewSupervisor_ConcurrencyLookup(t *testing.T) {
+	dir := t.TempDir()
+	mock := session.NewMockLLM(session.MockConfig{Response: "response"})
+	defs := []model.CuringDefinition{
+		testDef("exact-queue-curing", "agent-a", "queue-a"),
+		{
+			Name:           "prefix-curing",
+			Agent:          "agent-a",
+			QueuePrefix:    "pr-meta",
+			PageSizeBytes:  3800,
+			MaxAttempts:    3,
+			TimeoutSeconds: 30,
+		},
+	}
+	agents := map[string]model.Agent{"agent-a": testAgent("agent-a")}
+	hs := hide.NewStore(dir + "/hides")
+	as := artifact.NewStore(dir + "/artifacts")
+	qmgr := queue.NewManager(dir + "/queues")
+	log := testLog(t)
+
+	deps := &RunnerDeps{
+		Client:        mock,
+		ToolReg:       tool.NewRegistry(),
+		Log:           log,
+		MaxToolRounds: 1,
+		Notifiers:     map[string]notify.Notifier{},
+		QueueMgr:      qmgr,
+	}
+
+	concMap := map[string]model.QueueConcurrencyConfig{
+		"queue-a": {Concurrency: 4},
+		"pr-meta": {Concurrency: 8},
+	}
+
+	sup, err := NewSupervisor(defs, agents, concMap, hs, as, deps, qmgr, nil, log)
+	if err != nil {
+		t.Fatalf("NewSupervisor: %v", err)
+	}
+	if len(sup.workers) != 2 {
+		t.Fatalf("workers = %d, want 2", len(sup.workers))
+	}
+	if got := cap(sup.workers[0].sem); got != 4 {
+		t.Errorf("exact-queue-curing concurrency = %d, want 4", got)
+	}
+	if got := cap(sup.workers[1].sem); got != 8 {
+		t.Errorf("prefix-curing concurrency = %d, want 8 (QueuePrefix fallback)", got)
+	}
+}

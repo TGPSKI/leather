@@ -127,7 +127,7 @@ func initTannery(ctx context.Context, tanneryFile string, deps *apiDeps) (*tanne
 	}
 
 	sup, err := curing.NewSupervisor(
-		curingDefs, agentsByName(deps.agents), tannCfg.Queues,
+		curingDefs, agentsByName(deps.cfg, deps.agents), tannCfg.Queues,
 		hideStore, artStore, runnerDeps,
 		deps.queueMgr, curingRouter, deps.log,
 	)
@@ -802,11 +802,16 @@ func drainTannery(td *tanneryDeps) {
 	}
 }
 
-// agentsByName converts a slice of agents into a map keyed by Name.
-func agentsByName(agents []model.Agent) map[string]model.Agent {
+// agentsByName converts a slice of agents into a map keyed by Name, applying
+// resolveAgent so curing/tannery-driven agents get the same global config
+// defaults (Model, Temperature, Timeout, DefaultToolsets) that the scheduler
+// path already applies per-job. Without this, an agent with no explicit
+// model: front-matter field is sent to the LLM client with an empty model
+// name instead of falling back to cfg.Model.
+func agentsByName(cfg model.Config, agents []model.Agent) map[string]model.Agent {
 	m := make(map[string]model.Agent, len(agents))
 	for _, a := range agents {
-		m[a.Name] = a
+		m[a.Name] = resolveAgent(cfg, a)
 	}
 	return m
 }
