@@ -58,7 +58,7 @@ flowchart LR
     BODY --> MERGE[applyLifecycle]
     LY --> MERGE
     MERGE --> VAL[Validate]
-    VAL --> OUT[[]model.Agent]
+    VAL --> OUT["[]model.Agent"]
 ```
 
 ## Test Surface
