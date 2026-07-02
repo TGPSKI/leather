@@ -1386,3 +1386,80 @@ func TestRun_NoRetry_WhenContentAlreadyPresent(t *testing.T) {
 		t.Errorf("Complete calls = %d, want 1 (no retry when content is non-empty)", client.calls)
 	}
 }
+
+// TestRun_SystemPromptOnlyAgent_SendsPlaceholderUserMessage verifies that an
+// agent with no UserPrompt/UserPrompts configured still sends at least one
+// user-role message, since strict OpenAI-compatible backends reject
+// completion requests with zero user messages (#41).
+func TestRun_SystemPromptOnlyAgent_SendsPlaceholderUserMessage(t *testing.T) {
+	mock := session.NewMockLLM(session.MockConfig{Response: "did the thing"})
+	r := &Runner{
+		Client:        mock,
+		Registry:      tool.NewRegistry(),
+		Log:           testLogger(t),
+		MaxToolRounds: 1,
+	}
+
+	a := testAgent("system-prompt-only")
+	a.SystemPrompt = "You are a scheduled maintenance agent. Use your tools and report findings."
+	// UserPrompt and UserPrompts both intentionally left unset.
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Fatalf("status = %q, want success", rec.Status)
+	}
+
+	calls := mock.Calls()
+	if len(calls) != 1 {
+		t.Fatalf("Complete calls = %d, want 1", len(calls))
+	}
+	var sawUser bool
+	for _, msg := range calls[0] {
+		if msg.Role == "user" && msg.Content == noPromptPlaceholder {
+			sawUser = true
+		}
+	}
+	if !sawUser {
+		t.Fatalf("expected a user message with content %q, got messages: %+v", noPromptPlaceholder, calls[0])
+	}
+}
+
+// requireUserMessageClient simulates a strict OpenAI-compatible backend that
+// rejects completions with zero user-role messages, mirroring the real
+// "No user query found in messages" 400 seen in #41.
+type requireUserMessageClient struct{}
+
+func (requireUserMessageClient) Complete(_ context.Context, _ string, messages []model.Message, _ session.CompletionOptions) (model.LLMResponse, error) {
+	for _, msg := range messages {
+		if msg.Role == "user" {
+			return model.LLMResponse{Content: "ok", FinishReason: "stop"}, nil
+		}
+	}
+	return model.LLMResponse{}, errors.New("status 400: No user query found in messages")
+}
+
+func (requireUserMessageClient) CountTokens(messages []model.Message) (int, error) {
+	return 10 * len(messages), nil
+}
+
+func TestRun_SystemPromptOnlyAgent_SurvivesStrictBackend(t *testing.T) {
+	r := &Runner{
+		Client:        requireUserMessageClient{},
+		Registry:      tool.NewRegistry(),
+		Log:           testLogger(t),
+		MaxToolRounds: 1,
+	}
+	a := testAgent("strict-backend-agent")
+	a.SystemPrompt = "You are a scheduled maintenance agent."
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("Run: %v (a system-prompt-only agent should still satisfy a backend that requires a user message)", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Fatalf("status = %q, want success", rec.Status)
+	}
+}

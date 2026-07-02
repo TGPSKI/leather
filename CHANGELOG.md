@@ -7,6 +7,19 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **System-prompt-only agents rejected by strict backends** (#41) — agents
+  with no `prompt:`/`prompts:` configured (pure system-prompt + scheduled
+  tool use) sent completion requests with zero user-role messages, which
+  strict OpenAI-compatible backends reject with `400: "No user query found
+  in messages"`. `runner.Run` now sends a placeholder user message
+  (`"Proceed."`) for these agents instead of skipping the user turn entirely.
+- **`examples/scripts/examples-summary.sh` path bug** — `EX_DIR` doubled the
+  `examples/` path segment (`.../examples/examples`), so `make summary`
+  silently reported an empty, all-zero rollup instead of erroring or finding
+  any example state.
+
 ### Added
 
 - **Reasoning-aware `completion_reserve`** — fixes reasoning-model completions

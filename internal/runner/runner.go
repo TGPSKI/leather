@@ -32,6 +32,12 @@ import (
 // Config.MaxToolRounds specifies a value.
 const DefaultToolRounds = 5
 
+// noPromptPlaceholder is sent as the user turn for agents with no configured
+// UserPrompt/UserPrompts. Strict OpenAI-compatible backends reject completion
+// requests with zero user-role messages ("No user query found in messages"),
+// so a system-prompt-only agent needs at least this much to run against them.
+const noPromptPlaceholder = "Proceed."
+
 var hidePageHeaderRE = regexp.MustCompile(`\[HIDE id=([^\s]+)\s+[^\]]*page=([0-9]+)/([0-9]+)`) //nolint:gochecknoglobals // compile-time regexp is immutable and safe
 
 // Runner executes agents with optional tool calling support.
@@ -267,8 +273,11 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 	}
 	// Guarantee at least one LLM call even when no user prompt is configured,
 	// preserving the original behaviour (system-prompt-only agents still run).
+	// Use a placeholder rather than an empty string: an empty userPrompt skips
+	// sess.Add below, leaving zero user-role messages in the request, which
+	// strict OpenAI-compatible backends reject outright (#41).
 	if len(userPrompts) == 0 {
-		userPrompts = []string{""}
+		userPrompts = []string{noPromptPlaceholder}
 	}
 
 	var totalTokens model.RunTokens
