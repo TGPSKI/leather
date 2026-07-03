@@ -236,6 +236,7 @@ func LoadFile(path string) (model.Agent, error) {
 		Skills:            fm.Skills,
 		Toolsets:          fm.Toolsets,
 		ToolRounds:        fm.ToolRounds,
+		DisableThinking:   fm.DisableThinking,
 		TurnSkills:        turnSkills,
 		TurnToolsets:      turnToolsets,
 		SourcePath:        path,
