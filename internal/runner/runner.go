@@ -284,6 +284,14 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 	var turns []model.Turn
 	var lastResp model.LLMResponse
 
+	// completedToolCalls guards against a model re-issuing a tool call it
+	// already made successfully earlier in this run (observed with reasoning
+	// models: a long hidden thinking trace can cause the model to lose track
+	// of a prior tool call and repeat it verbatim, spinning until max tool
+	// rounds is hit). Scoped to non-"hide" tools only — hide pagination tools
+	// legitimately expect repeated/similar calls across a run.
+	completedToolCalls := make(map[string]bool)
+
 	for i, userPrompt := range userPrompts {
 		// Apply turn-level vars (may include values extracted from previous tool calls).
 		userPrompt = applyVars(userPrompt, turnVars)
@@ -329,6 +337,12 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 		}
 		if len(turnTools) > 0 {
 			opts.ExtraBody = map[string]any{"parallel_tool_calls": false}
+		}
+		if a.DisableThinking {
+			if opts.ExtraBody == nil {
+				opts.ExtraBody = map[string]any{}
+			}
+			opts.ExtraBody["chat_template_kwargs"] = map[string]any{"enable_thinking": false}
 		}
 
 		if userPrompt != "" {
@@ -390,6 +404,26 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 					totalTokens.Total += resp.TotalTokens
 					lastResp = resp
 				}
+			} else if resp.FinishReason == "stop" && resp.Content == "" && len(resp.ToolCalls) == 0 {
+				// Self-healing retry: observed in production — a reasoning model
+				// occasionally stops naturally with zero output tokens instead of
+				// producing the expected answer. Not a truncation (finish_reason
+				// is "stop", not "length"), just a bad sample; a bare retry of the
+				// same request is usually enough to draw a non-empty response from
+				// the same stochastic model. Single-shot, matching the
+				// length-truncation retry above — if the retry is also empty, it
+				// is passed through rather than looped on indefinitely.
+				r.Log.Warn("completion stopped with empty content; retrying",
+					"agent", a.Name, "round", round)
+				resp, err = r.Client.Complete(callCtx, a.Model, sess.Messages(), opts)
+				if err != nil {
+					wErr := fmt.Errorf("runner/Run %s round %d retry: %w", a.Name, round, err)
+					return r.errorRecord(a, startTs, wErr), wErr
+				}
+				totalTokens.Prompt += resp.PromptTokens
+				totalTokens.Response += resp.CompletionTokens
+				totalTokens.Total += resp.TotalTokens
+				lastResp = resp
 			}
 
 			if len(resp.ToolCalls) == 0 {
@@ -452,17 +486,36 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 					return r.errorRecord(a, startTs, wErr), wErr
 				}
 				r.Log.Info("executing tool", "agent", a.Name, "tool", tc.Name)
+				// Debug: log full tool call arguments for diagnostics (tool name/byte-only logs above don't reveal repeated-args loops).
+				argBytes, argErr := json.Marshal(tc.Arguments)
+				if argErr == nil {
+					r.Log.Debug("tool call args", "agent", a.Name, "tool", tc.Name, "args", string(argBytes))
+				}
 				if r.ProgressFn != nil {
 					r.ProgressFn(ProgressEvent{Kind: "call", Round: round, Tool: tc.Name, ToolType: def.Type, Args: marshalArgs(tc.Arguments)})
 				}
 				var result model.ToolResult
-				if def.Type == "hide" {
+				dedupeKey := ""
+				if def.Type != "hide" && argErr == nil {
+					dedupeKey = tc.Name + "\x00" + string(argBytes)
+				}
+				switch {
+				case dedupeKey != "" && completedToolCalls[dedupeKey]:
+					r.Log.Warn("skipping duplicate tool call already completed this run",
+						"agent", a.Name, "tool", tc.Name)
+					result = model.ToolResult{
+						Content: fmt.Sprintf("%s with these exact arguments already completed successfully earlier in this run. Do not call it again — proceed to the next step.", tc.Name),
+					}
+				case def.Type == "hide":
 					result = r.executeHideTool(def.Name, tc.ID, tc.Arguments)
 					if result.Error == "" {
 						hideToolSucceeded = true
 					}
-				} else {
+				default:
 					result = (&tool.Executor{MCP: r.MCPRegistry, QueueMgr: r.QueueMgr, AgentName: a.Name, Limiter: r.ToolLimiter}).Execute(ctx, def, tc.Arguments)
+					if result.Error == "" && dedupeKey != "" {
+						completedToolCalls[dedupeKey] = true
+					}
 				}
 				if result.Error == "" && def.Buffer {
 					if r.HideBuffer == nil {
