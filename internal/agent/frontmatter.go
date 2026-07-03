@@ -23,6 +23,10 @@ type frontMatter struct {
 	Skills            []string
 	Toolsets          []string
 	ToolRounds        int
+	// DisableThinking mirrors model.Agent.DisableThinking. Set via
+	// "thinking: false" in frontmatter; defaults to false (model default,
+	// no override).
+	DisableThinking bool
 }
 
 // parseFrontMatter extracts and parses the YAML front matter from src.
@@ -182,6 +186,12 @@ func applyFrontMatterFields(yamlBlock string, fm *frontMatter) error {
 				return fmt.Errorf("invalid tool_rounds %q: %w", raw, err)
 			}
 			fm.ToolRounds = n
+		case "thinking":
+			b, err := strconv.ParseBool(raw)
+			if err != nil {
+				return fmt.Errorf("invalid thinking %q: %w", raw, err)
+			}
+			fm.DisableThinking = !b
 			// Unknown keys are silently ignored for forward compatibility.
 		}
 	}
