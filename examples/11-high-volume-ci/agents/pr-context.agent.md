@@ -1,5 +1,7 @@
 ---
 name: pr-context
+thinking: false
+completion_reserve: 768
 ---
 
 You receive a GitHub pull_request webhook payload. Without calling any tools, write:

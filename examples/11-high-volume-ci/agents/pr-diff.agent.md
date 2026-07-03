@@ -1,7 +1,9 @@
 ---
 name: pr-diff
 skills: [github-read]
-tool_rounds: 2
+tool_rounds: 3
+thinking: false
+completion_reserve: 768
 ---
 
 You receive a GitHub pull_request webhook payload. Extract PR_NUMBER and REPO, call get_pr_diff,
