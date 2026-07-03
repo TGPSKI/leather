@@ -505,6 +505,267 @@ func TestWorker_OutputQueue(t *testing.T) {
 	}
 }
 
+// --- issue #44: stale collect-group eviction ---
+
+func TestWorker_CollectGroupStale_ZeroTimeoutDisablesEviction(t *testing.T) {
+	dir := t.TempDir()
+	def := model.CuringDefinition{
+		Name: "decision", Agent: "decision-agent", QueuePrefix: "analysis",
+		CollectSize: 3, CollectTimeoutSeconds: 0, // explicit disable
+		MaxAttempts: 3, TimeoutSeconds: 30, PageSizeBytes: 3800,
+	}
+	agents := map[string]model.Agent{"decision-agent": testAgent("decision-agent")}
+	w, _, _, _ := testWorker(t, def, agents, session.NewMockLLM(session.MockConfig{Response: "r"}), nil, dir)
+
+	old := []model.QueueItem{{ID: "i1", EnqueuedAt: time.Now().Add(-time.Hour).Unix()}}
+	if w.collectGroupStale(old) {
+		t.Error("collectGroupStale: expected false when CollectTimeoutSeconds is explicitly 0")
+	}
+}
+
+func TestWorker_RunCollectFromQueue_StaleGroupEvictedToDLQ(t *testing.T) {
+	dir := t.TempDir()
+	def := model.CuringDefinition{
+		Name: "decision", Agent: "decision-agent", QueuePrefix: "analysis",
+		CollectSize: 3, CollectTimeoutSeconds: 1,
+		MaxAttempts: 3, TimeoutSeconds: 30, PageSizeBytes: 3800,
+	}
+	agents := map[string]model.Agent{"decision-agent": testAgent("decision-agent")}
+	w, hs, _, qmgr := testWorker(t, def, agents, session.NewMockLLM(session.MockConfig{Response: "r"}), nil, dir)
+
+	var events []TanneryEvent
+	w.deps.EventFn = func(ev TanneryEvent) { events = append(events, ev) }
+
+	// Only 2 of the expected 3 legs arrived. The third's sibling curing
+	// (e.g. pr-context) already exhausted its own retries and DLQ'd
+	// separately, so this group will never reach CollectSize on its own.
+	// Backdate EnqueuedAt well past CollectTimeoutSeconds=1s.
+	old := time.Now().Add(-5 * time.Second).Unix()
+	e1 := putHide(t, hs, "kind", "leg-1")
+	e2 := putHide(t, hs, "kind", "leg-2")
+	const queueName = "analysis/corr_test_001"
+	for _, e := range []hide.StoreEntry{e1, e2} {
+		item := model.QueueItem{
+			ID: "item_" + e.ID, CuringName: "pr-metadata", HideID: e.ID,
+			HideKind: "kind", CorrelationID: "corr_test_001", EnqueuedAt: old,
+			Payload: map[string]any{},
+		}
+		if err := qmgr.Enqueue(queueName, item); err != nil {
+			t.Fatalf("enqueue: %v", err)
+		}
+	}
+
+	w.runPrefixScan(context.Background())
+
+	names, err := qmgr.NamesWithPrefix("analysis")
+	if err != nil {
+		t.Fatalf("NamesWithPrefix: %v", err)
+	}
+	for _, n := range names {
+		if n == queueName {
+			t.Errorf("expected stale source queue %q to be GC'd, still present", queueName)
+		}
+	}
+
+	dlq, err := qmgr.Get(queueName + "-dlq")
+	if err != nil {
+		t.Fatalf("get DLQ: %v", err)
+	}
+	if dlq.Len() != 2 {
+		t.Errorf("expected 2 items evicted to DLQ, got %d", dlq.Len())
+	}
+
+	var staleEvents int
+	for _, ev := range events {
+		if ev.Kind == "stale" {
+			staleEvents++
+		}
+	}
+	if staleEvents != 2 {
+		t.Errorf("expected 2 'stale' TanneryEvents, got %d", staleEvents)
+	}
+
+	// Hides are retained for manual inspection, matching per-item DLQ.
+	if _, _, err := hs.Get(e1.ID); err != nil {
+		t.Errorf("hide %s should be retained after stale eviction: %v", e1.ID, err)
+	}
+}
+
+// TestWorker_RunCollect_AgentFailureRetriesThenDLQs verifies that when a
+// complete fan-in group (all CollectSize items present) fails during
+// handleCollected — e.g. the agent's LLM call errors — the group is retried
+// via re-enqueue rather than silently dropped. Before this fix,
+// runCollectFromQueue's DequeueByIDs removed the items from the queue before
+// handleCollected ran; on failure they were never requeued, so a single
+// transient error (e.g. a request timeout under load) permanently lost the
+// whole group with no retry and no DLQ record.
+func TestWorker_RunCollect_AgentFailureRetriesThenDLQs(t *testing.T) {
+	dir := t.TempDir()
+	def := model.CuringDefinition{
+		Name: "decision", Agent: "decision-agent", QueuePrefix: "analysis",
+		CollectSize: 3, MaxAttempts: 2, TimeoutSeconds: 30, PageSizeBytes: 3800,
+	}
+	agents := map[string]model.Agent{"decision-agent": testAgent("decision-agent")}
+	failingMock := session.NewMockLLM(session.MockConfig{Err: errors.New("injected LLM failure")})
+	w, hs, _, qmgr := testWorker(t, def, agents, failingMock, nil, dir)
+
+	var events []TanneryEvent
+	w.deps.EventFn = func(ev TanneryEvent) { events = append(events, ev) }
+
+	const queueName = "analysis/corr_test_002"
+	entries := make([]hide.StoreEntry, 3)
+	for i := range entries {
+		entries[i] = putHide(t, hs, "kind", "leg content")
+		item := model.QueueItem{
+			ID: "item_" + entries[i].ID, CuringName: "pr-metadata", HideID: entries[i].ID,
+			HideKind: "kind", CorrelationID: "corr_test_002", EnqueuedAt: time.Now().Unix(),
+			Payload: map[string]any{},
+		}
+		if err := qmgr.Enqueue(queueName, item); err != nil {
+			t.Fatalf("enqueue: %v", err)
+		}
+	}
+
+	// First attempt: full group present, agent call fails. MaxAttempts=2, so
+	// AttemptCount becomes 1 (< 2) — expect a retry, not a DLQ.
+	w.runPrefixScan(context.Background())
+	w.WaitInflight()
+
+	q, err := qmgr.Get(queueName)
+	if err != nil {
+		t.Fatalf("get source queue after attempt 1: %v", err)
+	}
+	if q.Len() != 3 {
+		t.Fatalf("expected group requeued (3 items) after attempt 1, got %d", q.Len())
+	}
+	if _, dlqErr := qmgr.Get(queueName + "-dlq"); dlqErr == nil {
+		if dlq, _ := qmgr.Get(queueName + "-dlq"); dlq.Len() > 0 {
+			t.Fatalf("expected no DLQ entries after attempt 1, got %d", dlq.Len())
+		}
+	}
+
+	// Second attempt: AttemptCount becomes 2 (not < 2) — expect DLQ this time.
+	w.runPrefixScan(context.Background())
+	w.WaitInflight()
+
+	if q, err := qmgr.Get(queueName); err == nil && q.Len() != 0 {
+		t.Errorf("expected source queue drained after DLQ, got %d items", q.Len())
+	}
+	dlq, err := qmgr.Get(queueName + "-dlq")
+	if err != nil {
+		t.Fatalf("get DLQ after attempt 2: %v", err)
+	}
+	if dlq.Len() != 3 {
+		t.Errorf("expected 3 items in DLQ after MaxAttempts exhausted, got %d", dlq.Len())
+	}
+
+	var retryCount, dlqCount int
+	for _, ev := range events {
+		switch ev.Kind {
+		case "retry":
+			retryCount++
+		case "dlq":
+			dlqCount++
+		}
+	}
+	if retryCount != 3 {
+		t.Errorf("expected 3 'retry' TanneryEvents, got %d", retryCount)
+	}
+	if dlqCount != 3 {
+		t.Errorf("expected 3 'dlq' TanneryEvents, got %d", dlqCount)
+	}
+
+	// Hides are retained for manual inspection, matching per-item DLQ.
+	for _, e := range entries {
+		if _, _, err := hs.Get(e.ID); err != nil {
+			t.Errorf("hide %s should be retained after DLQ: %v", e.ID, err)
+		}
+	}
+}
+
+func TestWorker_RunCollectFromQueue_FreshGroupNotEvicted(t *testing.T) {
+	dir := t.TempDir()
+	def := model.CuringDefinition{
+		Name: "decision", Agent: "decision-agent", QueuePrefix: "analysis",
+		CollectSize: 3, CollectTimeoutSeconds: 3600, // 1h — nowhere near stale
+		MaxAttempts: 3, TimeoutSeconds: 30, PageSizeBytes: 3800,
+	}
+	agents := map[string]model.Agent{"decision-agent": testAgent("decision-agent")}
+	w, hs, _, qmgr := testWorker(t, def, agents, session.NewMockLLM(session.MockConfig{Response: "r"}), nil, dir)
+
+	e1 := putHide(t, hs, "kind", "leg-1")
+	const queueName = "analysis/corr_test_002"
+	item := model.QueueItem{
+		ID: "item_" + e1.ID, CuringName: "pr-metadata", HideID: e1.ID,
+		HideKind: "kind", CorrelationID: "corr_test_002", EnqueuedAt: time.Now().Unix(),
+		Payload: map[string]any{},
+	}
+	if err := qmgr.Enqueue(queueName, item); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+
+	w.runPrefixScan(context.Background())
+
+	q, err := qmgr.Get(queueName)
+	if err != nil {
+		t.Fatalf("get queue: %v", err)
+	}
+	if q.Len() != 1 {
+		t.Errorf("expected fresh incomplete group to remain untouched, got len=%d", q.Len())
+	}
+}
+
+func TestWorker_RunCollect_StaleGroupEvictedWithoutBlockingOtherGroups(t *testing.T) {
+	dir := t.TempDir()
+	def := model.CuringDefinition{
+		Name: "static-decision", Agent: "decision-agent", Queue: "static-analysis",
+		CollectSize: 2, CollectBy: "correlation_id", CollectTimeoutSeconds: 1,
+		MaxAttempts: 3, TimeoutSeconds: 30, PageSizeBytes: 3800,
+	}
+	agents := map[string]model.Agent{"decision-agent": testAgent("decision-agent")}
+	w, hs, _, qmgr := testWorker(t, def, agents, session.NewMockLLM(session.MockConfig{Response: "r"}), nil, dir)
+
+	staleEntry := putHide(t, hs, "kind", "stale-leg")
+	freshEntry := putHide(t, hs, "kind", "fresh-leg")
+	old := time.Now().Add(-5 * time.Second).Unix()
+	staleItem := model.QueueItem{
+		ID: "item_stale", CuringName: "pr-metadata", HideID: staleEntry.ID,
+		HideKind: "kind", CorrelationID: "stale-corr", EnqueuedAt: old, Payload: map[string]any{},
+	}
+	freshItem := model.QueueItem{
+		ID: "item_fresh", CuringName: "pr-metadata", HideID: freshEntry.ID,
+		HideKind: "kind", CorrelationID: "fresh-corr", EnqueuedAt: time.Now().Unix(), Payload: map[string]any{},
+	}
+	if err := qmgr.Enqueue(def.Queue, staleItem); err != nil {
+		t.Fatalf("enqueue stale: %v", err)
+	}
+	if err := qmgr.Enqueue(def.Queue, freshItem); err != nil {
+		t.Fatalf("enqueue fresh: %v", err)
+	}
+
+	w.runCollect(context.Background())
+
+	dlq, err := qmgr.Get(def.Queue + "-dlq")
+	if err != nil {
+		t.Fatalf("get DLQ: %v", err)
+	}
+	if dlq.Len() != 1 {
+		t.Errorf("expected 1 stale item evicted to DLQ, got %d", dlq.Len())
+	}
+
+	src, err := qmgr.Get(def.Queue)
+	if err != nil {
+		t.Fatalf("get source queue: %v", err)
+	}
+	if src.Len() != 1 {
+		t.Errorf("expected fresh group's item to remain in source queue, got len=%d", src.Len())
+	}
+	remaining := src.Scan()
+	if len(remaining) != 1 || remaining[0].CorrelationID != "fresh-corr" {
+		t.Errorf("expected remaining item to be the fresh-corr item, got %+v", remaining)
+	}
+}
+
 func TestSupervisor_StartDrain(t *testing.T) {
 	dir := t.TempDir()
 	mock := session.NewMockLLM(session.MockConfig{Response: "response"})

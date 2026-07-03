@@ -679,6 +679,14 @@ type CuringDefinition struct {
 	// and processes them individually. Each single-use queue holds items for
 	// exactly one event. Mutually exclusive with Queue.
 	QueuePrefix string `json:"queue_prefix,omitempty"`
+	// CollectTimeoutSeconds bounds how long a partial collect group (fewer
+	// than CollectSize items present) may wait before it is considered stale
+	// and evicted to the "-dlq" queue. Guards against a fan-in group hanging
+	// forever when one of its expected legs exhausts its own retries and
+	// DLQs instead of ever delivering its item here. Only meaningful when
+	// CollectSize > 0. Default 900 when absent; an explicit 0 disables
+	// staleness eviction (wait forever, the pre-fix behavior).
+	CollectTimeoutSeconds int `json:"collect_timeout_seconds,omitempty"`
 	// SourcePath is set by the loader to the absolute path of the *.curing.yaml file.
 	SourcePath string `json:"source_path,omitempty"`
 }

@@ -52,6 +52,21 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `examples/` path segment (`.../examples/examples`), so `make summary`
   silently reported an empty, all-zero rollup instead of erroring or finding
   any example state.
+- **Curing collect fan-in (`collect_size`) hung forever and leaked state when
+  one leg permanently DLQ'd** (#44) — `runCollectFromQueue`/`runCollect`
+  polled `len(items) < CollectSize` forever with no timeout, TTL, or
+  staleness check. If any one of a fan-in group's expected legs exhausted
+  its own `max_attempts` and DLQ'd, the group could never reach
+  `CollectSize` again: the downstream agent never fired, and the
+  already-collected items (plus their underlying hides) leaked on disk
+  indefinitely with no operator-visible signal. Found while load-testing
+  `examples/11-high-volume-ci` against a backend serialized to one request
+  at a time — decisions plateaued below the target webhook count with
+  nothing in the logs explaining why. Added `CuringDefinition.CollectTimeoutSeconds`
+  (default 900s; `0` preserves the old wait-forever behavior): a partial
+  collect group that exceeds this age is now evicted to `<queue>-dlq` and
+  emits a new `TanneryEvent{Kind: "stale"}`, rendered in `leather serve
+  --pretty` and forwarded to the devtools event bus.
 
 ### Added
 

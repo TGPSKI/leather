@@ -27,8 +27,11 @@ import (
 // EventFn receivers use this to drive pretty output, metrics, and alerting
 // without coupling the worker to any display or transport layer.
 type TanneryEvent struct {
-	// Kind is one of: "webhook", "enqueue", "dequeue", "retry", "dlq".
+	// Kind is one of: "webhook", "enqueue", "dequeue", "retry", "dlq", "stale".
 	// "webhook" is emitted by the HTTP webhook handler on successful enqueue.
+	// "stale" is emitted when a partial collect group is evicted to the DLQ
+	// after waiting longer than CollectTimeoutSeconds without reaching
+	// CollectSize (see evictStaleGroup).
 	Kind string
 	// Curing is the curing definition name (w.def.Name).
 	Curing string
@@ -183,6 +186,7 @@ func NewWorker(
 // and must be drained (Worker.WaitInflight) before the Worker is considered
 // shut down.
 func (w *Worker) Run(ctx context.Context) {
+	w.log.Info("curing worker started", "worker", w.def.Name, "queue", w.def.Queue, "prefix", w.def.QueuePrefix)
 	for {
 		select {
 		case <-ctx.Done():
@@ -221,14 +225,14 @@ func (w *Worker) Run(ctx context.Context) {
 			ItemID:   item.ID,
 		})
 
-		// Acquire semaphore before spawning goroutine to bound concurrency.
+		// Acquire semaphore inside the goroutine to bound concurrency.
 		// The goroutine receives context.Background() so that cancelling the
 		// Run loop (to stop polling) does not abort in-flight LLM calls.
 		// Per-item timeouts are applied inside process() via TimeoutSeconds.
-		w.sem <- struct{}{}
-		w.inflight.Add(1)
 		w.active.Add(1)
+		w.inflight.Add(1)
 		go func(it model.QueueItem) {
+			w.sem <- struct{}{}
 			defer w.inflight.Done()
 			defer w.active.Add(-1)
 			defer func() { <-w.sem }()
@@ -256,8 +260,8 @@ func (w *Worker) runCollect(ctx context.Context) {
 
 	// Snapshot without dequeuing; find the first key that has >= n items.
 	all := w.q.Scan()
-	if len(all) < n {
-		return // not enough items yet regardless of grouping
+	if len(all) == 0 {
+		return
 	}
 
 	key := func(item model.QueueItem) string {
@@ -269,6 +273,33 @@ func (w *Worker) runCollect(ctx context.Context) {
 		default: // "hide_id"
 			return item.HideID
 		}
+	}
+
+	// Evict the first (queue-order) incomplete group that has gone stale,
+	// before looking for a ready group. Without this, a group missing a
+	// sibling leg that already exhausted its own retries and DLQ'd
+	// separately would block this check forever — see issue #44.
+	if w.def.CollectTimeoutSeconds > 0 {
+		byGroup := make(map[string][]model.QueueItem, len(all))
+		var order []string
+		for _, it := range all {
+			k := key(it)
+			if _, seen := byGroup[k]; !seen {
+				order = append(order, k)
+			}
+			byGroup[k] = append(byGroup[k], it)
+		}
+		for _, k := range order {
+			items := byGroup[k]
+			if len(items) < n && w.collectGroupStale(items) {
+				w.evictStaleGroup(w.q, w.def.Queue, items)
+				break // one stale group per tick; re-scan next tick
+			}
+		}
+	}
+
+	if len(all) < n {
+		return // not enough items yet regardless of grouping
 	}
 
 	counts := make(map[string]int, len(all))
@@ -318,10 +349,10 @@ func (w *Worker) runCollect(ctx context.Context) {
 		})
 	}
 
-	w.sem <- struct{}{}
-	w.inflight.Add(1)
 	w.active.Add(1)
+	w.inflight.Add(1)
 	go func(items []model.QueueItem) {
+		w.sem <- struct{}{}
 		defer w.inflight.Done()
 		defer w.active.Add(-1)
 		defer func() { <-w.sem }()
@@ -330,7 +361,9 @@ func (w *Worker) runCollect(ctx context.Context) {
 				w.log.Error("curing/runCollect: panic recovered", "curing", w.def.Name, "panic", r)
 			}
 		}()
-		w.handleCollected(context.Background(), items)
+		if err := w.handleCollected(ctx, items); err != nil {
+			w.log.Warn("curing/runCollect: handleCollected failed", "curing", w.def.Name, "error", err)
+		}
 	}(matched)
 }
 
@@ -354,12 +387,14 @@ func (w *Worker) WaitInflight() {
 //   - When CollectSize == 0: dequeues one item and processes it individually,
 //     applying retry/DLQ logic. The source queue is GC'd when it empties.
 func (w *Worker) runPrefixScan(ctx context.Context) {
+	w.log.Info("curing worker scan loop tick", "worker", w.def.Name, "curing", w.def.Name)
 	names, err := w.qmgr.NamesWithPrefix(w.def.QueuePrefix)
 	if err != nil {
 		w.log.Warn("curing/runPrefixScan: scan failed",
 			"curing", w.def.Name, "prefix", w.def.QueuePrefix, "error", err)
 		return
 	}
+	w.log.Info("curing scan found queues", "worker", w.def.Name, "prefix", w.def.QueuePrefix, "count", len(names))
 	for _, name := range names {
 		// Skip DLQ queues created by prior failed attempts. They are not
 		// reprocessed by the prefix scanner — they remain on disk for manual
@@ -375,6 +410,16 @@ func (w *Worker) runPrefixScan(ctx context.Context) {
 			continue
 		}
 		if w.def.CollectSize > 0 {
+			// GC empty single-use queues early (e.g. analysis results already
+			// collected by the decision worker in a prior tick). Prevents
+			// per-tick wasted scans of queues that will never have more items.
+			if q.Len() == 0 {
+				if serr := w.qmgr.Delete(name); serr != nil {
+					w.log.Warn("curing/runPrefixScan: GC stale queue failed",
+						"curing", w.def.Name, "queue", name, "error", serr)
+				}
+				continue
+			}
 			w.runCollectFromQueue(ctx, name, q)
 		} else {
 			item, ok, err := q.Dequeue()
@@ -399,10 +444,10 @@ func (w *Worker) runPrefixScan(ctx context.Context) {
 				HideKind: item.HideKind,
 				ItemID:   item.ID,
 			})
-			w.sem <- struct{}{}
-			w.inflight.Add(1)
 			w.active.Add(1)
+			w.inflight.Add(1)
 			go func(it model.QueueItem, queueName string) {
+				w.sem <- struct{}{}
 				defer w.inflight.Done()
 				defer w.active.Add(-1)
 				defer func() { <-w.sem }()
@@ -446,7 +491,21 @@ func (w *Worker) runPrefixScan(ctx context.Context) {
 func (w *Worker) runCollectFromQueue(ctx context.Context, queueName string, q *queue.FileQueue) {
 	n := w.def.CollectSize
 	all := q.Scan()
+	w.log.Info("curing scan", "worker", w.def.Name, "queue", queueName, "items", len(all), "needed", n)
 	if len(all) < n {
+		// A single-use queue holds exactly one fan-in group. If it has waited
+		// past CollectTimeoutSeconds without reaching CollectSize (typically
+		// because a sibling leg already exhausted its own retries and DLQ'd
+		// separately, so it will never deliver its item here), evict what's
+		// present to the DLQ and GC the queue instead of polling it forever.
+		// See issue #44.
+		if w.collectGroupStale(all) {
+			w.evictStaleGroup(q, queueName, all)
+			if err := w.qmgr.Delete(queueName); err != nil {
+				w.log.Warn("curing/runCollectFromQueue: GC stale queue failed",
+					"curing", w.def.Name, "queue", queueName, "error", err)
+			}
+		}
 		return // not enough items yet
 	}
 
@@ -480,10 +539,15 @@ func (w *Worker) runCollectFromQueue(ctx context.Context, queueName string, q *q
 		})
 	}
 
-	w.sem <- struct{}{}
-	w.inflight.Add(1)
+	// Dequeue exactly n items and launch the collected job. Acquire the
+	// concurrency semaphore inside the goroutine so runPrefixScan's per-queue
+	// iteration never blocks waiting for a free job slot.
 	w.active.Add(1)
+	w.inflight.Add(1)
 	go func(items []model.QueueItem, qn string) {
+		w.log.Info("curing/collect-goroutine: acquiring semaphore", "queue", qn)
+		w.sem <- struct{}{}
+		w.log.Info("curing/collect-goroutine: acquired semaphore", "queue", qn)
 		defer w.inflight.Done()
 		defer w.active.Add(-1)
 		defer func() { <-w.sem }()
@@ -493,13 +557,130 @@ func (w *Worker) runCollectFromQueue(ctx context.Context, queueName string, q *q
 					"curing", w.def.Name, "panic", r)
 			}
 		}()
-		w.handleCollected(context.Background(), items)
-		// GC the single-use queue; handleCollected owns success semantics.
+		if err := w.handleCollected(ctx, items); err != nil {
+			w.log.Warn("curing/collect-goroutine: handleCollected failed", "queue", qn, "error", err)
+			w.requeueOrDLQGroup(qn, items, err)
+			return
+		}
+		w.log.Info("curing/collect-goroutine: handleCollected returned", "queue", qn)
 		if err := w.qmgr.Delete(qn); err != nil {
 			w.log.Warn("curing/runCollectFromQueue: GC failed",
 				"curing", w.def.Name, "queue", qn, "error", err)
 		}
 	}(matched, queueName)
+}
+
+// collectGroupStale reports whether items — all belonging to one collect
+// group — have been waiting longer than CollectTimeoutSeconds without
+// reaching CollectSize. A CollectTimeoutSeconds of 0 disables staleness
+// eviction (the pre-#44-fix behavior: wait forever). Returns false for an
+// empty group, since there is nothing to measure a wait against.
+func (w *Worker) collectGroupStale(items []model.QueueItem) bool {
+	if w.def.CollectTimeoutSeconds <= 0 || len(items) == 0 {
+		return false
+	}
+	oldest := items[0].EnqueuedAt
+	for _, it := range items[1:] {
+		if it.EnqueuedAt < oldest {
+			oldest = it.EnqueuedAt
+		}
+	}
+	if oldest == 0 {
+		return false
+	}
+	return time.Now().Unix()-oldest >= int64(w.def.CollectTimeoutSeconds)
+}
+
+// evictStaleGroup dequeues every item in items from q and routes it to
+// "<queueName>-dlq" instead of leaving it to wait forever for a sibling leg
+// that will never arrive (e.g. it already exhausted its own retries and
+// DLQ'd separately — see issue #44). Hides are retained for manual
+// inspection, matching the per-item DLQ convention in handleItemFromQueue.
+func (w *Worker) evictStaleGroup(q *queue.FileQueue, queueName string, items []model.QueueItem) {
+	ids := make([]string, len(items))
+	for i, it := range items {
+		ids[i] = it.ID
+	}
+	matched, err := q.DequeueByIDs(ids)
+	if err != nil {
+		w.log.Warn("curing/evictStaleGroup: DequeueByIDs failed",
+			"curing", w.def.Name, "queue", queueName, "error", err)
+		return
+	}
+	if len(matched) == 0 {
+		return
+	}
+
+	oldest := matched[0].EnqueuedAt
+	for _, it := range matched[1:] {
+		if it.EnqueuedAt < oldest {
+			oldest = it.EnqueuedAt
+		}
+	}
+	waited := time.Since(time.Unix(oldest, 0)).Round(time.Second)
+	w.log.Warn("curing/evictStaleGroup: partial collect group stale, routing to DLQ",
+		"curing", w.def.Name, "queue", queueName, "got", len(matched), "want", w.def.CollectSize, "waited", waited)
+
+	target := queueName + "-dlq"
+	for _, it := range matched {
+		w.emit(TanneryEvent{
+			Kind:     "stale",
+			Curing:   w.def.Name,
+			Queue:    queueName,
+			HideID:   it.HideID,
+			HideKind: it.HideKind,
+			ItemID:   it.ID,
+			Err:      fmt.Sprintf("stale collect group: %d/%d after %s", len(matched), w.def.CollectSize, waited),
+		})
+		if err := w.qmgr.Enqueue(target, it); err != nil {
+			w.log.Error("curing/evictStaleGroup: enqueue to dlq failed; item dropped",
+				"curing", w.def.Name, "queue", target, "item", it.ID, "error", err)
+		}
+	}
+}
+
+// requeueOrDLQGroup applies retry/DLQ logic to a fan-in group that failed
+// during handleCollected — e.g. all CollectSize items were gathered but the
+// agent call itself errored or timed out. Without this, DequeueByIDs having
+// already removed the items from the queue meant a failed run silently
+// dropped the group forever: no retry, no DLQ, and the source hides leaked
+// on disk (only cleaned up on success). Mirrors the per-item retry/DLQ
+// convention in handleItemFromQueue: bump each item's AttemptCount and
+// either re-enqueue the whole group together (re-collected on the next scan
+// tick) or route it to "<queueName>-dlq" once MaxAttempts is exhausted.
+func (w *Worker) requeueOrDLQGroup(queueName string, items []model.QueueItem, cause error) {
+	if len(items) == 0 {
+		return
+	}
+	for i := range items {
+		items[i].AttemptCount++
+	}
+	retry := items[0].AttemptCount < w.def.MaxAttempts
+	target := queueName + "-dlq"
+	evKind := "dlq"
+	if retry {
+		target = queueName
+		evKind = "retry"
+	}
+	w.log.Warn("curing/requeueOrDLQGroup: collect failed",
+		"curing", w.def.Name, "queue", queueName, "attempt", items[0].AttemptCount,
+		"target", target, "error", cause)
+	for _, it := range items {
+		w.emit(TanneryEvent{
+			Kind:     evKind,
+			Curing:   w.def.Name,
+			Queue:    queueName,
+			HideID:   it.HideID,
+			HideKind: it.HideKind,
+			ItemID:   it.ID,
+			Attempt:  it.AttemptCount,
+			Err:      cause.Error(),
+		})
+		if enqErr := w.qmgr.Enqueue(target, it); enqErr != nil {
+			w.log.Error("curing/requeueOrDLQGroup: enqueue failed; item dropped",
+				"curing", w.def.Name, "queue", target, "item", it.ID, "error", enqErr)
+		}
+	}
 }
 
 // emit fires ev on deps.EventFn when it is set. It is a no-op otherwise.
@@ -522,15 +703,29 @@ func (w *Worker) emit(ev TanneryEvent) {
 // handleCollected processes a correlated batch of items as one agent invocation.
 // Each item's hide content is loaded and concatenated into a single user prompt
 // separated by clear delimiters. The first item's hide_id is used for the artifact.
-func (w *Worker) handleCollected(ctx context.Context, items []model.QueueItem) {
+// Returns nil on success.
+func (w *Worker) handleCollected(ctx context.Context, items []model.QueueItem) error {
 	if len(items) == 0 {
-		return
+		return nil
+	}
+	// Per-run timeout, matching process() behavior.
+	if w.def.TimeoutSeconds > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(w.def.TimeoutSeconds)*time.Second)
+		defer cancel()
 	}
 	ag, ok := w.agents[w.def.Agent]
 	if !ok {
 		w.log.Error("curing/handleCollected: agent not found",
 			"curing", w.def.Name, "agent", w.def.Agent)
-		return
+		return fmt.Errorf("curing/handleCollected: agent %s not found", w.def.Agent)
+	}
+
+	// Clone the agent config so concurrent collectors never clobber each
+	// other's injected prompts — the map value is shared across all goroutines.
+	agc := ag
+	if len(ag.UserPrompts) > 0 {
+		agc.UserPrompts = append([]string(nil), ag.UserPrompts...)
 	}
 
 	// Load each hide and concatenate content with delimiters.
@@ -540,7 +735,7 @@ func (w *Worker) handleCollected(ctx context.Context, items []model.QueueItem) {
 		if err != nil {
 			w.log.Error("curing/handleCollected: hide load failed",
 				"curing", w.def.Name, "hide", item.HideID, "error", err)
-			return
+			return fmt.Errorf("curing/handleCollected: hide load %s: %w", item.HideID, err)
 		}
 		cut, cutErr := buf.FirstCut()
 		if cutErr != nil {
@@ -553,14 +748,13 @@ func (w *Worker) handleCollected(ctx context.Context, items []model.QueueItem) {
 
 	combined := strings.Join(parts, "\n\n")
 
-	// Inject combined content into agent.
-	if len(ag.UserPrompts) > 0 {
-		ag.UserPrompts = append([]string(nil), ag.UserPrompts...)
-		ag.UserPrompts[0] = combined + "\n\n" + ag.UserPrompts[0]
-	} else if ag.UserPrompt != "" {
-		ag.UserPrompt = combined + "\n\n" + ag.UserPrompt
+	// Inject combined content into the cloned agent.
+	if len(agc.UserPrompts) > 0 {
+		agc.UserPrompts[0] = combined + "\n\n" + agc.UserPrompts[0]
+	} else if agc.UserPrompt != "" {
+		agc.UserPrompt = combined + "\n\n" + agc.UserPrompt
 	} else {
-		ag.UserPrompt = combined
+		agc.UserPrompt = combined
 	}
 
 	// Use a nil-buffer runner (no hide paging needed; content already combined).
@@ -590,13 +784,13 @@ func (w *Worker) handleCollected(ctx context.Context, items []model.QueueItem) {
 		budget.CompletionReserve = ag.CompletionReserve
 	}
 
-	rec, err := r.Run(ctx, ag, budget)
+	rec, err := r.Run(ctx, agc, budget)
 	if w.deps.OnRunRecord != nil {
-		w.deps.OnRunRecord(ag, rec, err)
+		w.deps.OnRunRecord(agc, rec, err)
 	}
 	if err != nil {
 		w.log.Error("curing/handleCollected: runner failed", "curing", w.def.Name, "error", err)
-		return
+		return err
 	}
 
 	lastResponse := rec.LastResponse
@@ -607,7 +801,7 @@ func (w *Worker) handleCollected(ctx context.Context, items []model.QueueItem) {
 	art := model.Artifact{
 		ID:         artifact.GenerateArtifactID(),
 		HideID:     items[0].HideID,
-		HideKind:   items[0].HideKind,
+		HideKind:   w.def.Name,
 		CuringName: w.def.Name,
 		AgentName:  w.def.Agent,
 		Queue:      w.def.Queue,
@@ -616,11 +810,11 @@ func (w *Worker) handleCollected(ctx context.Context, items []model.QueueItem) {
 	}
 	if err := w.artStore.Write(art); err != nil {
 		w.log.Error("curing/handleCollected: artifact write failed", "curing", w.def.Name, "error", err)
-		return
+		return err
 	}
 
 	if w.deps.OnComplete != nil {
-		w.deps.OnComplete(ag, rec, art, progressEvents)
+		w.deps.OnComplete(agc, rec, art, progressEvents)
 	}
 
 	if w.def.Output.Notify != "" {
@@ -643,6 +837,7 @@ func (w *Worker) handleCollected(ctx context.Context, items []model.QueueItem) {
 				"hide", item.HideID, "error", err)
 		}
 	}
+	return nil
 }
 
 // ProcessItem processes one QueueItem end-to-end, returning any error.
@@ -716,6 +911,10 @@ func (w *Worker) process(ctx context.Context, item model.QueueItem) error {
 		return errAgentNotFound
 	}
 
+	// Clone agent config so concurrent goroutines never clobber each other's
+	// injected prompts. All mutations below target a local copy.
+	agc := ag
+
 	// 3. Load hide into HideBuffer.
 	buf, err := w.hideStore.LoadIntoBuffer(item.HideID, w.def.PageSizeBytes)
 	if err != nil {
@@ -739,14 +938,14 @@ func (w *Worker) process(ctx context.Context, item model.QueueItem) error {
 	//   (c) Agent already declares a UserPrompts chain → prepend page 1 to
 	//       UserPrompts[0] and let the agent's own turns drive navigation.
 	var reflectionMode bool
-	if ag.UserPrompt == "" && len(ag.UserPrompts) == 0 {
+	if agc.UserPrompt == "" && len(agc.UserPrompts) == 0 {
 		cut, cutErr := buf.FirstCut()
 		if cutErr == nil {
 			if cut.TotalPages > 1 {
-				ag.UserPrompts = buildReflectionTurns(cut)
+				agc.UserPrompts = buildReflectionTurns(cut)
 				reflectionMode = true
 			} else {
-				ag.UserPrompt = cut.Format()
+				agc.UserPrompt = cut.Format()
 			}
 		} else {
 			w.log.Warn("curing/process: hide buffer empty after load",
@@ -755,8 +954,8 @@ func (w *Worker) process(ctx context.Context, item model.QueueItem) error {
 	} else if len(ag.UserPrompts) > 0 {
 		cut, cutErr := buf.FirstCut()
 		if cutErr == nil {
-			ag.UserPrompts = append([]string(nil), ag.UserPrompts...)
-			ag.UserPrompts[0] = cut.Format() + "\n\n" + ag.UserPrompts[0]
+			agc.UserPrompts = append([]string(nil), ag.UserPrompts...)
+			agc.UserPrompts[0] = cut.Format() + "\n\n" + agc.UserPrompts[0]
 		} else {
 			w.log.Warn("curing/process: hide buffer empty after load",
 				"curing", w.def.Name, "hide", item.HideID, "error", cutErr)
@@ -770,18 +969,14 @@ func (w *Worker) process(ctx context.Context, item model.QueueItem) error {
 	// turns built in buildReflectionTurns. The page-content turn always ends in a
 	// text reflection; the next-page request happens on the following user turn.
 	if reflectionMode {
-		// Prepend a paging preamble to the system prompt so the model does not
-		// produce its final structured output before all pages have been read,
-		// even when the original system prompt defines an output format or tells
-		// the model to use hide_next autonomously.
 		const pagingPreamble = "IMPORTANT: You will receive the content in multiple pages. " +
 			"Follow a strict alternating protocol: when a turn contains page content, reply only with 3-5 key facts from that page and do not call hide_next, hide_jump, or produce final output. " +
 			"Wait for a later user turn to explicitly request the next page. " +
 			"Only when explicitly told that all pages have been read may you produce your final structured output."
-		if ag.SystemPrompt != "" {
-			ag.SystemPrompt = pagingPreamble + "\n\n" + ag.SystemPrompt
+		if agc.SystemPrompt != "" {
+			agc.SystemPrompt = pagingPreamble + "\n\n" + agc.SystemPrompt
 		} else {
-			ag.SystemPrompt = pagingPreamble
+			agc.SystemPrompt = pagingPreamble
 		}
 		buf.ReflectionHint = "After reading this page, list 3-5 key facts verbatim. Do not call hide_next or hide_jump yet, and do not produce your final structured output yet."
 		r.ForceTextAfterHide = true
@@ -815,20 +1010,20 @@ func (w *Worker) process(ctx context.Context, item model.QueueItem) error {
 
 	// 5. Build TokenBudget: start from the config-derived base, apply per-agent override.
 	budget := w.deps.Budget
-	if ag.MaxTokens > 0 {
-		budget.MaxTokens = ag.MaxTokens
+	if agc.MaxTokens > 0 {
+		budget.MaxTokens = agc.MaxTokens
 	}
-	if suggested, ok := model.LookupReserve(ag.Model); ok {
+	if suggested, ok := model.LookupReserve(agc.Model); ok {
 		budget.CompletionReserve = suggested
 	}
-	if ag.CompletionReserve > 0 {
-		budget.CompletionReserve = ag.CompletionReserve
+	if agc.CompletionReserve > 0 {
+		budget.CompletionReserve = agc.CompletionReserve
 	}
 
 	// 6. Run agent.
-	rec, err := r.Run(ctx, ag, budget)
+	rec, err := r.Run(ctx, agc, budget)
 	if w.deps.OnRunRecord != nil {
-		w.deps.OnRunRecord(ag, rec, err)
+		w.deps.OnRunRecord(agc, rec, err)
 	}
 	if err != nil {
 		return fmt.Errorf("curing/process: runner: %w", err)
@@ -858,7 +1053,7 @@ func (w *Worker) process(ctx context.Context, item model.QueueItem) error {
 	// 9. Notify caller of successful completion: token accounting, run persistence,
 	// pretty output. Runs synchronously inside the worker goroutine; must not block.
 	if w.deps.OnComplete != nil {
-		w.deps.OnComplete(ag, rec, art, progressEvents)
+		w.deps.OnComplete(agc, rec, art, progressEvents)
 	}
 
 	// 10. Output routing — best-effort; failures are logged, not retried.
