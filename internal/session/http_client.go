@@ -14,27 +14,33 @@ import (
 )
 
 // HTTPClient implements LLMClient against any OpenAI-compatible endpoint.
+// Timeout is delegated to the caller's context, not here, so all timeout
+// logic lives in one place (runner.Run / curing worker's TimeoutSeconds).
 type HTTPClient struct {
 	endpoint string
 	apiKey   string // optional bearer token; empty disables auth
-	timeout  time.Duration
 	http     *http.Client
 }
 
 // NewHTTPClient returns an HTTPClient targeting the given base URL.
 // When apiKey is non-empty it is sent on every request as
 // `Authorization: Bearer <apiKey>`. The key is never logged.
-func NewHTTPClient(endpoint, apiKey string, timeout time.Duration) *HTTPClient {
+func NewHTTPClient(endpoint, apiKey string, _ time.Duration) *HTTPClient {
 	return &HTTPClient{
 		endpoint: strings.TrimRight(endpoint, "/"),
 		apiKey:   apiKey,
-		timeout:  timeout,
-		http:     &http.Client{Timeout: timeout},
+		http:     &http.Client{},
 	}
 }
 
 // Complete sends a chat completion request to the LLM endpoint and returns
 // the parsed response.
+//
+// Timeout is delegated to the caller's context, not the HTTP client, so all
+// timeout logic lives in one place (runner.WithTimeout or the curing worker's
+// TimeoutSeconds).  Using both a context deadline and a separate http.Client
+// timeout created a hard-to-debug race where the shorter deadline fired
+// unpredictably under load.
 func (c *HTTPClient) Complete(ctx context.Context, modelName string, messages []model.Message, opts CompletionOptions) (model.LLMResponse, error) {
 	reqBody := map[string]any{
 		"model":       modelName,
