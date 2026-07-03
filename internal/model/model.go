@@ -385,6 +385,14 @@ type Agent struct {
 	// ToolRounds is the maximum tool-call/result cycles per run.
 	// Zero means use Config.MaxToolRounds.
 	ToolRounds int
+	// DisableThinking, when true, sends chat_template_kwargs.enable_thinking=false
+	// to the model, suppressing its hidden reasoning trace. False (the zero
+	// value) leaves the model's default reasoning behavior untouched. Useful
+	// for agents doing simple, deterministic tool sequencing where a long
+	// hidden trace adds latency and cost without improving reliability, and
+	// where it has been observed to make reasoning models occasionally lose
+	// track of tool calls they already made and repeat them.
+	DisableThinking bool
 	// QueueInput, when non-empty, names a queue whose items are dequeued one per tick.
 	// Each item's Payload is used for prompt variable substitution in SystemPrompt and UserPrompt.
 	QueueInput string
