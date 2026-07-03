@@ -24,6 +24,18 @@ source "${EX_DIR}/scripts/pretty.sh"
 # shellcheck source=../../scripts/preflight.sh
 source "${EX_DIR}/../scripts/preflight.sh"
 
+# Source example env file if present (LLM endpoint, model override, etc.)
+# Check the example directory, then the examples parent if not found.
+if [ -f "${EX_DIR}/.env" ]; then
+  set -a
+  source "${EX_DIR}/.env"
+  set +a
+elif [ -f "${EX_DIR}/../.env" ]; then
+  set -a
+  source "${EX_DIR}/../.env"
+  set +a
+fi
+
 export GITHUB_WEBHOOK_SECRET="${GITHUB_WEBHOOK_SECRET:-ci-gate-demo-secret}"
 export API_ADDR="${API_ADDR:-127.0.0.1:7749}"
 WEBHOOK_PATH="${WEBHOOK_PATH:-/webhooks/github}"
@@ -36,8 +48,8 @@ WAIT_TIMEOUT="${WAIT_TIMEOUT:-300}"
 RUN_DURATION="${RUN_DURATION:-600s}"
 
 # Clamp WEBHOOK_COUNT to 25-100
-[ "$WEBHOOK_COUNT" -lt 25 ]  && WEBHOOK_COUNT=25
-[ "$WEBHOOK_COUNT" -gt 100 ] && WEBHOOK_COUNT=100
+if [ "$WEBHOOK_COUNT" -lt 25 ];  then WEBHOOK_COUNT=25; fi
+if [ "$WEBHOOK_COUNT" -gt 100 ]; then WEBHOOK_COUNT=100; fi
 
 TMPDIR_PAYLOADS="${EX_DIR}/.state/payloads"
 mkdir -p "${TMPDIR_PAYLOADS}"
@@ -247,22 +259,32 @@ lth_step "load" "all ${WEBHOOK_COUNT} webhooks sent in $(( SEND_DONE - START_TS 
 lth_cont "queue depth will peak then drain as agents process decisions"
 echo ""
 
-# ── wait for decision artifacts ───────────────────────────────────────────────
+# ── wait for the pipeline to fully drain ──────────────────────────────────────
+# pr-comments is the *last* stage (decision → pr-comments), so waiting on
+# decision count alone would let the script print its summary while
+# pr-comments — and the server's own --pretty live trace, which shares this
+# terminal since it's unredirected — are still actively running. Wait on
+# pr-comments instead, tracking decision count alongside it for visibility.
 
-lth_step "wait" "waiting for decision artifacts  (timeout ${WAIT_TIMEOUT}s)"
-lth_cont "target: ${WEBHOOK_COUNT} decisions  (1 per webhook)"
+lth_step "wait" "waiting for pipeline to complete  (timeout ${WAIT_TIMEOUT}s)"
+lth_cont "target: ${WEBHOOK_COUNT} decisions -> ${WEBHOOK_COUNT} pr-comments  (1 per webhook)"
 
 waited=0
-last_count=-1
+last_decision_count=-1
+last_comment_count=-1
 while [ "$waited" -lt "$WAIT_TIMEOUT" ]; do
-  count=$(find "${EX_DIR}/.state/artifacts/decision" -type f 2>/dev/null | wc -l)
-  count="${count//[[:space:]]/}"
-  count="${count:-0}"
-  if [ "$count" -ne "$last_count" ]; then
-    lth_cont "  decisions: ${count} / ${WEBHOOK_COUNT}"
-    last_count="$count"
+  decision_count=$(find "${EX_DIR}/.state/artifacts/decision" -type f 2>/dev/null | wc -l) || true
+  decision_count="${decision_count//[[:space:]]/}"
+  decision_count="${decision_count:-0}"
+  comment_count=$(find "${EX_DIR}/.state/artifacts/pr-comments" -type f 2>/dev/null | wc -l) || true
+  comment_count="${comment_count//[[:space:]]/}"
+  comment_count="${comment_count:-0}"
+  if [ "$decision_count" -ne "$last_decision_count" ] || [ "$comment_count" -ne "$last_comment_count" ]; then
+    lth_cont "  decisions: ${decision_count} / ${WEBHOOK_COUNT}   pr-comments: ${comment_count} / ${WEBHOOK_COUNT}"
+    last_decision_count="$decision_count"
+    last_comment_count="$comment_count"
   fi
-  if [ "$count" -ge "$WEBHOOK_COUNT" ]; then
+  if [ "$comment_count" -ge "$WEBHOOK_COUNT" ]; then
     break
   fi
   sleep 2
@@ -273,44 +295,15 @@ echo ""
 DONE_TS=$(date +%s)
 final_count=$(find "${EX_DIR}/.state/artifacts/decision" -type f 2>/dev/null | wc -l)
 final_count="${final_count//[[:space:]]/}"
+final_comment_count=$(find "${EX_DIR}/.state/artifacts/pr-comments" -type f 2>/dev/null | wc -l)
+final_comment_count="${final_comment_count//[[:space:]]/}"
 
-lth_step "results" "pipeline summary  elapsed=$(( DONE_TS - START_TS ))s"
-lth_cont ""
-lth_cont "  webhooks fired:      ${WEBHOOK_COUNT}"
-lth_cont "  decisions written:   ${final_count:-0}"
-lth_cont "  send phase:          $(( SEND_DONE - START_TS ))s"
-lth_cont "  total elapsed:       $(( DONE_TS - START_TS ))s"
-echo ""
-
-# ── artifact tally ────────────────────────────────────────────────────────────
-
-lth_step "tally" "decision breakdown (last 10 of ${final_count:-0}):"
-find "${EX_DIR}/.state/artifacts/decision" -type f 2>/dev/null \
-  | sort | tail -10 \
-  | while read -r f; do
-      verdict=$(jq -r '
-        .content
-        | if test("FULL_EVAL") then "FULL_EVAL"
-          elif test("SKIP") then "SKIP"
-          else "?"
-          end' "$f" 2>/dev/null || echo "?")
-      pr=$(jq -r '.content | capture("PR_NUMBER: *(?P<n>[0-9]+)") | .n' "$f" 2>/dev/null || echo "?")
-      lth_cont "  PR #${pr}  →  ${verdict}  ($(basename "$f"))"
-    done
-
-echo ""
-lth_step "done" "artifacts at .state/artifacts/  |  logs at .state/serve.log"
-lth_cont ""
-lth_cont "Tune with:"
-lth_cont "  WEBHOOK_COUNT=100 BURST_SIZE=10 make 11"
-lth_cont "  WEBHOOK_COUNT=25  BURST_SIZE=3  BURST_DELAY_MAX=0.5 make 11"
-echo ""
-
-# ── shut down server now that the pipeline has drained ───────────────────────
-# All decisions written (or WAIT_TIMEOUT reached). Before SIGTERM we wait for
-# the queue jsonl files to drain so in-flight tool/LLM calls finish naturally,
-# otherwise SIGTERM cancels their context.Context mid-call and floods serve.log
-# with "context canceled" errors.
+# ── drain and shut down the server before printing anything else ────────────
+# Wait for the queue jsonl files to empty so in-flight tool/LLM calls finish
+# naturally, otherwise SIGTERM cancels their context.Context mid-call and
+# floods serve.log with "context canceled" errors. This happens *before* the
+# results/tally/done output below so nothing from the server's live trace
+# (which shares this terminal) appears after the summary is printed.
 QUEUE_DIR="${EX_DIR}/.state/queues"
 DRAIN_TIMEOUT="${DRAIN_TIMEOUT:-30}"
 drained=0
@@ -320,14 +313,44 @@ for ((i=0; i<DRAIN_TIMEOUT; i++)); do
   if [ "${pending:-0}" -eq 0 ]; then drained=1; break; fi
   sleep 1
 done
-if [ "$drained" -eq 1 ]; then
-  lth_step "serve" "queues drained, shutting down server"
-else
-  lth_cont "  queues still have ${pending} pending file(s) after ${DRAIN_TIMEOUT}s; shutting down anyway"
-  lth_step "serve" "drain timeout reached, shutting down server"
-fi
 # Brief settle so the last in-flight tool/LLM call can return before SIGTERM.
 sleep 1
 kill -TERM "$SERVE_PID" 2>/dev/null || true
 wait $SERVE_PID 2>/dev/null || true
 trap - EXIT
+
+echo ""
+lth_step "results" "pipeline summary  elapsed=$(( DONE_TS - START_TS ))s"
+lth_cont ""
+lth_cont "  webhooks fired:      ${WEBHOOK_COUNT}"
+lth_cont "  decisions written:   ${final_count:-0}"
+lth_cont "  pr-comments written: ${final_comment_count:-0}"
+lth_cont "  send phase:          $(( SEND_DONE - START_TS ))s"
+lth_cont "  total elapsed:       $(( DONE_TS - START_TS ))s"
+if [ "$drained" -ne 1 ]; then
+  lth_cont "  note: queues still had ${pending} pending file(s) after ${DRAIN_TIMEOUT}s drain timeout"
+fi
+echo ""
+
+# ── artifact tally ────────────────────────────────────────────────────────────
+
+lth_step "tally" "decision breakdown (last 10 of ${final_count:-0}):"
+find "${EX_DIR}/.state/artifacts/decision" -type f 2>/dev/null \
+  | sort | tail -10 | while IFS= read -r f || [ -n "$f" ]; do
+      verdict=$(jq -r '
+        .content
+        | if test("FULL_EVAL") then "FULL_EVAL"
+          elif test("SKIP") then "SKIP"
+          else "?"
+          end' "$f" 2>/dev/null || echo "?")
+      pr=$(jq -r '.content | capture("PR_NUMBER: *(?<n>[0-9]+)") | .n' "$f" 2>/dev/null || echo "???")
+      lth_cont "  PR #${pr}  →  ${verdict}  $(basename "$f")"
+    done || true
+
+echo ""
+lth_step "done" "artifacts at .state/artifacts/  |  logs at .state/serve.log"
+lth_cont ""
+lth_cont "Tune with:"
+lth_cont "  WEBHOOK_COUNT=100 BURST_SIZE=10 make 11"
+lth_cont "  WEBHOOK_COUNT=25  BURST_SIZE=3  BURST_DELAY_MAX=0.5 make 11"
+echo ""
