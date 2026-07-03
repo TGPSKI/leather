@@ -38,9 +38,8 @@ routes:
     queue_pattern: "pr-ctx/{{hide_id}}"
 
 queues:
-  # Only the serial tail queue is static — one at a time, ordered delivery.
   comments-in:
-    concurrency: 1
+    concurrency: 8
     max_attempts: 2
     max_depth: 50
 
