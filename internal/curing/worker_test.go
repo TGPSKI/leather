@@ -591,6 +591,98 @@ func TestWorker_RunCollectFromQueue_StaleGroupEvictedToDLQ(t *testing.T) {
 	}
 }
 
+// TestWorker_RunCollect_AgentFailureRetriesThenDLQs verifies that when a
+// complete fan-in group (all CollectSize items present) fails during
+// handleCollected — e.g. the agent's LLM call errors — the group is retried
+// via re-enqueue rather than silently dropped. Before this fix,
+// runCollectFromQueue's DequeueByIDs removed the items from the queue before
+// handleCollected ran; on failure they were never requeued, so a single
+// transient error (e.g. a request timeout under load) permanently lost the
+// whole group with no retry and no DLQ record.
+func TestWorker_RunCollect_AgentFailureRetriesThenDLQs(t *testing.T) {
+	dir := t.TempDir()
+	def := model.CuringDefinition{
+		Name: "decision", Agent: "decision-agent", QueuePrefix: "analysis",
+		CollectSize: 3, MaxAttempts: 2, TimeoutSeconds: 30, PageSizeBytes: 3800,
+	}
+	agents := map[string]model.Agent{"decision-agent": testAgent("decision-agent")}
+	failingMock := session.NewMockLLM(session.MockConfig{Err: errors.New("injected LLM failure")})
+	w, hs, _, qmgr := testWorker(t, def, agents, failingMock, nil, dir)
+
+	var events []TanneryEvent
+	w.deps.EventFn = func(ev TanneryEvent) { events = append(events, ev) }
+
+	const queueName = "analysis/corr_test_002"
+	entries := make([]hide.StoreEntry, 3)
+	for i := range entries {
+		entries[i] = putHide(t, hs, "kind", "leg content")
+		item := model.QueueItem{
+			ID: "item_" + entries[i].ID, CuringName: "pr-metadata", HideID: entries[i].ID,
+			HideKind: "kind", CorrelationID: "corr_test_002", EnqueuedAt: time.Now().Unix(),
+			Payload: map[string]any{},
+		}
+		if err := qmgr.Enqueue(queueName, item); err != nil {
+			t.Fatalf("enqueue: %v", err)
+		}
+	}
+
+	// First attempt: full group present, agent call fails. MaxAttempts=2, so
+	// AttemptCount becomes 1 (< 2) — expect a retry, not a DLQ.
+	w.runPrefixScan(context.Background())
+	w.WaitInflight()
+
+	q, err := qmgr.Get(queueName)
+	if err != nil {
+		t.Fatalf("get source queue after attempt 1: %v", err)
+	}
+	if q.Len() != 3 {
+		t.Fatalf("expected group requeued (3 items) after attempt 1, got %d", q.Len())
+	}
+	if _, dlqErr := qmgr.Get(queueName + "-dlq"); dlqErr == nil {
+		if dlq, _ := qmgr.Get(queueName + "-dlq"); dlq.Len() > 0 {
+			t.Fatalf("expected no DLQ entries after attempt 1, got %d", dlq.Len())
+		}
+	}
+
+	// Second attempt: AttemptCount becomes 2 (not < 2) — expect DLQ this time.
+	w.runPrefixScan(context.Background())
+	w.WaitInflight()
+
+	if q, err := qmgr.Get(queueName); err == nil && q.Len() != 0 {
+		t.Errorf("expected source queue drained after DLQ, got %d items", q.Len())
+	}
+	dlq, err := qmgr.Get(queueName + "-dlq")
+	if err != nil {
+		t.Fatalf("get DLQ after attempt 2: %v", err)
+	}
+	if dlq.Len() != 3 {
+		t.Errorf("expected 3 items in DLQ after MaxAttempts exhausted, got %d", dlq.Len())
+	}
+
+	var retryCount, dlqCount int
+	for _, ev := range events {
+		switch ev.Kind {
+		case "retry":
+			retryCount++
+		case "dlq":
+			dlqCount++
+		}
+	}
+	if retryCount != 3 {
+		t.Errorf("expected 3 'retry' TanneryEvents, got %d", retryCount)
+	}
+	if dlqCount != 3 {
+		t.Errorf("expected 3 'dlq' TanneryEvents, got %d", dlqCount)
+	}
+
+	// Hides are retained for manual inspection, matching per-item DLQ.
+	for _, e := range entries {
+		if _, _, err := hs.Get(e.ID); err != nil {
+			t.Errorf("hide %s should be retained after DLQ: %v", e.ID, err)
+		}
+	}
+}
+
 func TestWorker_RunCollectFromQueue_FreshGroupNotEvicted(t *testing.T) {
 	dir := t.TempDir()
 	def := model.CuringDefinition{
