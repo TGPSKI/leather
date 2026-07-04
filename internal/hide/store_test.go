@@ -3,6 +3,7 @@ package hide
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -226,5 +227,70 @@ func TestStore_LoadIntoBuffer(t *testing.T) {
 	}
 	if cut.TotalPages != 5 {
 		t.Errorf("TotalPages: got %d, want 5", cut.TotalPages)
+	}
+}
+
+func TestStore_Put_RegeneratesIDOnCollision(t *testing.T) {
+	s := NewStore(t.TempDir())
+
+	orig := newHideID
+	t.Cleanup(func() { newHideID = orig })
+	const fixed = "hide_k_20260101_0000_deadbeef"
+	calls := 0
+	newHideID = func(kind string) string {
+		calls++
+		if calls <= 2 {
+			// First Put claims the fixed ID; second Put collides with it once
+			// before falling back to a real (unique) ID.
+			return fixed
+		}
+		return orig(kind)
+	}
+
+	first, err := s.Put("k", "src", []byte("first"), nil)
+	if err != nil {
+		t.Fatalf("first Put: %v", err)
+	}
+	if first.ID != fixed {
+		t.Fatalf("first Put ID = %q, want %q", first.ID, fixed)
+	}
+
+	second, err := s.Put("k", "src", []byte("second"), nil)
+	if err != nil {
+		t.Fatalf("second Put (colliding): %v", err)
+	}
+	if second.ID == fixed {
+		t.Fatalf("second Put reused colliding ID %q instead of regenerating", fixed)
+	}
+
+	// The first hide's content must not have been overwritten by the collision.
+	_, content, err := s.Get(first.ID)
+	if err != nil {
+		t.Fatalf("Get first: %v", err)
+	}
+	if string(content) != "first" {
+		t.Errorf("first hide content = %q, want %q (clobbered by colliding Put)", content, "first")
+	}
+	if _, content, err = s.Get(second.ID); err != nil || string(content) != "second" {
+		t.Errorf("second hide content = %q, err %v, want %q", content, err, "second")
+	}
+}
+
+func TestStore_Put_PersistentCollisionErrors(t *testing.T) {
+	s := NewStore(t.TempDir())
+
+	orig := newHideID
+	t.Cleanup(func() { newHideID = orig })
+	newHideID = func(string) string { return "hide_k_20260101_0000_deadbeef" }
+
+	if _, err := s.Put("k", "src", []byte("first"), nil); err != nil {
+		t.Fatalf("first Put: %v", err)
+	}
+	_, err := s.Put("k", "src", []byte("second"), nil)
+	if err == nil {
+		t.Fatal("second Put with permanently colliding ID generator succeeded, want error")
+	}
+	if got := err.Error(); !strings.Contains(got, "collision") {
+		t.Errorf("error = %q, want it to mention a collision", got)
 	}
 }
