@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -42,6 +43,11 @@ type toolDef struct {
 	Args []string `json:"args"`
 	// Required lists argument keys that must be present in every call.
 	Required []string `json:"required,omitempty"`
+	// Patterns maps argument keys to RE2 regexps the substituted value must
+	// match (a missing argument validates as the empty string, so anchored
+	// patterns also reject absent values). Rejected calls fail before the
+	// command runs. Patterns are advertised in the tool's inputSchema.
+	Patterns map[string]string `json:"patterns,omitempty"`
 	// Defaults provides fallback values for optional argument keys.
 	Defaults map[string]string `json:"defaults,omitempty"`
 	// Optional, when true, returns a graceful message if Command is not on PATH.
@@ -114,6 +120,12 @@ func main() {
 	}
 	for i := range cfg.Tools {
 		s.byName[cfg.Tools[i].Name] = &cfg.Tools[i]
+		for key, pat := range cfg.Tools[i].Patterns {
+			if _, err := regexp.Compile(pat); err != nil {
+				fmt.Fprintf(os.Stderr, "shell-mcp: tool %s: invalid pattern for %s: %v\n", cfg.Tools[i].Name, key, err)
+				os.Exit(1)
+			}
+		}
 	}
 
 	s.serve()
@@ -173,6 +185,13 @@ func (s *server) toolList() []map[string]any {
 				props[k] = map[string]any{"type": "string"}
 			}
 		}
+		for k, pat := range t.Patterns {
+			if p, ok := props[k].(map[string]any); ok {
+				p["pattern"] = pat
+			} else {
+				props[k] = map[string]any{"type": "string", "pattern": pat}
+			}
+		}
 		out = append(out, map[string]any{
 			"name":        t.Name,
 			"description": t.Description,
@@ -219,6 +238,20 @@ func (s *server) execute(def *toolDef, callArgs map[string]any) (string, error) 
 	}
 	for k, v := range callArgs {
 		merged[k] = fmt.Sprintf("%v", v)
+	}
+
+	// Validate pattern-constrained arguments before substitution. A missing
+	// argument validates as "", so anchored patterns reject absent values too —
+	// this catches a model passing blanks or literal placeholders like
+	// "<number>" instead of a real value.
+	for key, pat := range def.Patterns {
+		re, err := regexp.Compile(pat)
+		if err != nil {
+			return "", fmt.Errorf("tool %s: invalid pattern for %s: %v", def.Name, key, err)
+		}
+		if !re.MatchString(merged[key]) {
+			return "", fmt.Errorf("argument %s=%q does not match required pattern %s", key, merged[key], pat)
+		}
 	}
 
 	// Substitute {{key}} placeholders in each argument.

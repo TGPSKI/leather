@@ -259,6 +259,96 @@ func TestExecuteDefaultsMerge(t *testing.T) {
 	}
 }
 
+// --- execute: pattern-constrained arguments ---
+
+func TestExecutePatternValidation(t *testing.T) {
+	def := &toolDef{
+		Name:     "echo_pr",
+		Command:  "echo",
+		Args:     []string{"{{pr_number}}"},
+		Required: []string{"pr_number"},
+		Patterns: map[string]string{"pr_number": "^[0-9]+$"},
+	}
+	s := newTestServer(nil, 0)
+
+	// A real value passes and the command runs.
+	out, err := s.execute(def, map[string]any{"pr_number": "1027"})
+	if err != nil {
+		t.Fatalf("valid value rejected: %v", err)
+	}
+	if !strings.Contains(out, "1027") {
+		t.Errorf("output = %q, want it to contain 1027", out)
+	}
+
+	// A literal placeholder (a flaky model regurgitating its prompt
+	// template) is rejected before the command runs.
+	if _, err := s.execute(def, map[string]any{"pr_number": "<number>"}); err == nil {
+		t.Error("placeholder value passed pattern validation, want rejection")
+	}
+
+	// A missing argument validates as "" and is rejected by an anchored pattern.
+	if _, err := s.execute(def, map[string]any{}); err == nil {
+		t.Error("missing value passed pattern validation, want rejection")
+	}
+}
+
+func TestToolListAdvertisesPatterns(t *testing.T) {
+	s := newTestServer([]toolDef{{
+		Name:     "post_pr_comment",
+		Command:  "echo",
+		Args:     []string{"{{pr_number}}"},
+		Required: []string{"pr_number"},
+		Patterns: map[string]string{"pr_number": "^[0-9]+$"},
+	}}, 0)
+	tools := s.toolList()
+	if len(tools) != 1 {
+		t.Fatalf("toolList len = %d, want 1", len(tools))
+	}
+	schema := tools[0]["inputSchema"].(map[string]any)
+	props := schema["properties"].(map[string]any)
+	prop, ok := props["pr_number"].(map[string]any)
+	if !ok {
+		t.Fatal("pr_number property missing from inputSchema")
+	}
+	if prop["pattern"] != "^[0-9]+$" {
+		t.Errorf("pr_number pattern = %v, want ^[0-9]+$", prop["pattern"])
+	}
+}
+
+func TestExampleShellToolsJSON_PatternsCompileAndAreDeclared(t *testing.T) {
+	matches, err := filepath.Glob("../../examples/*/shell-tools.json")
+	if err != nil {
+		t.Fatalf("glob: %v", err)
+	}
+	for _, path := range matches {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("%s: read: %v", path, err)
+		}
+		var cfg config
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			t.Fatalf("%s: unmarshal: %v", path, err)
+		}
+		for _, tool := range cfg.Tools {
+			declared := make(map[string]bool, len(tool.Required)+len(tool.Defaults))
+			for _, r := range tool.Required {
+				declared[r] = true
+			}
+			for k := range tool.Defaults {
+				declared[k] = true
+			}
+			for key, pat := range tool.Patterns {
+				if _, err := regexp.Compile(pat); err != nil {
+					t.Errorf("%s: tool %q pattern for %s does not compile: %v", path, tool.Name, key, err)
+				}
+				if !declared[key] {
+					t.Errorf("%s: tool %q constrains {{%s}} with a pattern but does not declare it in required or defaults", path, tool.Name, key)
+				}
+			}
+		}
+	}
+}
+
 // --- resolveConfigPath: positional arg ---
 
 func TestResolveConfigPathArg(t *testing.T) {
