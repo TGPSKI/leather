@@ -1668,3 +1668,100 @@ func TestRun_SystemPromptOnlyAgent_SurvivesStrictBackend(t *testing.T) {
 		t.Fatalf("status = %q, want success", rec.Status)
 	}
 }
+
+// splitAnswerClient emits the head of the answer together with a tool call on
+// the first completion, then only the remainder after the tool result —
+// simulating a reasoning model under load splitting its final answer across
+// tool-call rounds (observed in production with qwen3_xml: the model treats
+// the pre-tool-call text as already said and continues from where it stopped).
+type splitAnswerClient struct {
+	mu    sync.Mutex
+	calls int
+	tail  string // content of the post-tool-result completion
+}
+
+func (c *splitAnswerClient) Complete(_ context.Context, _ string, _ []model.Message, _ session.CompletionOptions) (model.LLMResponse, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	if c.calls == 1 {
+		return model.LLMResponse{
+			Content:      "PR_NUMBER: 1007\nREPO: acme/voice\nFILES:",
+			FinishReason: "tool_calls",
+			ToolCalls:    []model.ToolCall{{ID: "call-1", Name: "get_files", Arguments: map[string]any{"pr": "1007"}}},
+		}, nil
+	}
+	return model.LLMResponse{Content: c.tail, FinishReason: "stop"}, nil
+}
+
+func (c *splitAnswerClient) CountTokens(messages []model.Message) (int, error) {
+	return 10 * len(messages), nil
+}
+
+func splitAnswerRunner(t *testing.T, client *splitAnswerClient) (*Runner, model.Agent) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("src/a.go  +1 -0"))
+	}))
+	t.Cleanup(srv.Close)
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name: "files-skill",
+		Tools: []model.ToolDefinition{{
+			Name: "get_files",
+			Type: "http",
+			HTTP: model.HTTPToolConfig{Method: "POST", URL: srv.URL},
+		}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	r := &Runner{Client: client, Registry: reg, Log: testLogger(t), MaxToolRounds: 5}
+	a := testAgent("split-answer-agent")
+	a.Skills = []string{"files-skill"}
+	a.UserPrompt = "extract the fields"
+	return r, a
+}
+
+func TestRun_SplitAnswerAcrossToolRounds_IsReassembled(t *testing.T) {
+	client := &splitAnswerClient{tail: "  src/a.go  +1 -0\nCONCERN_PATHS: none"}
+	r, a := splitAnswerRunner(t, client)
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	want := "PR_NUMBER: 1007\nREPO: acme/voice\nFILES:\n  src/a.go  +1 -0\nCONCERN_PATHS: none"
+	if rec.LastResponse != want {
+		t.Errorf("LastResponse = %q, want the pre-tool-call head spliced ahead of the continuation %q", rec.LastResponse, want)
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if client.calls != 2 {
+		t.Errorf("Complete calls = %d, want 2", client.calls)
+	}
+}
+
+func TestRun_SplitAnswer_EmptyFinalStopSkipsBareRetry(t *testing.T) {
+	// The model said everything alongside the tool call and finishes with an
+	// empty stop: the banked fragment is the answer, and the empty-stop
+	// self-healing retry must not burn an extra completion.
+	client := &splitAnswerClient{tail: ""}
+	r, a := splitAnswerRunner(t, client)
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	want := "PR_NUMBER: 1007\nREPO: acme/voice\nFILES:"
+	if rec.LastResponse != want {
+		t.Errorf("LastResponse = %q, want banked fragment %q", rec.LastResponse, want)
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if client.calls != 2 {
+		t.Errorf("Complete calls = %d, want exactly 2 (no bare retry when fragments are banked)", client.calls)
+	}
+}
