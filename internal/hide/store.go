@@ -42,17 +42,41 @@ func NewStore(dir string) *Store {
 	return &Store{dir: dir}
 }
 
+// newHideID generates candidate hide IDs for Put. Overridable in tests to
+// force ID collisions.
+var newHideID = generateHideID
+
+// putIDAttempts bounds how many candidate IDs Put tries before giving up.
+const putIDAttempts = 5
+
 // Put writes content and metadata to disk; returns the generated StoreEntry.
 // Write order: content first, then meta.json. If the process crashes between the two,
 // the directory exists without meta.json — List silently skips it (partial-write guard).
+// The entry directory is created exclusively (os.Mkdir, not MkdirAll): an ID
+// that collides with an existing hide is regenerated instead of silently
+// overwriting the other hide's content out from under its queue references.
 func (s *Store) Put(kind, source string, content []byte, meta map[string]string) (StoreEntry, error) {
-	id := generateHideID(kind)
-	entryDir, err := safepath.Anchor(s.dir, id)
-	if err != nil {
-		return StoreEntry{}, fmt.Errorf("hide/store.Put: invalid id %s: %w", id, err)
+	if err := os.MkdirAll(s.dir, 0700); err != nil {
+		return StoreEntry{}, fmt.Errorf("hide/store.Put: mkdir store root: %w", err)
 	}
-	if err := os.MkdirAll(entryDir, 0700); err != nil {
-		return StoreEntry{}, fmt.Errorf("hide/store.Put: mkdir %s: %w", id, err)
+	var id, entryDir string
+	for attempt := 1; ; attempt++ {
+		id = newHideID(kind)
+		var err error
+		entryDir, err = safepath.Anchor(s.dir, id)
+		if err != nil {
+			return StoreEntry{}, fmt.Errorf("hide/store.Put: invalid id %s: %w", id, err)
+		}
+		err = os.Mkdir(entryDir, 0700)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return StoreEntry{}, fmt.Errorf("hide/store.Put: mkdir %s: %w", id, err)
+		}
+		if attempt == putIDAttempts {
+			return StoreEntry{}, fmt.Errorf("hide/store.Put: id collision persisted after %d attempts (last %s)", attempt, id)
+		}
 	}
 
 	// Write content first.

@@ -602,6 +602,60 @@ func TestRunner_MaxRoundsExceeded(t *testing.T) {
 	}
 }
 
+// TestRunner_DuplicateToolCallSkipsReExecution verifies that when the model
+// re-issues an identical tool call (same name and arguments) that already
+// succeeded earlier in the run, the runner does not execute it again — it
+// returns a synthetic "already completed" result instead. This guards
+// against reasoning models that occasionally lose track of a prior tool call
+// (observed in production) and repeat it, which would otherwise double a
+// real side effect (e.g. posting a comment twice) or spin until max rounds.
+func TestRunner_DuplicateToolCallSkipsReExecution(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("posted"))
+	}))
+	defer srv.Close()
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name: "comment-skill",
+		Tools: []model.ToolDefinition{{
+			Name: "post_comment",
+			Type: "http",
+			HTTP: model.HTTPToolConfig{Method: "POST", URL: srv.URL},
+		}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	sameCall := model.ToolCall{ID: "call-1", Name: "post_comment", Arguments: map[string]any{"body": "hello"}}
+	mock := session.NewMockLLM(session.MockConfig{
+		Response: "done",
+		ToolCallSequence: [][]model.ToolCall{
+			{sameCall},
+			{sameCall}, // model repeats the identical call on round 1
+		},
+	})
+
+	r := &Runner{Client: mock, Registry: reg, Log: testLogger(t), MaxToolRounds: 5}
+	a := testAgent("dedupe-agent")
+	a.Skills = []string{"comment-skill"}
+	a.UserPrompt = "post the comment"
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Errorf("status = %q, want success", rec.Status)
+	}
+	if hits != 1 {
+		t.Errorf("HTTP tool hits = %d, want 1 (second call should be deduped, not re-executed)", hits)
+	}
+}
+
 func TestRunner_TurnSkillScopeReplacesBaseScope(t *testing.T) {
 	reg := tool.NewRegistry()
 	if err := reg.Register(model.Skill{
@@ -1157,6 +1211,64 @@ func TestRunner_TurnVarNoMatchIsNoop(t *testing.T) {
 	}
 }
 
+// optsCapturingClient is a session.LLMClient that delegates Complete to a
+// MockLLM but records the CompletionOptions passed on the first call, so
+// tests can assert on request-shaping behavior (e.g. ExtraBody merging).
+type optsCapturingClient struct {
+	mock       *session.MockLLM
+	firstOpts  session.CompletionOptions
+	haveCalled bool
+}
+
+func (c *optsCapturingClient) Complete(ctx context.Context, modelName string, messages []model.Message, opts session.CompletionOptions) (model.LLMResponse, error) {
+	if !c.haveCalled {
+		c.firstOpts = opts
+		c.haveCalled = true
+	}
+	return c.mock.Complete(ctx, modelName, messages, opts)
+}
+
+func (c *optsCapturingClient) CountTokens(messages []model.Message) (int, error) {
+	return c.mock.CountTokens(messages)
+}
+
+// TestRun_DisableThinkingMergesChatTemplateKwargs verifies that
+// Agent.DisableThinking causes the runner to send
+// chat_template_kwargs.enable_thinking=false to the model, without
+// clobbering the parallel_tool_calls key already set for tool-enabled turns.
+func TestRun_DisableThinkingMergesChatTemplateKwargs(t *testing.T) {
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name:  "noop-skill",
+		Tools: []model.ToolDefinition{{Name: "noop_tool", Type: "http", HTTP: model.HTTPToolConfig{Method: "GET", URL: "http://127.0.0.1:0/"}}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	client := &optsCapturingClient{mock: session.NewMockLLM(session.MockConfig{Response: "done"})}
+	r := &Runner{Client: client, Registry: reg, Log: testLogger(t), MaxToolRounds: 3}
+
+	a := testAgent("thinking-off")
+	a.Skills = []string{"noop-skill"}
+	a.UserPrompt = "go"
+	a.DisableThinking = true
+
+	if _, err := r.Run(context.Background(), a, testBudget()); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	kwargs, ok := client.firstOpts.ExtraBody["chat_template_kwargs"].(map[string]any)
+	if !ok {
+		t.Fatalf("chat_template_kwargs not set in ExtraBody: %+v", client.firstOpts.ExtraBody)
+	}
+	if enabled, _ := kwargs["enable_thinking"].(bool); enabled {
+		t.Error("enable_thinking = true, want false")
+	}
+	if v, _ := client.firstOpts.ExtraBody["parallel_tool_calls"].(bool); v {
+		t.Error("parallel_tool_calls should still be false alongside the thinking override")
+	}
+}
+
 // errOnNthCountClient is a session.LLMClient that delegates Complete to a MockLLM
 // but returns an error from CountTokens after 'failAfter' successful calls.
 type errOnNthCountClient struct {
@@ -1340,6 +1452,99 @@ func TestRun_SelfHealingRetry_OnTruncatedCompletion(t *testing.T) {
 	}
 }
 
+// emptyStopThenContentClient returns finish_reason "stop" with empty content
+// on the first call, then non-empty content on retry — simulating a
+// reasoning model that occasionally stops naturally without producing any
+// output tokens (observed in production; not a truncation, so finish_reason
+// is "stop" rather than "length").
+type emptyStopThenContentClient struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (c *emptyStopThenContentClient) Complete(_ context.Context, _ string, _ []model.Message, _ session.CompletionOptions) (model.LLMResponse, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	if c.calls == 1 {
+		return model.LLMResponse{FinishReason: "stop"}, nil
+	}
+	return model.LLMResponse{Content: "final answer after retry", FinishReason: "stop"}, nil
+}
+
+func (c *emptyStopThenContentClient) CountTokens(messages []model.Message) (int, error) {
+	return 10 * len(messages), nil
+}
+
+func TestRun_SelfHealingRetry_OnEmptyStopCompletion(t *testing.T) {
+	client := &emptyStopThenContentClient{}
+	r := &Runner{
+		Client:        client,
+		Registry:      tool.NewRegistry(),
+		Log:           testLogger(t),
+		MaxToolRounds: 1,
+	}
+	a := testAgent("flaky-agent")
+	a.UserPrompt = "extract the fields"
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if rec.LastResponse != "final answer after retry" {
+		t.Errorf("LastResponse = %q, want retried content", rec.LastResponse)
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if client.calls != 2 {
+		t.Fatalf("Complete calls = %d, want 2 (empty stop + retry)", client.calls)
+	}
+}
+
+// alwaysEmptyStopClient always returns finish_reason "stop" with empty
+// content, so the retry itself also comes back empty — the runner must pass
+// the empty result through rather than looping.
+type alwaysEmptyStopClient struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (c *alwaysEmptyStopClient) Complete(_ context.Context, _ string, _ []model.Message, _ session.CompletionOptions) (model.LLMResponse, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	return model.LLMResponse{FinishReason: "stop"}, nil
+}
+
+func (c *alwaysEmptyStopClient) CountTokens(messages []model.Message) (int, error) {
+	return 10 * len(messages), nil
+}
+
+func TestRun_EmptyStopRetry_IsSingleShot(t *testing.T) {
+	client := &alwaysEmptyStopClient{}
+	r := &Runner{
+		Client:        client,
+		Registry:      tool.NewRegistry(),
+		Log:           testLogger(t),
+		MaxToolRounds: 1,
+	}
+	a := testAgent("always-empty-agent")
+	a.UserPrompt = "extract the fields"
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if rec.LastResponse != "" {
+		t.Errorf("LastResponse = %q, want empty (retry also came back empty)", rec.LastResponse)
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if client.calls != 2 {
+		t.Errorf("Complete calls = %d, want exactly 2 (one retry, not a loop)", client.calls)
+	}
+}
+
 // lengthWithContentClient returns finish_reason "length" but with non-empty
 // content on every call, simulating a completion that was truncated after
 // producing a partial (but non-empty) answer — the retry guard should not
@@ -1461,5 +1666,102 @@ func TestRun_SystemPromptOnlyAgent_SurvivesStrictBackend(t *testing.T) {
 	}
 	if rec.Status != model.JobStatusSuccess {
 		t.Fatalf("status = %q, want success", rec.Status)
+	}
+}
+
+// splitAnswerClient emits the head of the answer together with a tool call on
+// the first completion, then only the remainder after the tool result —
+// simulating a reasoning model under load splitting its final answer across
+// tool-call rounds (observed in production with qwen3_xml: the model treats
+// the pre-tool-call text as already said and continues from where it stopped).
+type splitAnswerClient struct {
+	mu    sync.Mutex
+	calls int
+	tail  string // content of the post-tool-result completion
+}
+
+func (c *splitAnswerClient) Complete(_ context.Context, _ string, _ []model.Message, _ session.CompletionOptions) (model.LLMResponse, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	if c.calls == 1 {
+		return model.LLMResponse{
+			Content:      "PR_NUMBER: 1007\nREPO: acme/voice\nFILES:",
+			FinishReason: "tool_calls",
+			ToolCalls:    []model.ToolCall{{ID: "call-1", Name: "get_files", Arguments: map[string]any{"pr": "1007"}}},
+		}, nil
+	}
+	return model.LLMResponse{Content: c.tail, FinishReason: "stop"}, nil
+}
+
+func (c *splitAnswerClient) CountTokens(messages []model.Message) (int, error) {
+	return 10 * len(messages), nil
+}
+
+func splitAnswerRunner(t *testing.T, client *splitAnswerClient) (*Runner, model.Agent) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("src/a.go  +1 -0"))
+	}))
+	t.Cleanup(srv.Close)
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name: "files-skill",
+		Tools: []model.ToolDefinition{{
+			Name: "get_files",
+			Type: "http",
+			HTTP: model.HTTPToolConfig{Method: "POST", URL: srv.URL},
+		}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	r := &Runner{Client: client, Registry: reg, Log: testLogger(t), MaxToolRounds: 5}
+	a := testAgent("split-answer-agent")
+	a.Skills = []string{"files-skill"}
+	a.UserPrompt = "extract the fields"
+	return r, a
+}
+
+func TestRun_SplitAnswerAcrossToolRounds_IsReassembled(t *testing.T) {
+	client := &splitAnswerClient{tail: "  src/a.go  +1 -0\nCONCERN_PATHS: none"}
+	r, a := splitAnswerRunner(t, client)
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	want := "PR_NUMBER: 1007\nREPO: acme/voice\nFILES:\n  src/a.go  +1 -0\nCONCERN_PATHS: none"
+	if rec.LastResponse != want {
+		t.Errorf("LastResponse = %q, want the pre-tool-call head spliced ahead of the continuation %q", rec.LastResponse, want)
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if client.calls != 2 {
+		t.Errorf("Complete calls = %d, want 2", client.calls)
+	}
+}
+
+func TestRun_SplitAnswer_EmptyFinalStopSkipsBareRetry(t *testing.T) {
+	// The model said everything alongside the tool call and finishes with an
+	// empty stop: the banked fragment is the answer, and the empty-stop
+	// self-healing retry must not burn an extra completion.
+	client := &splitAnswerClient{tail: ""}
+	r, a := splitAnswerRunner(t, client)
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	want := "PR_NUMBER: 1007\nREPO: acme/voice\nFILES:"
+	if rec.LastResponse != want {
+		t.Errorf("LastResponse = %q, want banked fragment %q", rec.LastResponse, want)
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if client.calls != 2 {
+		t.Errorf("Complete calls = %d, want exactly 2 (no bare retry when fragments are banked)", client.calls)
 	}
 }

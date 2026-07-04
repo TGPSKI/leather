@@ -67,6 +67,60 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   collect group that exceeds this age is now evicted to `<queue>-dlq` and
   emits a new `TanneryEvent{Kind: "stale"}`, rendered in `leather serve
   --pretty` and forwarded to the devtools event bus.
+- **Curing worker corrupted prompts and lost work under concurrency** (#45) —
+  four fixes found load-testing a fan-out/fan-in pipeline at concurrency 8+:
+  `process()`/`handleCollected()` mutated a shared `*model.Agent` when
+  injecting hide content into the prompt, garbling prompts across concurrent
+  runs (both now clone the agent config first); `handleItemFromQueue` deleted
+  the queue entry even on failure, permanently losing the item on any
+  transient error (failures now re-enqueue up to `max_attempts`, then route
+  to `<queue>-dlq`); a failed fan-in `handleCollected` call silently dropped
+  the entire already-dequeued collect group with no retry, no DLQ, and leaked
+  source hides (`requeueOrDLQGroup` now applies the per-item retry/DLQ
+  convention to whole groups); and a fan-in curing's own artifact recorded
+  `hide_kind` as whichever input leg was collected first instead of its own
+  name.
+- **HTTP client timeout raced the run's context deadline** —
+  `http.Client{Timeout: ...}` in `internal/session/http_client.go` fired
+  independently of the context deadline set by `runner.Run` / the curing's
+  `timeout_seconds`, producing spurious "context deadline exceeded" errors
+  well before the real timeout under load. The context deadline is now the
+  single source of truth for request timeouts.
+- **Reasoning-model flakiness in the tool-call loop** — confirmed via direct
+  replay against the LLM endpoint outside leather (Qwen3 via vLLM,
+  `--tool-call-parser qwen3_xml`, ~25% reproduction under load; prompt
+  instructions had zero effect): the model would occasionally re-issue an
+  already-succeeded tool call verbatim instead of progressing, spinning until
+  max tool rounds was hit — and separately would sometimes stop naturally
+  (`finish_reason: "stop"`) with zero output tokens instead of the expected
+  answer, propagating downstream as blank fields. A tool call with the same
+  name and arguments that already succeeded this run is no longer re-executed
+  (scoped to non-hide tools; hide pagination legitimately repeats calls), and
+  the existing length-truncation self-healing retry now also retries once,
+  bare, on an empty natural stop.
+- **Answer text emitted alongside tool calls was dropped from the final
+  answer** — the same reasoning-model flakiness family: the model sometimes
+  emits the head of its final answer in the same completion as a tool call,
+  then continues from where it stopped after the tool result; the runner
+  recorded only the last round's content, silently head-truncating the
+  artifact (observed as 6/40 fan-out legs losing their identifier header in
+  a burst load test, cascading into blank or placeholder-text reports
+  downstream). Fragments emitted in non-hide tool-call rounds are now banked
+  and spliced ahead of the final round's text, and the bare empty-stop retry
+  is skipped when banked fragments already carry the answer.
+- **16-bit ID suffixes collided under burst load, cross-wiring fan-in groups
+  and deleting shared hides** — `ids.TimestampHex` drew its uniqueness suffix
+  from `mathrand.Int31n(0x10000)`: 65,536 values per `(prefix, minute)` bucket,
+  ~1% birthday-collision odds at ~40 IDs/minute. In a 100-webhook burst, two
+  concurrent `pr-context` legs drew the same hide ID; `hide.Store.Put`'s
+  `os.MkdirAll` silently merged them, one PR's decision group collected and
+  (on success) deleted the shared hide, and the other PR's group found its
+  leg's hide missing and DLQ'd after retries — or, with the opposite race
+  order, would have silently used the wrong PR's analysis content. The suffix
+  is now 32 bits (`%08x`, ~1-in-a-million odds at hundreds of IDs per bucket),
+  and `Put` creates the hide directory exclusively (`os.Mkdir`), regenerating
+  the ID on collision instead of overwriting an existing hide — a colliding
+  ID can no longer destroy another group's data even if one is drawn.
 
 ### Added
 
@@ -87,6 +141,33 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   - Leather-internal model-aware defaults: agents targeting a known reasoning
     model (Qwen3, QwQ, DeepSeek-R1) get a larger `completion_reserve`
     automatically unless a per-agent override is set explicitly.
+- **`thinking:` agent front-matter field** — `thinking: false` in `*.agent.md`
+  sets `Agent.DisableThinking`, sending
+  `chat_template_kwargs.enable_thinking=false` with each request to disable a
+  reasoning model's hidden `<think>` trace per agent. The zero value leaves
+  model default behavior untouched. Disabling thinking was the most effective
+  fix for both tool-call-loop flakiness modes above, and combined with
+  right-sizing `completion_reserve` measured a 5.2x speedup (323s → 62s) on
+  `examples/11-high-volume-ci`'s 40-webhook burst load test with
+  equal-or-better correctness.
+- **shell-mcp per-argument `patterns` validation** — optional per-tool
+  `patterns` map in `shell-tools.json` (argument key → RE2 regexp) validated
+  before the command runs and advertised in the tool's `inputSchema`. A
+  missing argument validates as the empty string, so anchored patterns also
+  reject absent values — catching a flaky model passing blanks or literal
+  prompt-template placeholders like `<number>` instead of real values.
+  `examples/11-high-volume-ci` uses it to pattern-constrain `pr_number` and
+  `repo` on all four GitHub tools.
+- **Full-system load-test profiler** — `scripts/profile-run.sh` wraps any
+  command (e.g. `make 11`) with 1-2 Hz samplers for host CPU/memory/disk
+  (vmstat + sysstat when installed), kernel pressure-stall information,
+  per-process attribution (pidstat), GPU telemetry (nvidia-smi), CPU/board
+  temperatures, and vLLM's `/metrics` (running/waiting requests, KV-cache
+  usage, token throughput, prefix-cache hit rate), then prints an avg/peak
+  summary via `scripts/profile-summary.py`. Used to produce the 100-webhook
+  profile documented in `examples/11-high-volume-ci/README.md`: ~500 LLM
+  jobs orchestrated for ~6% of one host's CPU and zero measurable IO
+  pressure, GPU-bound end to end.
 
 ### Removed
 

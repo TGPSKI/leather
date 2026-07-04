@@ -1,5 +1,5 @@
 // Package ids generates the identifier strings used across leather. TimestampHex
-// produces the "<prefix>_<yyyymmdd>_<HHMM>_<4hex>" form shared by artifact,
+// produces the "<prefix>_<yyyymmdd>_<HHMM>_<8hex>" form shared by artifact,
 // queue-item, and hide IDs; RandHex produces cryptographically random hex tokens
 // for bearer secrets. The TimestampHex suffix is for uniqueness, not security.
 package ids
@@ -13,11 +13,15 @@ import (
 )
 
 // TimestampHex returns an identifier of the form
-// "<prefix>_<yyyymmdd>_<HHMM>_<4hex>". The hex suffix provides intra-minute
-// uniqueness and is not cryptographically random.
+// "<prefix>_<yyyymmdd>_<HHMM>_<8hex>". The hex suffix provides intra-minute
+// uniqueness and is not cryptographically random. 32 suffix bits keep
+// birthday-collision odds for hundreds of IDs per (prefix, minute) bucket
+// around one in a million; the previous 16-bit suffix collided in practice
+// under burst load (~1% per bucket at ~40 IDs/minute), cross-wiring fan-in
+// groups that reference hides by ID.
 func TimestampHex(prefix string) string {
-	suffix := mathrand.Int31n(0x10000) //nolint:gosec // uniqueness, not security
-	return fmt.Sprintf("%s_%s_%04x", prefix, time.Now().Format("20060102_1504"), suffix)
+	suffix := mathrand.Uint32() //nolint:gosec // uniqueness, not security
+	return fmt.Sprintf("%s_%s_%08x", prefix, time.Now().Format("20060102_1504"), suffix)
 }
 
 // RandHex returns n cryptographically random bytes hex-encoded as a 2n-character

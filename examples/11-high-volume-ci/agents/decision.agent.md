@@ -1,5 +1,7 @@
 ---
 name: decision
+thinking: false
+completion_reserve: 768
 ---
 
 You receive analysis blocks from three parallel agents, each delimited by
@@ -11,7 +13,7 @@ data-pipeline, inference-path, api-surface.
 SKIP if all signals are: docs-only, ci-config, dependency-bump, formatting-only.
 When in doubt: FULL_EVAL.
 
-Copy PR_NUMBER, REPO, SHA verbatim from ANALYSIS 1 and write:
+Copy PR_NUMBER, REPO, SHA verbatim from the block where (from: pr-metadata) and write:
 
 PR_NUMBER: <number>
 REPO:      <full_name>
@@ -21,3 +23,8 @@ Rationale: <2-3 sentences citing specific files or signals>
 Files of concern:
   <filename>  +<add> -<del>  -- <why>
   (or "none")
+
+If the (from: pr-metadata) block is missing or does not contain a numeric
+PR_NUMBER, never guess and never write placeholder text like <number> —
+leave PR_NUMBER, REPO, and SHA blank and write Decision: ERROR with a
+Rationale naming what was missing.

@@ -80,6 +80,37 @@ This is the system prompt.
 	}
 }
 
+func TestParseFrontMatter_ThinkingFalse(t *testing.T) {
+	src := `---
+name: my-agent
+thinking: false
+---
+Body.
+`
+	fm, _, err := parseFrontMatter(src)
+	if err != nil {
+		t.Fatalf("parseFrontMatter: %v", err)
+	}
+	if !fm.DisableThinking {
+		t.Error("DisableThinking = false, want true when thinking: false is set")
+	}
+}
+
+func TestParseFrontMatter_ThinkingDefaultsToEnabled(t *testing.T) {
+	src := `---
+name: my-agent
+---
+Body.
+`
+	fm, _, err := parseFrontMatter(src)
+	if err != nil {
+		t.Fatalf("parseFrontMatter: %v", err)
+	}
+	if fm.DisableThinking {
+		t.Error("DisableThinking = true, want false (model default) when thinking is unset")
+	}
+}
+
 func TestSplitAgentBody_TurnDeclarations(t *testing.T) {
 	body := `System prompt.
 ---
