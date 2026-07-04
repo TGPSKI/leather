@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-var timestampHexRE = regexp.MustCompile(`^pre_\d{8}_\d{4}_[0-9a-f]{4}$`)
+var timestampHexRE = regexp.MustCompile(`^pre_\d{8}_\d{4}_[0-9a-f]{8}$`)
 
 func TestTimestampHexFormat(t *testing.T) {
 	id := TimestampHex("pre")
@@ -18,7 +18,7 @@ func TestTimestampHexPrefixPreserved(t *testing.T) {
 	// Prefixes may contain underscores (e.g. "hide_<sanitized>"); the prefix
 	// must appear verbatim at the start.
 	id := TimestampHex("hide_my_source")
-	re := regexp.MustCompile(`^hide_my_source_\d{8}_\d{4}_[0-9a-f]{4}$`)
+	re := regexp.MustCompile(`^hide_my_source_\d{8}_\d{4}_[0-9a-f]{8}$`)
 	if !re.MatchString(id) {
 		t.Errorf("TimestampHex preserved prefix incorrectly: %q", id)
 	}
@@ -34,10 +34,11 @@ func TestTimestampHexUniqueness(t *testing.T) {
 		}
 		seen[id] = struct{}{}
 	}
-	// Within the same minute only the 16-bit hex suffix varies, so a few
-	// collisions over 1000 draws are expected; a high rate signals a bug.
-	if collisions > 100 {
-		t.Errorf("excessive collisions: %d/1000", collisions)
+	// Within the same minute only the 32-bit hex suffix varies; 1000 draws
+	// from 2^32 collide with probability ~1e-4, so any collision here is a
+	// near-certain signal that the suffix width regressed.
+	if collisions > 0 {
+		t.Errorf("collisions in 1000 draws: %d (32-bit suffix should make this vanishingly rare)", collisions)
 	}
 }
 

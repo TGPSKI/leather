@@ -108,6 +108,19 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   downstream). Fragments emitted in non-hide tool-call rounds are now banked
   and spliced ahead of the final round's text, and the bare empty-stop retry
   is skipped when banked fragments already carry the answer.
+- **16-bit ID suffixes collided under burst load, cross-wiring fan-in groups
+  and deleting shared hides** — `ids.TimestampHex` drew its uniqueness suffix
+  from `mathrand.Int31n(0x10000)`: 65,536 values per `(prefix, minute)` bucket,
+  ~1% birthday-collision odds at ~40 IDs/minute. In a 100-webhook burst, two
+  concurrent `pr-context` legs drew the same hide ID; `hide.Store.Put`'s
+  `os.MkdirAll` silently merged them, one PR's decision group collected and
+  (on success) deleted the shared hide, and the other PR's group found its
+  leg's hide missing and DLQ'd after retries — or, with the opposite race
+  order, would have silently used the wrong PR's analysis content. The suffix
+  is now 32 bits (`%08x`, ~1-in-a-million odds at hundreds of IDs per bucket),
+  and `Put` creates the hide directory exclusively (`os.Mkdir`), regenerating
+  the ID on collision instead of overwriting an existing hide — a colliding
+  ID can no longer destroy another group's data even if one is drawn.
 
 ### Added
 
