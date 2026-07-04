@@ -15,6 +15,10 @@
         "pr_number",
         "repo"
       ],
+      "patterns": {
+        "pr_number": "^[0-9]+$",
+        "repo": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+      },
       "timeout_seconds": 60,
       "output_cap_bytes": 4000
     },
@@ -33,6 +37,10 @@
         "pr_number",
         "repo"
       ],
+      "patterns": {
+        "pr_number": "^[0-9]+$",
+        "repo": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+      },
       "timeout_seconds": 60,
       "output_cap_bytes": 4000
     },
@@ -53,6 +61,10 @@
         "repo",
         "body"
       ],
+      "patterns": {
+        "pr_number": "^[0-9]+$",
+        "repo": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+      },
       "timeout_seconds": 60
     },
     {
@@ -72,6 +84,10 @@
         "repo",
         "label"
       ],
+      "patterns": {
+        "pr_number": "^[0-9]+$",
+        "repo": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+      },
       "timeout_seconds": 60
     }
   ]

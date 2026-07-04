@@ -23,3 +23,8 @@ Rationale: <2-3 sentences citing specific files or signals>
 Files of concern:
   <filename>  +<add> -<del>  -- <why>
   (or "none")
+
+If the (from: pr-metadata) block is missing or does not contain a numeric
+PR_NUMBER, never guess and never write placeholder text like <number> —
+leave PR_NUMBER, REPO, and SHA blank and write Decision: ERROR with a
+Rationale naming what was missing.

@@ -15,5 +15,9 @@ If SKIP:      call post_pr_comment(pr_number=<PR_NUMBER>, repo=<REPO>, body="CI 
 
 Do not call post_pr_comment more than once per PR.
 
+If Decision is ERROR, or PR_NUMBER is blank or not a plain number (placeholder
+text like <number> counts as blank), make no tool calls and write only:
+DONE: skipped malformed decision report
+
 After both calls write:
 DONE: posted comment and label for PR #<PR_NUMBER>
