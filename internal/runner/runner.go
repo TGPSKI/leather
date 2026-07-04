@@ -356,6 +356,13 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 			}
 		}
 
+		// Reasoning models under load sometimes emit the head of the final
+		// answer alongside a tool call, then continue from where they stopped
+		// after seeing the tool result. Fragments emitted in tool-call rounds
+		// are collected here so the final answer keeps every half instead of
+		// only the last round's text.
+		var answerParts []string
+
 		for round := 0; round < rounds; round++ {
 			reflectionTextTurn := r.ForceTextAfterHide && len(opts.Tools) == 0
 			// The run-level deadline (set at function entry) bounds this call.
@@ -404,7 +411,7 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 					totalTokens.Total += resp.TotalTokens
 					lastResp = resp
 				}
-			} else if resp.FinishReason == "stop" && resp.Content == "" && len(resp.ToolCalls) == 0 {
+			} else if resp.FinishReason == "stop" && resp.Content == "" && len(resp.ToolCalls) == 0 && len(answerParts) == 0 {
 				// Self-healing retry: observed in production — a reasoning model
 				// occasionally stops naturally with zero output tokens instead of
 				// producing the expected answer. Not a truncation (finish_reason
@@ -412,7 +419,9 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 				// same request is usually enough to draw a non-empty response from
 				// the same stochastic model. Single-shot, matching the
 				// length-truncation retry above — if the retry is also empty, it
-				// is passed through rather than looped on indefinitely.
+				// is passed through rather than looped on indefinitely. Skipped
+				// when earlier rounds already banked answer fragments — an empty
+				// stop then just means the model had nothing left to add.
 				r.Log.Warn("completion stopped with empty content; retrying",
 					"agent", a.Name, "round", round)
 				resp, err = r.Client.Complete(callCtx, a.Model, sess.Messages(), opts)
@@ -427,6 +436,17 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 			}
 
 			if len(resp.ToolCalls) == 0 {
+				if len(answerParts) > 0 {
+					// Splice fragments emitted alongside earlier tool calls ahead
+					// of this round's text (which may be empty when the fragments
+					// already carried the whole answer). lastResp is reassigned so
+					// the cache write and output routing below see the full answer.
+					if resp.Content != "" {
+						answerParts = append(answerParts, strings.TrimRight(resp.Content, "\n"))
+					}
+					resp.Content = strings.Join(answerParts, "\n")
+					lastResp = resp
+				}
 				// Final text response — record the turn and continue to next prompt.
 				r.Log.Info("agent completed", "agent", a.Name,
 					"tokens", resp.TotalTokens, "finish_reason", resp.FinishReason)
@@ -464,6 +484,24 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 
 			// The model requested tool calls — validate, execute, and feed results back.
 			r.Log.Info("tool calls requested", "agent", a.Name, "count", len(resp.ToolCalls))
+
+			// Bank any answer text emitted alongside the tool calls: the model
+			// sees it in the session as already said and continues after it, so
+			// dropping it here would head-truncate the final answer. Scoped to
+			// non-hide rounds — text next to hide pagination calls is navigation
+			// narration, not part of the answer.
+			if resp.Content != "" {
+				hideRound := false
+				for _, tc := range resp.ToolCalls {
+					if def, ok := toolByName[tc.Name]; ok && def.Type == "hide" {
+						hideRound = true
+						break
+					}
+				}
+				if !hideRound {
+					answerParts = append(answerParts, strings.TrimRight(resp.Content, "\n"))
+				}
+			}
 
 			// Record the assistant message with its tool call requests.
 			if err := sess.Add(ctx, model.Message{
