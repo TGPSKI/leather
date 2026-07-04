@@ -158,6 +158,16 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   prompt-template placeholders like `<number>` instead of real values.
   `examples/11-high-volume-ci` uses it to pattern-constrain `pr_number` and
   `repo` on all four GitHub tools.
+- **Full-system load-test profiler** — `scripts/profile-run.sh` wraps any
+  command (e.g. `make 11`) with 1-2 Hz samplers for host CPU/memory/disk
+  (vmstat + sysstat when installed), kernel pressure-stall information,
+  per-process attribution (pidstat), GPU telemetry (nvidia-smi), CPU/board
+  temperatures, and vLLM's `/metrics` (running/waiting requests, KV-cache
+  usage, token throughput, prefix-cache hit rate), then prints an avg/peak
+  summary via `scripts/profile-summary.py`. Used to produce the 100-webhook
+  profile documented in `examples/11-high-volume-ci/README.md`: ~500 LLM
+  jobs orchestrated for ~6% of one host's CPU and zero measurable IO
+  pressure, GPU-bound end to end.
 
 ### Removed
 

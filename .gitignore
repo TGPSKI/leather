@@ -15,3 +15,4 @@ bench-baseline.txt
 reviews/
 dev/
 recordings/
+.state-profiles/

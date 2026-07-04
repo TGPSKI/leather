@@ -206,3 +206,39 @@ If you point this example at a different model or backend, re-check whether
 `thinking: false` is appropriate — it is a Qwen3 / vLLM
 `chat_template_kwargs.enable_thinking` convention and is a no-op (harmlessly
 ignored) on backends that don't recognize that key.
+
+### Measured at scale: 100-webhook full-system profile
+
+A 100-webhook burst (`WEBHOOK_COUNT=100 BURST_SIZE=25 BURST_DELAY_MAX=0.5`)
+was profiled end to end with [`scripts/profile-run.sh`](../../scripts/profile-run.sh),
+which samples host CPU/memory/disk, kernel pressure-stall information (PSI),
+GPU telemetry, and vLLM's own `/metrics` alongside the run.
+
+**Test rig:** single RTX PRO 4500 (Blackwell, 32 GB), 20-core host, local
+vLLM serving Qwen3.6-35B-A3B (NVFP4), all five agents `thinking: false` with
+`completion_reserve: 768`.
+
+| Metric | Value |
+|---|---|
+| Webhooks completed | 100 / 100 decisions, ~276s end to end |
+| LLM jobs / tokens | 499 jobs, 972,518 tokens (881,907 prompt / 90,611 completion) |
+| Sustained model throughput | 3,207 prompt tok/s + 329 generation tok/s |
+| Host CPU (leather + queueing) | ~6% avg — the pipeline adds almost no host load |
+| Host pressure (PSI cpu/io/mem) | 0% — no stalls; disk peak 2% util |
+| GPU | 60% avg / 100% peak util, ~30 GB VRAM, 202 W / 77 °C peak |
+| In-flight at the model | ~5–8 running, avg 12 (peak 32) queued inside vLLM |
+
+The shape of these numbers is the headline: **the entire orchestration layer
+— webhook fan-out, per-event queues, fan-in collect, retries, artifact and
+hide persistence for ~500 LLM calls — costs a few percent of one host's CPU
+and no measurable IO pressure.** The pipeline is GPU-bound end to end; wall
+time scales with model throughput, not with leather. To go faster, feed it a
+bigger GPU (or slimmer prompts — this workload is ~10:1 prefill-heavy), not a
+bigger orchestrator.
+
+Reproduce with:
+
+```bash
+cd examples
+WEBHOOK_COUNT=100 BURST_SIZE=25 BURST_DELAY_MAX=0.5 ../scripts/profile-run.sh make 11
+```
