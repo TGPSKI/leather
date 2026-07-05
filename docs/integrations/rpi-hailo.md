@@ -25,26 +25,56 @@ OpenAI-style chat-completions endpoint.
 
 ## Examples
 
-Run these from `examples/`:
+The repo ships three dedicated Raspberry Pi / Hailo examples under
+[`examples/`](../../examples/):
 
 ```bash
-make validate-13
-make validate-14
-make validate-15
+cd examples
 
-make 13
-make 14
-make 15
+# Validate config shape without running the endpoint:
+make validate-rpi-01
+make validate-rpi-02
+make validate-rpi-03
+
+# Run the examples end to end:
+make rpi-01
+make rpi-02
+make rpi-03
 ```
 
 Examples:
 
-- `examples/rpi-01-hailo-endpoint-canary/` checks that a tiny local endpoint can
-  return a strict three-line summary.
-- `examples/rpi-02-hailo-local-status-digest/` collects deterministic local
-  evidence and runs a scheduled digest without tannery.
-- `examples/rpi-03-hailo-local-status-ingest/` collects deterministic local
-  evidence, ingests it as a hide, and cures it into an operational artifact.
+- [`examples/rpi-01-hailo-endpoint-canary/`](../../examples/rpi-01-hailo-endpoint-canary/)
+  is a scheduled tiny-endpoint canary: bounded input, strict output contract,
+  local semantic compression.
+- [`examples/rpi-02-hailo-local-status-digest/`](../../examples/rpi-02-hailo-local-status-digest/)
+  collects deterministic local status evidence and asks the tiny model to
+  compress that evidence into a JSON digest.
+- [`examples/rpi-03-hailo-local-status-ingest/`](../../examples/rpi-03-hailo-local-status-ingest/)
+  collects deterministic local status evidence, ingests it as a hide, and cures
+  it into an operational artifact.
+
+From each example directory, the common local flow is:
+
+```bash
+make doctor
+make run
+```
+
+The top-level `examples/Makefile` also wires the Raspberry Pi-specific endpoint
+defaults:
+
+- `LEATHER_RPI_LLM_ENDPOINT` defaults to `http://localhost:8080`
+- `LEATHER_RPI_MODEL` defaults to `qwen3:1.7b`
+
+Override them when your proxy runs elsewhere:
+
+```bash
+cd examples
+LEATHER_RPI_LLM_ENDPOINT=http://pi-host:8080 \
+LEATHER_RPI_MODEL=qwen3:1.7b \
+make rpi-01
+```
 
 The useful pattern is:
 
