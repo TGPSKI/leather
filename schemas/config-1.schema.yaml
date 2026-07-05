@@ -101,6 +101,13 @@ properties:
       Tokens reserved for model completion output. Default: 1024
       CLI: --completion-reserve  Env: LEATHER_COMPLETION_RESERVE
 
+  reasoning_reserve:
+    type: integer
+    minimum: 0
+    description: |
+      Tokens reserved for structured reasoning output. Default: 0
+      CLI: --reasoning-reserve  Env: LEATHER_REASONING_RESERVE
+
   summarize_threshold:
     type: number
     minimum: 0
