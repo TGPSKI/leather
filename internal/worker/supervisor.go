@@ -5,9 +5,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/tgpski/leather/internal/logging"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/queue"
+	"github.com/TGPSKI/leather/internal/logging"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/queue"
 )
 
 // Supervisor manages a set of polling workers, one goroutine per worker.

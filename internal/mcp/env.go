@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // resolveEnvVars resolves a slice of MCPEnvVar into "KEY=VALUE" strings

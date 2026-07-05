@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/tgpski/leather/internal/config"
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/config"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // doctorField is one row in the doctor output table.

@@ -18,10 +18,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tgpski/leather/internal/ids"
-	"github.com/tgpski/leather/internal/mcp"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/queue"
+	"github.com/TGPSKI/leather/internal/ids"
+	"github.com/TGPSKI/leather/internal/mcp"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/queue"
 )
 
 // toolClient is a shared HTTP client with a conservative timeout.

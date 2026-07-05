@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tgpski/leather/internal/logging"
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/logging"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // replayLiveState holds the mutable playback state for --replay-live mode.

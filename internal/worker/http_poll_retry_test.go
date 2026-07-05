@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/queue"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/queue"
 )
 
 // TestParseRetryAfter covers the seconds form, the HTTP-date form, and

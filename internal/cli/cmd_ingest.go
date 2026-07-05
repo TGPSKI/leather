@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tgpski/leather/internal/config"
-	"github.com/tgpski/leather/internal/curing"
-	"github.com/tgpski/leather/internal/hide"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/queue"
+	"github.com/TGPSKI/leather/internal/config"
+	"github.com/TGPSKI/leather/internal/curing"
+	"github.com/TGPSKI/leather/internal/hide"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/queue"
 )
 
 // RunIngest implements the "leather ingest" subcommand.

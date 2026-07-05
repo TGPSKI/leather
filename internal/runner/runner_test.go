@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tgpski/leather/internal/hide"
-	"github.com/tgpski/leather/internal/logging"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/notify"
-	"github.com/tgpski/leather/internal/queue"
-	"github.com/tgpski/leather/internal/session"
-	"github.com/tgpski/leather/internal/tool"
+	"github.com/TGPSKI/leather/internal/hide"
+	"github.com/TGPSKI/leather/internal/logging"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/notify"
+	"github.com/TGPSKI/leather/internal/queue"
+	"github.com/TGPSKI/leather/internal/session"
+	"github.com/TGPSKI/leather/internal/tool"
 )
 
 // testLogger returns a no-op logger suitable for tests.

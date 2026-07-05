@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/safepath"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/safepath"
 )
 
 // Manager holds named FileQueues, creating new ones on first access.

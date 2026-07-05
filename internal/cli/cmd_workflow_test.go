@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tgpski/leather/internal/session"
+	"github.com/TGPSKI/leather/internal/session"
 )
 
 // writeWorkflowFixture writes a tannery.yaml, a curing def, and a minimal

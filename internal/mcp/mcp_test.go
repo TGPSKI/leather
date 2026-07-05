@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // TestMain allows the test binary to be re-invoked as a fake MCP server.

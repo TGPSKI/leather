@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // compiledExtractor is the compiled form of a model.SkillExtract rule.

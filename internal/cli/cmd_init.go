@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tgpski/leather/internal/schema"
+	"github.com/TGPSKI/leather/internal/schema"
 )
 
 const initConfigYAML = `agent_dir: agents

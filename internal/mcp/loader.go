@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // LoadServers reads an mcp-servers.yaml file and returns the parsed server

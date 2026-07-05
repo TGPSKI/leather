@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tgpski/leather/internal/logging"
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/logging"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // Registry manages a set of named MCP server clients.

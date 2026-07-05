@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tgpski/leather/internal/jsonstore"
+	"github.com/TGPSKI/leather/internal/jsonstore"
 )
 
 // entry is the on-disk JSON representation of a single cache record.

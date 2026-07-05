@@ -50,7 +50,7 @@ Open `CHANGELOG.md`. The file follows [Keep a Changelog](https://keepachangelog.
    - Omit `chore:` commits unless they are user-visible.
 4. Leave the `[Unreleased]` section blank (or remove it if empty).
 5. Update the comparison link at the bottom of the file:
-   `[NEXT_VERSION]: https://github.com/tgpski/leather/compare/LAST_TAG...NEXT_VERSION`
+   `[NEXT_VERSION]: https://github.com/TGPSKI/leather/compare/LAST_TAG...NEXT_VERSION`
 
 ---
 

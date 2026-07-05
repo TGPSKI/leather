@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // persistRunRecord appends rec as a JSON line to <dir>/<agent>.jsonl.

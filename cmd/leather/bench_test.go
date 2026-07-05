@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tgpski/leather/internal/agent"
-	"github.com/tgpski/leather/internal/cache"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/queue"
-	"github.com/tgpski/leather/internal/scheduler"
-	"github.com/tgpski/leather/internal/session"
-	"github.com/tgpski/leather/internal/tool"
+	"github.com/TGPSKI/leather/internal/agent"
+	"github.com/TGPSKI/leather/internal/cache"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/queue"
+	"github.com/TGPSKI/leather/internal/scheduler"
+	"github.com/TGPSKI/leather/internal/session"
+	"github.com/TGPSKI/leather/internal/tool"
 )
 
 // BenchmarkCronParse measures schedule expression parsing via the scheduler.

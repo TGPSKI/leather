@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tgpski/leather/internal/ids"
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/ids"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // Hide is a stored large raw tool result.

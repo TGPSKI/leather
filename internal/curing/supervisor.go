@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tgpski/leather/internal/artifact"
-	"github.com/tgpski/leather/internal/hide"
-	"github.com/tgpski/leather/internal/logging"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/queue"
+	"github.com/TGPSKI/leather/internal/artifact"
+	"github.com/TGPSKI/leather/internal/hide"
+	"github.com/TGPSKI/leather/internal/logging"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/queue"
 )
 
 // Supervisor manages a fleet of Workers across all configured curings.

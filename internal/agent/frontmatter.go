@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/yamlx"
+	"github.com/TGPSKI/leather/internal/yamlx"
 )
 
 // frontMatter holds the raw parsed values from the YAML header of a *.agent.md file.

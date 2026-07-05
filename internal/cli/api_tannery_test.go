@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tgpski/leather/internal/config"
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/config"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // --- acquireProcessLock ---

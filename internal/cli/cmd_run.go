@@ -12,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tgpski/leather/internal/agent"
-	"github.com/tgpski/leather/internal/config"
-	"github.com/tgpski/leather/internal/mcp"
-	"github.com/tgpski/leather/internal/notify"
-	"github.com/tgpski/leather/internal/runner"
-	"github.com/tgpski/leather/internal/session"
-	"github.com/tgpski/leather/internal/tool"
+	"github.com/TGPSKI/leather/internal/agent"
+	"github.com/TGPSKI/leather/internal/config"
+	"github.com/TGPSKI/leather/internal/mcp"
+	"github.com/TGPSKI/leather/internal/notify"
+	"github.com/TGPSKI/leather/internal/runner"
+	"github.com/TGPSKI/leather/internal/session"
+	"github.com/TGPSKI/leather/internal/tool"
 )
 
 // RunOnce loads and executes a single agent definition, then exits.

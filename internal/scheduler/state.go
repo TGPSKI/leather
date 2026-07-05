@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/tgpski/leather/internal/jsonstore"
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/jsonstore"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 const stateFileName = "jobs.json"

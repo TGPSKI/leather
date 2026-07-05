@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tgpski/leather/internal/fileutil"
+	"github.com/TGPSKI/leather/internal/fileutil"
 )
 
 // Save marshals v to JSON and writes it to path atomically with the given file

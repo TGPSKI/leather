@@ -5,9 +5,9 @@ import (
 	"io"
 	"time"
 
-	"github.com/tgpski/leather/internal/config"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/scheduler"
+	"github.com/TGPSKI/leather/internal/config"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/scheduler"
 )
 
 // RunStatus prints scheduler state and token budget information.

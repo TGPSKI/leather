@@ -14,9 +14,9 @@ import (
 	"os"
 	"sync"
 
-	"github.com/tgpski/leather/internal/fileutil"
-	"github.com/tgpski/leather/internal/ids"
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/fileutil"
+	"github.com/TGPSKI/leather/internal/ids"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // FileQueue is a mutex-protected, JSONL-backed FIFO queue.

@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tgpski/leather/internal/yamlx"
+	"github.com/TGPSKI/leather/internal/yamlx"
 )
 
 // FieldType describes the expected format of a scalar field value.

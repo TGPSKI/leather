@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // MockConfig configures the behavior of a MockLLM.

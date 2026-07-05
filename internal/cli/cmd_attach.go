@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/config"
+	"github.com/TGPSKI/leather/internal/config"
 )
 
 // RunAttach connects to a running serve instance and streams pretty-printed

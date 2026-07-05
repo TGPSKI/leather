@@ -1,3 +1,3 @@
-module github.com/tgpski/leather
+module github.com/TGPSKI/leather
 
 go 1.26

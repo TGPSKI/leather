@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 func TestScheduler_Register_EmptyName(t *testing.T) {

@@ -17,15 +17,15 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/tgpski/leather/internal/cache"
-	"github.com/tgpski/leather/internal/hide"
-	"github.com/tgpski/leather/internal/logging"
-	"github.com/tgpski/leather/internal/mcp"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/notify"
-	"github.com/tgpski/leather/internal/queue"
-	"github.com/tgpski/leather/internal/session"
-	"github.com/tgpski/leather/internal/tool"
+	"github.com/TGPSKI/leather/internal/cache"
+	"github.com/TGPSKI/leather/internal/hide"
+	"github.com/TGPSKI/leather/internal/logging"
+	"github.com/TGPSKI/leather/internal/mcp"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/notify"
+	"github.com/TGPSKI/leather/internal/queue"
+	"github.com/TGPSKI/leather/internal/session"
+	"github.com/TGPSKI/leather/internal/tool"
 )
 
 // DefaultToolRounds is the tool call cycle limit when neither the agent nor

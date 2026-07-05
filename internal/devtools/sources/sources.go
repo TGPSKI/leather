@@ -6,10 +6,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/tgpski/leather/internal/curing"
-	"github.com/tgpski/leather/internal/devtools/bus"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/runner"
+	"github.com/TGPSKI/leather/internal/curing"
+	"github.com/TGPSKI/leather/internal/devtools/bus"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/runner"
 )
 
 // Deps are optional dependencies for wiring.

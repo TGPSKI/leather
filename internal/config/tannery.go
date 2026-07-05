@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/yamlx"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/yamlx"
 )
 
 // TanneryConfig holds tannery-specific settings loaded from tannery.yaml.

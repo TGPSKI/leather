@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // signalDefaultAPIURL is the default signal-cli REST API base URL.

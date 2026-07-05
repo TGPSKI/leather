@@ -4,7 +4,7 @@ package causality
 import (
 	"context"
 
-	"github.com/tgpski/leather/internal/devtools/bus"
+	"github.com/TGPSKI/leather/internal/devtools/bus"
 )
 
 // TraceOptions controls lineage expansion depth and breadth.

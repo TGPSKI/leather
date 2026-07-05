@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tgpski/leather/internal/logging"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/runner"
-	"github.com/tgpski/leather/internal/session"
+	"github.com/TGPSKI/leather/internal/logging"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/runner"
+	"github.com/TGPSKI/leather/internal/session"
 )
 
 // writeFile is a test helper that creates a file with the given content.

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // makeValidAgent returns a minimal valid model.Agent for use in tests.
