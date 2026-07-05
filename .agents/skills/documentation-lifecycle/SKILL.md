@@ -41,18 +41,39 @@ Before generating or updating documentation, read:
 
 ## Package inventory
 
-leather has seven `internal/` packages plus one `cmd/` entrypoint:
+leather has twenty-six top-level `internal/` packages plus two `cmd/`
+entrypoints:
 
 | Package | Path | Primary responsibility |
 |---|---|---|
-| `model` | `internal/model/` | Shared domain types; no logic, no imports of other internal pkgs |
-| `logging` | `internal/logging/` | Structured logging wrapping `log/slog`; per-component level control |
 | `agent` | `internal/agent/` | Agent definition parsing, validation, registry |
+| `artifact` | `internal/artifact/` | Filesystem artifact store with lineage metadata |
+| `cache` | `internal/cache/` | File-backed response cache |
+| `cli` | `internal/cli/` | Subcommand dispatch, serve loop, API, replay, tannery wiring |
 | `config` | `internal/config/` | YAML + flag + env-var config loading, defaults, flag binding |
-| `session` | `internal/session/` | Token budget tracking, LLM client interface, HTTP client, summarization |
+| `curing` | `internal/curing/` | Curing loader, router, worker, and supervisor |
+| `devtools` | `internal/devtools/` | Event bus, causality tracing, and UI source aggregation |
+| `fileutil` | `internal/fileutil/` | Atomic writes and small filesystem helpers |
+| `hide` | `internal/hide/` | Hide store plus paged hide buffer for oversized content |
+| `httpx` | `internal/httpx/` | JSON/error HTTP response helpers |
+| `ids` | `internal/ids/` | Timestamped IDs and random tokens |
+| `jsonstore` | `internal/jsonstore/` | JSON persistence helpers over atomic file writes |
+| `logging` | `internal/logging/` | Structured logging wrapping `log/slog`; per-component level control |
+| `mcp` | `internal/mcp/` | MCP config loading, stdio clients, and registry lifecycle |
+| `model` | `internal/model/` | Shared domain types; no internal imports |
+| `notify` | `internal/notify/` | Telegram and Signal notifiers plus backend construction |
+| `queue` | `internal/queue/` | File queues and named queue manager |
+| `runner` | `internal/runner/` | Agent runtime loop, tool orchestration, output routing |
+| `safepath` | `internal/safepath/` | Anchor-relative safe path validation |
 | `scheduler` | `internal/scheduler/` | Cron parsing, job queue, execution dispatch, graceful shutdown |
-| `cli` | `internal/cli/` | Subcommand dispatch, serve loop, chat loop, run, validate, status |
+| `schema` | `internal/schema/` | Flat schema validation for config and definition files |
+| `secret` | `internal/secret/` | Secret and environment-template resolution |
+| `session` | `internal/session/` | Token budget tracking, LLM client interface, HTTP client, summarization |
+| `tool` | `internal/tool/` | Skill/toolset registry and HTTP/MCP tool execution |
+| `worker` | `internal/worker/` | Declarative background HTTP poll workers |
+| `yamlx` | `internal/yamlx/` | Stdlib-only flat YAML parser |
 | `main` | `cmd/leather/` | Thin entrypoint; calls `cli.Run()`; only place `os.Exit` is allowed |
+| `shell-mcp` | `cmd/shell-mcp/` | Companion stdio MCP server for local shell tools |
 
 ---
 

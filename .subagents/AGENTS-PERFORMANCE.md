@@ -68,8 +68,9 @@ next to the code for package-local ones (`*_bench_test.go`).
 | `BenchmarkPublish` | `internal/devtools/bus/bench_test.go` | Devtools bus publish. |
 | `BenchmarkFanout10` | `internal/devtools/bus/bench_test.go` | Devtools bus 10-subscriber fan-out. |
 
-Additional planned benchmarks are tracked in [ROADMAP.md](../ROADMAP.md).
-When you add one, update this table in the same PR.
+Additional planned benchmarks should be tracked in the issue or release note
+that introduces the benchmark. When you add one, update this table in the
+same PR.
 
 ---
 
@@ -212,4 +213,4 @@ Before opening a PR that affects performance:
 
 ---
 
-_Last reviewed: 2026-05-19_
+_Last reviewed: 2026-07-05_

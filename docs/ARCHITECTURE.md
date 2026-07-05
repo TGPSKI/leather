@@ -183,9 +183,12 @@ curing that waits for N inputs sharing a correlation ID before running.
 | `model.Agent` | Full agent definition, including prompts, tool exposure, parameters, cache, queue, output, and hooks. |
 | `model.Config` | Fully merged runtime configuration, including replay, persistence, tool, worker, cache, and MCP settings. |
 | `model.ToolDefinition` | Executable tool descriptor with HTTP or MCP backend configuration. |
+| `model.ToolRetryConfig` | Retry and backoff policy for transient tool failures. |
 | `model.MCPToolConfig` | MCP server name and remote tool name for `mcp` tools. |
+| `model.MCPEnvVar` | Environment variable injection rule for MCP server processes. |
 | `model.MCPServerConfig` | One `mcp-servers.yaml` record. |
 | `model.Skill` | Prompt append plus tool and parameter bundle. |
+| `model.SkillExtract` | Post-tool-result extraction rule for turn variables. |
 | `model.Toolset` | Ordered named tool bundle used for policy/exposure. |
 | `model.TokenBudget` | Max tokens, reserve, and summarize threshold. |
 | `model.RunRecord` | Persisted/served run result with history, timing, and token totals. |
@@ -195,6 +198,10 @@ curing that waits for N inputs sharing a correlation ID before running.
 | `model.ToolResult` | Tool output content plus optional `Error` string. |
 | `model.WorkerDefinition` | HTTP poll worker configuration. |
 | `model.QueueItem` | Queue payload consumed by agents or produced by workers. |
+| `model.CuringDefinition` | One agent-bound workflow that consumes hides from a queue. |
+| `model.Artifact` | Stabilized curing output with lineage metadata. |
+| `model.TanneryRoute` | Route from intake/webhook event to curing queue or queue pattern. |
+| `model.WebhookConfig` | Configured webhook endpoint, source, secret, and request body cap. |
 
 ## Execution Pipeline
 

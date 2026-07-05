@@ -194,9 +194,8 @@ authoring contract is:
 - Renaming a `tanning/` file requires updating every cross-reference
   in this guide and in `tanning/agents/*.lifecycle.yaml`
   `agent:` fields if the change touches an agent name.
-- Removing an example requires a one-line entry in
-  [`ROADMAP.md`](../ROADMAP.md) noting *why* it was
-  removed (tracked by [AGENTS-ROADMAP.md](AGENTS-ROADMAP.md)).
+- Removing an example requires a one-line note in the PR description or
+  release notes explaining why it was removed.
 
 ---
 
@@ -261,4 +260,4 @@ manually.
 
 ---
 
-_Last reviewed: 2026-06-04_
+_Last reviewed: 2026-07-05_

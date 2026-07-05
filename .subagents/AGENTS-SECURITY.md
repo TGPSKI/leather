@@ -212,8 +212,7 @@ user with full FS + network access.
 - MCP server stdio is line-buffered JSON-RPC; stderr is captured to the
   leather log.
 - A server that crashes does not crash `leather`; the registry restarts
-  on next request (after the [02-runtime-review.md](../../reviews/big-refactor-needs-review/02-runtime-review.md)
-  fix for `Registry.StartAll`).
+  on next request after the `Registry.StartAll` crash-handling fix.
 - Tool-name scope is enforced at registration; a server cannot register
   a tool name outside the documented format
   (`^[a-z][a-z0-9_]*$`, planned).
@@ -343,4 +342,4 @@ Before opening a PR that affects any trust-boundary surface:
 
 ---
 
-_Last reviewed: 2026-05-19_
+_Last reviewed: 2026-07-05_

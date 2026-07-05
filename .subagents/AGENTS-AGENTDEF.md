@@ -459,12 +459,11 @@ Before opening a PR that changes the agent-definition format:
 - [ ] `leather validate` reports clear errors for invalid input
 - [ ] `tanning/agents/` updated with at least one example using the new
       field (when the field is user-visible)
-- [ ] [ROADMAP.md](../ROADMAP.md) entry marked completed if this PR
-      closes one
+- [ ] Linked issue or release-note item marked completed if this PR closes one
 - [ ] Filename conventions table updated when changed
 - [ ] Variable-substitution table updated when adding a placeholder
 - [ ] Cross-link to AGENTS-TOOLS-SKILLS-TOOLSETS.md remains accurate
 
 ---
 
-_Last reviewed: 2026-05-19_
+_Last reviewed: 2026-07-05_

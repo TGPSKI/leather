@@ -288,4 +288,4 @@ PRs touching `internal/tool`, `internal/config`, or `internal/cli/cmd_dlq.go`:
 
 ---
 
-_Last reviewed: 2026-06-05_ 
+_Last reviewed: 2026-07-05_
