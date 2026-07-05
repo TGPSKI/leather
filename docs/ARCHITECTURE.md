@@ -30,6 +30,11 @@ Detailed per-package documentation lives in [docs/modules/](modules/).
 | `artifact` | `internal/artifact/` | Stabilized curing output with lineage and content-addressed IDs. |
 | `safepath` | `internal/safepath/` | Anchor-relative path validation. Rejects absolute paths and traversal (`..`) outside a configured root. Used by every store (hide, artifact, queue, cache, tool `OutputFile`). |
 | `secret` | `internal/secret/` | Resolves `{{env:VAR}}` and other secret references at config load time. Used by `notify` backends and webhook secrets. |
+| `fileutil` | `internal/fileutil/` | Shared atomic file writes and existence checks for persistent stores. |
+| `jsonstore` | `internal/jsonstore/` | Shared JSON save/load helpers layered on atomic file writes. |
+| `ids` | `internal/ids/` | Timestamp-based runtime IDs and cryptographic random hex tokens. |
+| `yamlx` | `internal/yamlx/` | Stdlib-only flat YAML parser reused by config, agent, schema, and worker loaders. |
+| `httpx` | `internal/httpx/` | JSON and error response helpers for HTTP handlers. |
 | `devtools` | `internal/devtools/` | DevTools UI support: in-process event bus (`bus`), causality tracing (`causality`), source aggregators (`sources`). Powers `/api/devtools/*` endpoints. |
 | `cli` | `internal/cli/` | Subcommand handlers, serve wiring, replay modes, HTTP API, tannery HTTP endpoints. |
 
@@ -95,6 +100,24 @@ graph TD
         ARTIFACT --> MODEL
         QUEUE --> SAFEPATH
         CACHE --> SAFEPATH
+        CACHE --> JSONSTORE
+        ARTIFACT --> JSONSTORE
+        HIDE --> JSONSTORE
+        SCHED --> JSONSTORE
+        JSONSTORE --> FILEUTIL
+        QUEUE --> FILEUTIL
+        HIDE --> FILEUTIL
+        CLI --> FILEUTIL
+        CLI --> HTTPX
+        AGENT --> YAMLX
+        CONFIG --> YAMLX
+        SCHEMA --> YAMLX
+        WORKER --> YAMLX
+        TOOL --> IDS
+        HIDE --> IDS
+        QUEUE --> IDS
+        ARTIFACT --> IDS
+        CLI --> IDS
         NOTIFY --> SECRET
         CONFIG --> SECRET
         CLI --> CURING
@@ -142,9 +165,16 @@ curing that waits for N inputs sharing a correlation ID before running.
 | `validate` | `RunValidate` | Schema and semantic validation across config and definition files. |
 | `test-agent` | `RunTestAgent` | MockLLM-based agent harness with canned tool responses. |
 | `status` | `RunStatus` | Human-readable state summary against a running `serve` instance. |
+| `doctor` | `RunDoctor` | Print effective config values with source attribution and redaction. |
+| `init` | `RunInit` | Scaffold a starter project directory with config, agent, and Makefile. |
+| `dlq` | `RunDLQ` | Inspect dead-letter queue state and requeue failed items. |
 | `ingest` | `RunIngest` | Read bytes (file or stdin) and write a hide; optionally enqueue for an existing curing. |
+| `workflow` | `RunWorkflow` | Ingest one hide and drain all reachable curing queues concurrently to completion. |
 | `replay` | `RunReplay` | Replay a captured snapshot file or live `runs/` directory through the API. Wraps `serve --api --replay` / `--replay-live`. |
+| `snapshot` | `RunSnapshot` | Save or restore a point-in-time archive of runtime state. |
+| `attach` | `RunAttach` | Join a running `serve` instance and stream pretty runtime logs. |
 | `version` | `RunVersion` | Build metadata. Top-level `--version` / `-v` is the same. |
+| `completion` | `RunCompletion` | Print a static bash/zsh/fish completion script for subcommands and flags. |
 | `help` | `Run` built-in | Usage summary plus per-command help via standard flags. |
 
 ## Key Domain Types
@@ -154,9 +184,12 @@ curing that waits for N inputs sharing a correlation ID before running.
 | `model.Agent` | Full agent definition, including prompts, tool exposure, parameters, cache, queue, output, and hooks. |
 | `model.Config` | Fully merged runtime configuration, including replay, persistence, tool, worker, cache, and MCP settings. |
 | `model.ToolDefinition` | Executable tool descriptor with HTTP or MCP backend configuration. |
+| `model.ToolRetryConfig` | Retry and backoff policy for transient tool failures. |
 | `model.MCPToolConfig` | MCP server name and remote tool name for `mcp` tools. |
+| `model.MCPEnvVar` | Environment variable injection rule for MCP server processes. |
 | `model.MCPServerConfig` | One `mcp-servers.yaml` record. |
 | `model.Skill` | Prompt append plus tool and parameter bundle. |
+| `model.SkillExtract` | Post-tool-result extraction rule for turn variables. |
 | `model.Toolset` | Ordered named tool bundle used for policy/exposure. |
 | `model.TokenBudget` | Max tokens, reserve, and summarize threshold. |
 | `model.RunRecord` | Persisted/served run result with history, timing, and token totals. |
@@ -166,6 +199,10 @@ curing that waits for N inputs sharing a correlation ID before running.
 | `model.ToolResult` | Tool output content plus optional `Error` string. |
 | `model.WorkerDefinition` | HTTP poll worker configuration. |
 | `model.QueueItem` | Queue payload consumed by agents or produced by workers. |
+| `model.CuringDefinition` | One agent-bound workflow that consumes hides from a queue. |
+| `model.Artifact` | Stabilized curing output with lineage metadata. |
+| `model.TanneryRoute` | Route from intake/webhook event to curing queue or queue pattern. |
+| `model.WebhookConfig` | Configured webhook endpoint, source, secret, and request body cap. |
 
 ## Execution Pipeline
 
@@ -194,7 +231,7 @@ flowchart LR
 ## Serve API
 
 The API is unauthenticated by default and binds to loopback only. Set
-`api.bind` (or `--api-bind`) to a non-loopback address only behind a reverse
+`api_addr` (or `--api-addr`) to a non-loopback address only behind a reverse
 proxy or VPN. The DevTools surface uses a separate per-launch token.
 
 For operational detail (degraded-state JSON shape, troubleshooting, reverse

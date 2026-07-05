@@ -47,7 +47,7 @@ Open `CHANGELOG.md`. The file follows [Keep a Changelog](https://keepachangelog.
 3. Populate it with every commit since LAST_TAG grouped under the appropriate
    heading (`### Added`, `### Changed`, `### Fixed`, `### Removed`).
    - Write human-readable bullet points, not raw commit subjects.
-   - Omit `docs:` and `chore:` commits unless they are user-visible.
+   - Omit `chore:` commits unless they are user-visible.
 4. Leave the `[Unreleased]` section blank (or remove it if empty).
 5. Update the comparison link at the bottom of the file:
    `[NEXT_VERSION]: https://github.com/tgpski/leather/compare/LAST_TAG...NEXT_VERSION`
@@ -66,30 +66,7 @@ Use `grep -rn "LAST_VERSION"` to find any other version-pinned references.
 
 ---
 
-## Step 4 — Update ROADMAP.md
-
-Open `ROADMAP.md` and apply these changes:
-
-1. **Mark shipped items.** For each feature or item in the roadmap that was
-   delivered in the commits since LAST_TAG, strike through the bullet with
-   `~~text~~` and append `— shipped in NEXT_VERSION (issue #N if known)`.
-   Use the commit subjects and the CHANGELOG section you just wrote as the
-   source of truth.
-
-2. **Strike the outbound HTTP tool resilience block** if it is present
-   verbatim and has now shipped (it shipped in v0.3.0 as issues #7–#9).
-   Replace the prose block with a single struck-through line:
-   `- ~~Outbound HTTP tool resilience (retry, DLQ, per-host rate limits)~~ — shipped in NEXT_VERSION (#7, #8, #9).`
-
-3. **Add a new version section** for the _next_ planned minor if none
-   exists, or leave existing planned work in place if a forward-looking
-   section is already present.
-
-4. Update the `_Last reviewed:` footer to TODAY.
-
----
-
-## Step 5 — Update SECURITY.md
+## Step 4 — Update SECURITY.md
 
 Open `SECURITY.md` and update the **Supported Versions** table:
 
@@ -103,7 +80,7 @@ Open `SECURITY.md` and update the **Supported Versions** table:
 
 ---
 
-## Step 6 — Verify subcommand tables are current
+## Step 5 — Verify subcommand tables are current
 
 Confirm that every `Run*` function in `internal/cli/cli.go` has a corresponding
 row in each of these tables:
@@ -117,14 +94,14 @@ If any row is missing, add it before committing.
 
 ---
 
-## Step 7 — Commit and push
+## Step 6 — Commit and push
 
 Stay on the **current branch** — do not switch to or push directly to `main`.
 Stage all changed files and create one commit:
 
 ```
 CURRENT_BRANCH=$(git branch --show-current)
-git add CHANGELOG.md README.md ROADMAP.md SECURITY.md docs/ .subagents/
+git add CHANGELOG.md README.md SECURITY.md docs/ .subagents/
 git commit -m "chore(release): prepare NEXT_VERSION"
 git push origin "$CURRENT_BRANCH"
 ```
@@ -145,7 +122,6 @@ Do not tag in this step. Tagging is the job of `leather-release-tag`.
 - [ ] NEXT_VERSION is set and justified
 - [ ] CHANGELOG has the new section with at least one bullet
 - [ ] No stale version string remains in docs (grep clean)
-- [ ] ROADMAP.md: shipped items struck through; `_Last reviewed:` updated
 - [ ] SECURITY.md: Supported Versions table reflects NEXT_VERSION
 - [ ] Subcommand tables are in sync
 - [ ] Commit is pushed to current branch (not directly to main)

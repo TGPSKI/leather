@@ -31,12 +31,15 @@ Shared domain types only. Zero intra-project imports; stdlib only.
 |---|---|---|
 | `LogLevel` | string enum | `debug`, `info`, `warn`, `error` |
 | `JobStatus` | string enum | `pending`, `running`, `success`, `error`, `skipped` |
-| `ToolDefinition` | struct | Callable tool: name, type (`"http"`/`"mcp"`), executor config, optional `output_file` |
+| `ToolRetryConfig` | struct | Per-tool retry policy: max attempts, exponential backoff, and `Retry-After` handling |
+| `ToolDefinition` | struct | Callable tool: name, type (`"http"`/`"mcp"`/`"hide"`), executor config, buffering, env allowlist, retry policy, optional `output_file` |
 | `MCPToolConfig` | struct | MCP-backed tool binding: server name plus remote tool name |
+| `MCPEnvVar` | struct | Environment variable resolved for an MCP server from pass-store or env fallback |
 | `MCPServerConfig` | struct | One `mcp-servers.yaml` server entry: name, command, transport |
 | `HTTPToolConfig` | struct | HTTP tool request template: method, URL, headers, query, body |
 | `ToolCall` | struct | LLM-requested tool call: id, name, arguments (map) |
 | `ToolResult` | struct | Tool execution result: tool call id, tool name, content, optional error string |
+| `SkillExtract` | struct | Post-tool-result regex extraction into turn-level variables |
 | `Skill` | struct | Loaded skill bundle: name, system prompt append, optional parameters, tools slice |
 | `Toolset` | struct | Named bundle of tool names only; no prompt text |
 | `SecretRef` | struct | Secret pointer: Pass (pass-store path) and/or Env (env var name) |
@@ -45,12 +48,12 @@ Shared domain types only. Zero intra-project imports; stdlib only.
 | `OutputRoute` | struct | Output destination: Type (`file`/`queue`/`http`/`notify`), FilePath, Queue, URL, Method, Headers, NotifyBackend |
 | `WorkerOutput` | struct | Worker output config: Queue name, DedupKey field path |
 | `WorkerDefinition` | struct | Worker config: name, type (`http_poll`), interval, URL, headers, output queue, dedup_key |
-| `QueueItem` | struct | Queue payload: ID, AgentName, Payload (map), EnqueuedAt, AttemptCount |
+| `QueueItem` | struct | Queue payload: ID, agent/curing targets, hide/correlation metadata, payload map, retry count, optional DLQ tool fields |
 | `AgentHooks` | struct | Optional shell hooks for pre-run, post-success, post-error |
 | `Agent` | struct | Parsed agent definition: prompts, skills/toolsets, turn-scoped tool exposure, parameters, queue/cache/output/hook settings, source paths |
 | `Job` | struct | Scheduler job record: agent name, status, last/next run, counts, last error |
 | `Message` | struct | One turn in a session: role, content, tokens, tool-call metadata |
-| `TokenBudget` | struct | Max tokens, completion reserve, summarization threshold |
+| `TokenBudget` | struct | Max tokens, completion reserve, reasoning reserve, summarization threshold |
 | `LLMResponse` | struct | Model output: content, finish reason, usage, tool_calls |
 | `Config` | struct | Resolved runtime config: logging, replay, persistence, tool dirs, default toolsets, MCP file |
 | `SessionContext` | struct | Current conversation window: messages, token counts, metadata |
@@ -58,6 +61,13 @@ Shared domain types only. Zero intra-project imports; stdlib only.
 | `RunTokens` | struct | Prompt, response, total token counts for one run |
 | `RunTime` | struct | Start timestamp and duration for one run |
 | `RunRecord` | struct | Completed run result: agent name, timing, status, tokens, prompts, error |
+| `CuringOutput` | struct | Output destination for completed curing results |
+| `CuringDefinition` | struct | Parsed curing workflow: bound agent, accepted hide types, queue, paging, retry, fan-in settings |
+| `Artifact` | struct | Durable curing output with hide, curing, agent, queue, content, and metadata lineage |
+| `RouteMatch` | struct | Tannery route predicate keyed by source and optional event type |
+| `TanneryRoute` | struct | Intake route mapping matched hides to curing queues or queue patterns |
+| `QueueConcurrencyConfig` | struct | Per-curing-queue concurrency, retry, depth, and poll interval settings |
+| `WebhookConfig` | struct | Registered webhook endpoint path, source, optional HMAC secret, and body cap |
 | `RunOptions` | struct | Per-invocation options such as targeted agent selection |
 
 Rule: **never add behavior to `internal/model`.** Data shapes and enum
@@ -233,4 +243,4 @@ Before opening a PR touching this domain:
 
 ---
 
-_Last reviewed: 2026-05-19_
+_Last reviewed: 2026-07-05_

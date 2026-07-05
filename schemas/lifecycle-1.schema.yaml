@@ -97,6 +97,13 @@ properties:
     type: integer
     minimum: 1
 
+  completion_reserve:
+    type: integer
+    minimum: 1
+    description: |
+      Tokens reserved for model completion output. Overrides config.yaml completion_reserve.
+      CLI: --completion-reserve  Env: LEATHER_COMPLETION_RESERVE
+
   toolsets:
     type: array
     items:

@@ -1,6 +1,6 @@
 ---
 name: agents-doc-lifecycle
-description: 'Manage AGENTS.md and .subagents/*.md across the leather subagent guide set (currently 17 guides spanning core, runtime, worker, serve, quality, performance, security, operations, shell-mcp, ui, replay, agent-definition, tools/skills/toolsets semantics, integrations, examples, roadmap, and observability). USE FOR: auditing every guide against the codebase; adding routing-table rows for new packages or features; splitting an overloaded guide; merging thin guides; updating flag/type/subcommand tables; validating cross-references and ownership uniqueness; enforcing the per-guide `last reviewed` footer; running the full ownership/footer/cross-ref health check. DO NOT USE FOR: writing implementation code; debugging runtime errors; running tests.'
+description: 'Manage AGENTS.md and .subagents/*.md across the leather subagent guide set (currently 17 guides spanning core, runtime, worker, serve, tannery, quality, performance, security, operations, shell-mcp, ui, replay, agent-definition, tools/skills/toolsets semantics, integrations, examples, and observability). USE FOR: auditing every guide against the codebase; adding routing-table rows for new packages or features; splitting an overloaded guide; merging thin guides; updating flag/type/subcommand tables; validating cross-references and ownership uniqueness; enforcing the per-guide `last reviewed` footer; running the full ownership/footer/cross-ref health check. DO NOT USE FOR: writing implementation code; debugging runtime errors; running tests.'
 compatibility: Requires Go toolchain (`go run`). Designed for GitHub Copilot, Claude Code, and similar coding agents.
 metadata:
   argument-hint: 'What agents-doc operation? e.g. "audit", "add routing row for internal/foo", "split AGENTS-WORKER", "merge AGENTS-X and AGENTS-Y", "sync flag table", "validate cross-refs", "lint frontmatter", "check last-reviewed footers", "run §9 acceptance check"'
@@ -58,6 +58,7 @@ sync with the live set of guides:
 | [`.subagents/AGENTS-TOOLS-SKILLS-TOOLSETS.md`](../../../.subagents/AGENTS-TOOLS-SKILLS-TOOLSETS.md) | Tool/skill/toolset resolution semantics |
 | [`.subagents/AGENTS-RUNTIME.md`](../../../.subagents/AGENTS-RUNTIME.md) | Runner, tool, MCP, cache, notify |
 | [`.subagents/AGENTS-WORKER.md`](../../../.subagents/AGENTS-WORKER.md) | Scheduler, queue, worker |
+| [`.subagents/AGENTS-TANNERY.md`](../../../.subagents/AGENTS-TANNERY.md) | Event-driven curing service, hides, artifacts |
 | [`.subagents/AGENTS-SERVE.md`](../../../.subagents/AGENTS-SERVE.md) | CLI, config, schema, HTTP API |
 | [`.subagents/AGENTS-SHELL-MCP.md`](../../../.subagents/AGENTS-SHELL-MCP.md) | `cmd/shell-mcp` companion binary |
 | [`.subagents/AGENTS-UI.md`](../../../.subagents/AGENTS-UI.md) | Browser SPA |
@@ -68,11 +69,11 @@ sync with the live set of guides:
 | [`.subagents/AGENTS-OPERATIONS.md`](../../../.subagents/AGENTS-OPERATIONS.md) | Deploy, supervise, backup, upgrade |
 | [`.subagents/AGENTS-INTEGRATIONS.md`](../../../.subagents/AGENTS-INTEGRATIONS.md) | Notifier / MCP / webhook / scanner authoring patterns |
 | [`.subagents/AGENTS-EXAMPLES.md`](../../../.subagents/AGENTS-EXAMPLES.md) | `tanning/` corpus + tutorial sequence |
-| [`.subagents/AGENTS-ROADMAP.md`](../../../.subagents/AGENTS-ROADMAP.md) | `ROADMAP.md` grooming and promotion path |
 | [`.subagents/AGENTS-OBSERVABILITY.md`](../../../.subagents/AGENTS-OBSERVABILITY.md) | Log levels, run history, status/health/metrics |
 
 **Deferred:** none currently. Phase 6 closed 2026-05-19. Track any
-future guides in [`ROADMAP.md`](../../../ROADMAP.md).
+future guide proposals in the planning issue or release notes that introduce
+the new domain.
 
 ---
 
@@ -353,7 +354,7 @@ For every guide:
 - Every `[Anchor](path)` link's target file exists.
 - Every `[…](AGENTS-NAME.md)` references a guide currently in the
   authoritative set.
-- Every `[…](../docs/…)` or `[…](../ROADMAP.md)` target resolves.
+- Every `[…](../docs/…)` target resolves.
 
 A simple shell pass that catches most issues:
 
@@ -448,11 +449,10 @@ cross-cutting concern emerges.
 
 - [`../../../AGENTS.md`](../../../AGENTS.md) — root guide and routing table
 - [`../../../.subagents/README.md`](../../../.subagents/README.md) — index of all guides
-- [`../../../ROADMAP.md`](../../../ROADMAP.md) — backlog and deferred items
 - [`scripts/main.go`](scripts/main.go) — executable sync/audit/check tool
 - [`scripts/main_test.go`](scripts/main_test.go) — tool tests
 - [`scripts/run.sh`](scripts/run.sh) — thin wrapper
 
 ---
 
-_Last reviewed: 2026-05-19_
+_Last reviewed: 2026-07-05_

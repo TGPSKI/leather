@@ -17,12 +17,15 @@ exception: `LookupReserve`, a small static lookup table for reasoning-model
 |--------|-----------|-------------|
 | `LogLevel` | `type LogLevel string` | Structured logging verbosity enum. |
 | `JobStatus` | `type JobStatus string` | Run/scheduler status enum. |
-| `ToolDefinition` | `type ToolDefinition struct { ... }` | One callable tool, including HTTP or MCP executor config. |
+| `ToolRetryConfig` | `type ToolRetryConfig struct { ... }` | Per-tool retry policy for transient tool failures. |
+| `ToolDefinition` | `type ToolDefinition struct { ... }` | One callable tool, including HTTP, MCP, or hide executor config plus buffering, env allowlists, and retry policy. |
 | `MCPToolConfig` | `type MCPToolConfig struct { ... }` | MCP server name and remote tool name for `mcp` tools. |
+| `MCPEnvVar` | `type MCPEnvVar struct { ... }` | Environment variable resolved for an MCP server from pass-store or env fallback. |
 | `MCPServerConfig` | `type MCPServerConfig struct { ... }` | Parsed `mcp-servers.yaml` entry. |
 | `HTTPToolConfig` | `type HTTPToolConfig struct { ... }` | HTTP method, URL, headers, query, and body templates for a tool. |
 | `ToolCall` | `type ToolCall struct { ... }` | Model-requested tool invocation. |
 | `ToolResult` | `type ToolResult struct { ... }` | Tool execution result content plus optional error string. |
+| `SkillExtract` | `type SkillExtract struct { ... }` | Post-tool-result regex extraction rule for turn variables. |
 | `Skill` | `type Skill struct { ... }` | Named tool bundle with prompt append and optional parameters. |
 | `Toolset` | `type Toolset struct { ... }` | Named bundle of tool names only, used for exposure policy. |
 | `SecretRef` | `type SecretRef struct { ... }` | Pass-store / environment reference for secrets. |
@@ -44,6 +47,13 @@ exception: `LookupReserve`, a small static lookup table for reasoning-model
 | `RunTokens` | `type RunTokens struct { ... }` | Prompt, response, and total token counts for a run. |
 | `RunTime` | `type RunTime struct { ... }` | Start timestamp and duration for a run. |
 | `RunRecord` | `type RunRecord struct { ... }` | Stored/served result of one completed agent execution. |
+| `CuringOutput` | `type CuringOutput struct { ... }` | Destination for completed curing results. |
+| `CuringDefinition` | `type CuringDefinition struct { ... }` | Parsed curing workflow definition. |
+| `Artifact` | `type Artifact struct { ... }` | Durable curing output with lineage metadata. |
+| `RouteMatch` | `type RouteMatch struct { ... }` | Tannery route predicate. |
+| `TanneryRoute` | `type TanneryRoute struct { ... }` | Intake route mapping hides to curing queues or queue patterns. |
+| `QueueConcurrencyConfig` | `type QueueConcurrencyConfig struct { ... }` | Per-curing-queue concurrency, retry, depth, and poll settings. |
+| `WebhookConfig` | `type WebhookConfig struct { ... }` | Registered webhook endpoint configuration. |
 | `RunOptions` | `type RunOptions struct { ... }` | Per-invocation options for CLI entrypoints. |
 | `LogLevelDebug` | `const LogLevelDebug LogLevel = "debug"` | Debug logging level. |
 | `LogLevelInfo` | `const LogLevelInfo LogLevel = "info"` | Info logging level. |
@@ -61,10 +71,13 @@ exception: `LookupReserve`, a small static lookup table for reasoning-model
 The exported types cluster into a few durable groups:
 
 - Agent and scheduling state: `Agent`, `Job`, `JobStatus`, `RunOptions`
-- Tooling and integration surfaces: `ToolDefinition`, `MCPToolConfig`,
-  `MCPServerConfig`, `Skill`, `Toolset`, `ToolCall`, `ToolResult`
+- Tooling and integration surfaces: `ToolDefinition`, `ToolRetryConfig`,
+  `MCPToolConfig`, `MCPEnvVar`, `MCPServerConfig`, `Skill`,
+  `SkillExtract`, `Toolset`, `ToolCall`, `ToolResult`
 - Session and execution reporting: `Message`, `TokenBudget`, `LLMResponse`,
   `SessionContext`, `Turn`, `RunTokens`, `RunTime`, `RunRecord`
+- Tannery data: `CuringDefinition`, `CuringOutput`, `Artifact`,
+  `RouteMatch`, `TanneryRoute`, `QueueConcurrencyConfig`, `WebhookConfig`
 - Config and outputs: `Config`, `CacheConfig`, `OutputRoute`,
   `NotifyBackendConfig`, `SecretRef`, `AgentHooks`, worker and queue types
 
@@ -98,6 +111,8 @@ flowchart LR
     SES --> LLMResponse
     TOOL[tool/mcp] --> ToolDefinition
     SCH[scheduler] --> Job
+    TAN[tannery] --> CuringDefinition
+    TAN --> Artifact
     RUN[runner] --> RunRecord
 ```
 

@@ -2,10 +2,10 @@
 # profile-run.sh — run any command while sampling system + GPU metrics.
 #
 # Usage:
-#   scripts/profile-run.sh <command...>
+#   scripts/profile/profile-run.sh <command...>
 #
 #   cd examples && WEBHOOK_COUNT=100 BURST_SIZE=25 BURST_DELAY_MAX=0.5 \
-#     ../scripts/profile-run.sh make 11
+#     ../scripts/profile/profile-run.sh make 11
 #
 # Samples (1-2 Hz, negligible overhead):
 #   vmstat.log    CPU us/sy/id/wa (WAIT), runnable/blocked, memory, swap, block io

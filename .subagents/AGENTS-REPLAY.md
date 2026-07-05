@@ -28,9 +28,9 @@ Implementation is partial. Only per-run transcript capture and tool-call
 I/O capture are wired today, both surfaced through `/runs/{id}` and the
 `views/run-detail.js` view. All other replay features
 (token-by-token capture, re-run, re-run-from-turn-N, diff, redaction,
-export) are tracked in [ROADMAP.md](../ROADMAP.md). The sections below
-describe the **target** format and API; mark any new code clearly when
-it lands.
+export) should be tracked in the issue or release note that implements
+them. The sections below describe the **target** format and API; mark any
+new code clearly when it lands.
 
 ---
 
@@ -91,8 +91,8 @@ run was killed mid-execution; readers must tolerate truncation.
 
 `schema` is monotonic. Bumping requires:
 
-- A migration note in this guide and in
-  [ROADMAP.md](../ROADMAP.md).
+- A migration note in this guide and in the release note or issue that
+  implements the schema bump.
 - Readers backward-compatible to N-1 (or a one-time migration utility
   shipped in the same release).
 - Bump documented in [AGENTS-OPERATIONS.md § Upgrade & state-migration
@@ -200,7 +200,8 @@ UI-side rules:
 1. **Spec it** — add a row to the action-surface table above and the
    feature × matrix at the top of this file.
 2. **Define event shape** — if it introduces a new event type, bump
-   `schema` and document the migration in [ROADMAP.md](../ROADMAP.md).
+   `schema` and document the migration in the release note or issue that
+   implements it.
 3. **Implement on the runner side** — emit through `ReplaySink`.
 4. **Implement the HTTP endpoint** — see [AGENTS-SERVE.md](AGENTS-SERVE.md)
    for endpoint conventions; gate behind auth if mutating.
@@ -241,4 +242,4 @@ Before opening a PR that affects replay:
 
 ---
 
-_Last reviewed: 2026-05-19_
+_Last reviewed: 2026-07-05_

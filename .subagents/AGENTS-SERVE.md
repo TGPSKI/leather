@@ -95,7 +95,7 @@ any external dependency.
 #### YAML parsing
 
 YAML is parsed using a minimal stdlib-only approach:
-- `internal/config/yaml.go` implements a line-oriented YAML reader covering
+- `internal/yamlx` provides the line-oriented YAML reader covering
   the subset leather needs (scalars, lists, nested maps, quoted strings).
 - It does not support anchors, aliases, or multi-document streams.
 - Unknown keys are silently ignored for forward compatibility.
@@ -144,9 +144,11 @@ Update this table whenever a flag is added or removed.
 | `--log-format` | `LEATHER_LOG_FORMAT` | `text` | Log format: `text`, `json` |
 | `--max-tokens` | `LEATHER_MAX_TOKENS` | `8192` | Global token budget ceiling |
 | `--completion-reserve` | `LEATHER_COMPLETION_RESERVE` | `1024` | Tokens reserved for model completion |
+| `--reasoning-reserve` | `LEATHER_REASONING_RESERVE` | `0` | Extra reserve for a reasoning model's `<think>` trace |
 | `--summarize-threshold` | `LEATHER_SUMMARIZE_THRESHOLD` | `0.85` | Fraction of budget that triggers summarization |
 | `--llm-endpoint` | `LEATHER_LLM_ENDPOINT` | `http://localhost:11434` | Base URL of OpenAI-compatible LLM endpoint |
 | `--llm-timeout` | `LEATHER_LLM_TIMEOUT` | `60s` | Timeout for a single LLM call |
+| `--llm-api-key` | `LEATHER_LLM_API_KEY` | _(none)_ | Bearer token for authenticated LLM endpoints; prefer `llm_api_key` secret refs in YAML for servers |
 | `--scheduler-tick` | `LEATHER_SCHEDULER_TICK` | `1m` | Scheduler wake-up interval |
 | `--max-concurrent-jobs` | `LEATHER_MAX_CONCURRENT_JOBS` | `4` | Max simultaneous scheduler job handlers |
 | `--run-duration` | `LEATHER_RUN_DURATION` | `0` | Exit cleanly after this duration (`0` = run until signal) |
@@ -159,6 +161,8 @@ Update this table whenever a flag is added or removed.
 | `--pretty-mode` | `LEATHER_PRETTY_MODE` | `all` | Pretty console layout: `all` shows tools + messages, `messages` shows transcript only |
 | `--stats` | `LEATHER_STATS` | `false` | Show per-turn token counts and a summary at shutdown |
 | `--tokens-per-turn` | `LEATHER_TOKENS_PER_TURN` | `false` | In pretty mode, print token usage after each individual turn |
+| `--show-vars` | `LEATHER_SHOW_VARS` | `false` | In pretty mode, print extracted turn variables as timeline events |
+| `--show-context` | `LEATHER_SHOW_CONTEXT` | `false` | Print the exact message window and tool exposure before each LLM call |
 | `--persist-runs` | `LEATHER_PERSIST_RUNS` | `false` | Persist run records to JSONL files |
 | `--run-history-dir` | `LEATHER_RUN_HISTORY_DIR` | _(empty; `serve` uses `<state-dir>/runs`)_ | Directory for per-agent JSONL run logs |
 | `--run-max-bytes` | `LEATHER_RUN_MAX_BYTES` | `10485760` | Rotate a run-log file after this many bytes |
@@ -262,7 +266,7 @@ All endpoints live in `internal/cli/api_tannery.go`.
 | `/hides` | GET | `handleHidesCollection` | List all hides (JSON) |
 | `/hides/{id}` | GET | `dispatchHide` (detail) | Get hide metadata |
 | `/hides/{id}` | DELETE | `dispatchHide` (delete) | Delete a hide |
-| `/hides/{id}/cuts/{page}` | GET | `dispatchHide` (cut) | Page into a hide; returns `model.Hidecut` |
+| `/hides/{id}/cuts/{page}` | GET | `dispatchHide` (cut) | Page into a hide; returns a cut payload with content and page metadata |
 | `/artifacts` | GET | `handleArtifactsCollection` | List artifacts; optional `?curing=` filter |
 | `/artifacts/{id}` | GET | `dispatchArtifact` | Get one artifact by ID |
 | `/curings` | GET | `handleCurings` | List curing definitions with queue depth |
@@ -288,9 +292,10 @@ silently ignores the remaining flags.
 
 ### `leather ingest` subcommand (`internal/cli/cmd_ingest.go`)
 
-`RunIngest(args, stdin, stdout, stderr)` — reads body from `--file` or stdin,
-POSTs to the running leather instance's `/intake` endpoint, and prints the
-returned hide ID. Flags: `--tannery`, `--kind`, `--file`.
+`RunIngest(args, stdout, stderr)` — reads body from the first positional file
+argument or stdin, writes a hide, optionally routes/enqueues it, and prints the
+hide ID. Flags: shared config flags plus `--kind`, `--source`, `--curing`,
+`--queue`, and `--dry-run`.
 
 ---
 
@@ -302,15 +307,23 @@ scheduler state at runtime (v1).
 
 | Endpoint | Method | Response |
 |---|---|---|
-| `/queues` | GET | JSON array of all queue names and their current lengths |
-| `/queues/{name}` | GET | Queue detail: name, length, head item (if non-empty); 404 if queue not found |
-| `/healthz` | GET | `{"status":"ok"}` — liveness probe |
+| `/healthz` | GET | Readiness response with `status` and checks for writable `state_dir` plus configured `llm_endpoint` |
 | `/jobs` | GET | JSON array of current `model.Job` snapshots |
 | `/jobs/{name}` | GET | Single job record by agent name; 404 if not found |
 | `/status` | GET | Server status: `started_at`, `uptime_seconds`, `version`, `commit`, `llm_endpoint`, `agent_count`, `scheduler_tick`, `max_concurrent_jobs` |
 | `/config` | GET | Sanitised config (explicit allowlist, not raw `model.Config`): `agent_dir`, `log_level`, `log_format`, `model`, `temperature`, `max_tokens`, `completion_reserve`, `reasoning_reserve`, `summarize_threshold`, `llm_endpoint`, `llm_timeout`, `scheduler_tick`, `max_concurrent_jobs`, `api_addr` |
 | `/metrics` | GET | Per-agent aggregated stats + recent run history: `{"agents":{"name":{run_count, error_count, total_prompt_tokens, total_completion_tokens, avg_duration_ms, recent_runs:[…]}}}` |
 | `/history` | GET | All recent runs merged across agents, sorted `started_at` desc, capped at 500. Returns `[]model.RunRecord`. |
+| `/snapshot` | GET | Point-in-time JSON snapshot containing config, jobs, metrics, and history |
+| `/replay/control` | GET | In `--replay-live` mode, pause/resume or adjust speed via query parameters |
+| `/queues` | GET | JSON array of all queue names and their current lengths |
+| `/queues/{name}` | GET | Queue detail: name, length, head item (if non-empty); 404 if queue not found |
+| `/queues/{name}/requeue` | POST | Move all items from `{name}-dlq` back to `{name}`, with partial-failure reporting |
+| `/queues/{name}` | DELETE | Drain the named queue; requires `?confirm=yes` |
+| `/cache/stats` | GET | Cache directory stats with a 10 s memoized directory walk capped at 1000 entries |
+| `/workers` | GET | Worker supervisor status list |
+| `/api/devtools/*` | GET | Token-gated DevTools snapshot, trace, inspect, and SSE endpoints when the devtools bus is enabled |
+| `/ui/*` | GET | Embedded browser UI assets |
 
 All endpoints return `Content-Type: application/json`. CORS headers
 (`Access-Control-Allow-Origin: *`) are always added when `--api` is
@@ -405,7 +418,7 @@ internal/schema  →  internal/config
 | Running LLM call in scheduler tick synchronously | Always wrap in a goroutine with a context timeout |
 | `os.Exit` inside `RunServe` | Return the exit code; only `main()` calls `os.Exit` |
 | Binding API to `0.0.0.0` by default | Default to `127.0.0.1`; warn loudly if changed |
-| YAML parsing with external lib | Use `internal/config/yaml.go` stdlib-only parser |
+| YAML parsing with external lib | Use `internal/yamlx` and package-specific stdlib-only parsers |
 | Flag name doesn't match env var | `--flag-name` → `LEATHER_FLAG_NAME`; check both |
 | Skipping graceful shutdown | Always call `scheduler.Drain` before returning from `RunServe` |
 | Flags after positional arg in `leather run` | Go's `flag.FlagSet` stops at the first non-flag token. The agent file path must come **last**: `leather run --config=... --var k=v agent.md` — not `leather run agent.md --config ...` |
@@ -431,4 +444,4 @@ Before opening a PR touching this domain:
 
 ---
 
-_Last reviewed: 2026-06-07_
+_Last reviewed: 2026-07-05_
