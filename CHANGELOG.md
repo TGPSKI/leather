@@ -7,6 +7,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-07-05 "vegan leather"
+
 ### Fixed
 
 - **Curing-driven agents never inherited the global default model** —
@@ -124,6 +126,11 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- **`leather completion`** — new subcommand that prints a static shell
+  completion script for `bash`, `zsh`, or `fish` (`leather completion <shell>`).
+  Each script mirrors the `Run` dispatch table so every subcommand and its
+  flags complete at the prompt; source it from your shell profile (e.g.
+  `source <(leather completion zsh)`).
 - **Reasoning-aware `completion_reserve`** — fixes reasoning-model completions
   (Qwen3-class, thinking enabled) getting cut off mid-thought before any
   answer content exists, because a single flat `completion_reserve` reserved
@@ -175,6 +182,9 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   deprecation cycle. Use `leather run` for one-shot agent execution; chat's
   flags (`--system`, `--agent`, `--dev`) were local to the command and are
   removed with it.
+- **`ROADMAP.md`** — the standalone roadmap file and its references (README,
+  `release-prep` skill) are removed; deferred-item tracking now lives in
+  GitHub issues.
 
 ## [0.3.0] — 2026-06-07
 
@@ -564,7 +574,8 @@ Intentionally out of scope for v0.1.0; tracked for v0.2:
 See [ROADMAP.md](ROADMAP.md) for the full deferred-item list with
 rationales and proposed shapes.
 
-[Unreleased]: https://github.com/tgpski/leather/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/tgpski/leather/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/tgpski/leather/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/tgpski/leather/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/tgpski/leather/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/tgpski/leather/compare/v0.1.2...v0.1.3
