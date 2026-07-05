@@ -30,6 +30,11 @@ Detailed per-package documentation lives in [docs/modules/](modules/).
 | `artifact` | `internal/artifact/` | Stabilized curing output with lineage and content-addressed IDs. |
 | `safepath` | `internal/safepath/` | Anchor-relative path validation. Rejects absolute paths and traversal (`..`) outside a configured root. Used by every store (hide, artifact, queue, cache, tool `OutputFile`). |
 | `secret` | `internal/secret/` | Resolves `{{env:VAR}}` and other secret references at config load time. Used by `notify` backends and webhook secrets. |
+| `fileutil` | `internal/fileutil/` | Shared atomic file writes and existence checks for persistent stores. |
+| `jsonstore` | `internal/jsonstore/` | Shared JSON save/load helpers layered on atomic file writes. |
+| `ids` | `internal/ids/` | Timestamp-based runtime IDs and cryptographic random hex tokens. |
+| `yamlx` | `internal/yamlx/` | Stdlib-only flat YAML parser reused by config, agent, schema, and worker loaders. |
+| `httpx` | `internal/httpx/` | JSON and error response helpers for HTTP handlers. |
 | `devtools` | `internal/devtools/` | DevTools UI support: in-process event bus (`bus`), causality tracing (`causality`), source aggregators (`sources`). Powers `/api/devtools/*` endpoints. |
 | `cli` | `internal/cli/` | Subcommand handlers, serve wiring, replay modes, HTTP API, tannery HTTP endpoints. |
 
@@ -95,6 +100,24 @@ graph TD
         ARTIFACT --> MODEL
         QUEUE --> SAFEPATH
         CACHE --> SAFEPATH
+        CACHE --> JSONSTORE
+        ARTIFACT --> JSONSTORE
+        HIDE --> JSONSTORE
+        SCHED --> JSONSTORE
+        JSONSTORE --> FILEUTIL
+        QUEUE --> FILEUTIL
+        HIDE --> FILEUTIL
+        CLI --> FILEUTIL
+        CLI --> HTTPX
+        AGENT --> YAMLX
+        CONFIG --> YAMLX
+        SCHEMA --> YAMLX
+        WORKER --> YAMLX
+        TOOL --> IDS
+        HIDE --> IDS
+        QUEUE --> IDS
+        ARTIFACT --> IDS
+        CLI --> IDS
         NOTIFY --> SECRET
         CONFIG --> SECRET
         CLI --> CURING
@@ -142,8 +165,14 @@ curing that waits for N inputs sharing a correlation ID before running.
 | `validate` | `RunValidate` | Schema and semantic validation across config and definition files. |
 | `test-agent` | `RunTestAgent` | MockLLM-based agent harness with canned tool responses. |
 | `status` | `RunStatus` | Human-readable state summary against a running `serve` instance. |
+| `doctor` | `RunDoctor` | Print effective config values with source attribution and redaction. |
+| `init` | `RunInit` | Scaffold a starter project directory with config, agent, and Makefile. |
+| `dlq` | `RunDLQ` | Inspect dead-letter queue state and requeue failed items. |
 | `ingest` | `RunIngest` | Read bytes (file or stdin) and write a hide; optionally enqueue for an existing curing. |
+| `workflow` | `RunWorkflow` | Ingest one hide and drain all reachable curing queues concurrently to completion. |
 | `replay` | `RunReplay` | Replay a captured snapshot file or live `runs/` directory through the API. Wraps `serve --api --replay` / `--replay-live`. |
+| `snapshot` | `RunSnapshot` | Save or restore a point-in-time archive of runtime state. |
+| `attach` | `RunAttach` | Join a running `serve` instance and stream pretty runtime logs. |
 | `version` | `RunVersion` | Build metadata. Top-level `--version` / `-v` is the same. |
 | `help` | `Run` built-in | Usage summary plus per-command help via standard flags. |
 
@@ -194,7 +223,7 @@ flowchart LR
 ## Serve API
 
 The API is unauthenticated by default and binds to loopback only. Set
-`api.bind` (or `--api-bind`) to a non-loopback address only behind a reverse
+`api_addr` (or `--api-addr`) to a non-loopback address only behind a reverse
 proxy or VPN. The DevTools surface uses a separate per-launch token.
 
 For operational detail (degraded-state JSON shape, troubleshooting, reverse

@@ -210,7 +210,7 @@ ignored) on backends that don't recognize that key.
 ### Measured at scale: 100-webhook full-system profile
 
 A 100-webhook burst (`WEBHOOK_COUNT=100 BURST_SIZE=25 BURST_DELAY_MAX=0.5`)
-was profiled end to end with [`scripts/profile-run.sh`](../../scripts/profile-run.sh),
+was profiled end to end with [`scripts/profile/profile-run.sh`](../../scripts/profile/profile-run.sh),
 which samples host CPU/memory/disk, kernel pressure-stall information (PSI),
 GPU telemetry, and vLLM's own `/metrics` alongside the run.
 
@@ -240,5 +240,5 @@ Reproduce with:
 
 ```bash
 cd examples
-WEBHOOK_COUNT=100 BURST_SIZE=25 BURST_DELAY_MAX=0.5 ../scripts/profile-run.sh make 11
+WEBHOOK_COUNT=100 BURST_SIZE=25 BURST_DELAY_MAX=0.5 ../scripts/profile/profile-run.sh make 11
 ```
