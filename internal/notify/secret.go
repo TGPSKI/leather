@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // resolve returns the secret value from a SecretRef using the resolution order:

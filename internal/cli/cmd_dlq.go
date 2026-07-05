@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/config"
-	"github.com/tgpski/leather/internal/queue"
+	"github.com/TGPSKI/leather/internal/config"
+	"github.com/TGPSKI/leather/internal/queue"
 )
 
 // RunDLQ is the entry point for the "leather dlq" sub-command.

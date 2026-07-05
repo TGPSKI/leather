@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/yamlx"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/yamlx"
 )
 
 // supportedTypes is the set of worker types leather can run.

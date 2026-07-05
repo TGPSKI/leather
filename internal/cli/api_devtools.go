@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/devtools/bus"
-	"github.com/tgpski/leather/internal/devtools/causality"
-	"github.com/tgpski/leather/internal/httpx"
-	"github.com/tgpski/leather/internal/queue"
-	"github.com/tgpski/leather/internal/worker"
+	"github.com/TGPSKI/leather/internal/devtools/bus"
+	"github.com/TGPSKI/leather/internal/devtools/causality"
+	"github.com/TGPSKI/leather/internal/httpx"
+	"github.com/TGPSKI/leather/internal/queue"
+	"github.com/TGPSKI/leather/internal/worker"
 )
 
 const devtoolsVersion = "1"

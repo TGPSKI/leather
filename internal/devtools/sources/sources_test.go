@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tgpski/leather/internal/devtools/bus"
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/devtools/bus"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 func fixedNow() time.Time { return time.Unix(1000000, 0) }

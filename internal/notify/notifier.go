@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // Message is the payload sent to a messaging backend after each successful agent run.

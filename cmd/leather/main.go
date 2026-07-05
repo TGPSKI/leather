@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	"github.com/tgpski/leather/internal/cli"
+	"github.com/TGPSKI/leather/internal/cli"
 )
 
 // version and commit are set by -ldflags at build time.

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/secret"
-	"github.com/tgpski/leather/internal/yamlx"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/secret"
+	"github.com/TGPSKI/leather/internal/yamlx"
 )
 
 // Load merges configuration from (highest to lowest priority):

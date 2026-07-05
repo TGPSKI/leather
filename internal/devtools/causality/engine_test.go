@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/tgpski/leather/internal/devtools/bus"
+	"github.com/TGPSKI/leather/internal/devtools/bus"
 )
 
 func TestTraceIncludesParentCauseAndChildren(t *testing.T) {

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/queue"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/queue"
 )
 
 func TestExecute_HTTPSuccess(t *testing.T) {

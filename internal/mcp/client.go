@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // Client manages a JSON-RPC 2.0 connection to a single MCP server process

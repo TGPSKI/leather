@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/agent"
-	"github.com/tgpski/leather/internal/logging"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/runner"
-	"github.com/tgpski/leather/internal/session"
-	"github.com/tgpski/leather/internal/tool"
+	"github.com/TGPSKI/leather/internal/agent"
+	"github.com/TGPSKI/leather/internal/logging"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/runner"
+	"github.com/TGPSKI/leather/internal/session"
+	"github.com/TGPSKI/leather/internal/tool"
 )
 
 // toolResponseFlag is a repeatable --tool-response flag that accumulates name=text pairs.

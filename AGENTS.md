@@ -56,7 +56,7 @@ Leather runs scoped agents against local or OpenAI-compatible model endpoints,
 connects them to tools, manages context pressure, and turns raw tool or event
 output into bounded operational artifacts.
 
-Repository: `github.com/tgpski/leather`  
+Repository: `github.com/TGPSKI/leather`  
 Binary: `leather`
 
 ### Core capabilities:

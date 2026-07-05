@@ -1,6 +1,6 @@
 # leather
 
-[releases](https://github.com/TGPSKI/leather/releases) | [changelog](CHANGELOG.md) | [pkg.go.dev](https://pkg.go.dev/github.com/tgpski/leather) | [leather.sh](https://leather.sh) | [pate.sh](https://pate.sh)
+[releases](https://github.com/TGPSKI/leather/releases) | [changelog](CHANGELOG.md) | [pkg.go.dev](https://pkg.go.dev/github.com/TGPSKI/leather) | [leather.sh](https://leather.sh) | [pate.sh](https://pate.sh)
 
 **Local agent infrastructure in one stdlib-only Go binary.** 
 
@@ -108,7 +108,7 @@ comes out the other end — is the same primitives composed: see the
 From source:
 
 ```bash
-git clone https://github.com/tgpski/leather
+git clone https://github.com/TGPSKI/leather
 cd leather
 make build && make build-shell-mcp
 make install
@@ -117,8 +117,8 @@ make install
 With `go install`:
 
 ```bash
-go install github.com/tgpski/leather/cmd/leather@latest
-go install github.com/tgpski/leather/cmd/shell-mcp@latest
+go install github.com/TGPSKI/leather/cmd/leather@latest
+go install github.com/TGPSKI/leather/cmd/shell-mcp@latest
 ```
 
 **Verify the install** — no LLM endpoint required:

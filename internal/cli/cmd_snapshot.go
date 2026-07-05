@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/config"
-	"github.com/tgpski/leather/internal/fileutil"
+	"github.com/TGPSKI/leather/internal/config"
+	"github.com/TGPSKI/leather/internal/fileutil"
 )
 
 const snapshotUsage = `Usage:

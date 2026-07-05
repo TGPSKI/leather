@@ -1,7 +1,7 @@
 package curing
 
 import (
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // Router performs first-match routing from an intake event to a TanneryRoute.

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tgpski/leather/internal/agent"
-	"github.com/tgpski/leather/internal/config"
-	"github.com/tgpski/leather/internal/schema"
+	"github.com/TGPSKI/leather/internal/agent"
+	"github.com/TGPSKI/leather/internal/config"
+	"github.com/TGPSKI/leather/internal/schema"
 )
 
 // RunValidate parses and validates all agent, skill, and worker definition files.

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 func makeArtifact(curingName, content string) model.Artifact {

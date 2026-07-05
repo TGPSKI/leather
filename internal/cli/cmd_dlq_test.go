@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // writeDLQItem writes a QueueItem as a JSONL line to the given queue file.

@@ -9,9 +9,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/tgpski/leather/internal/fileutil"
-	"github.com/tgpski/leather/internal/jsonstore"
-	"github.com/tgpski/leather/internal/safepath"
+	"github.com/TGPSKI/leather/internal/fileutil"
+	"github.com/TGPSKI/leather/internal/jsonstore"
+	"github.com/TGPSKI/leather/internal/safepath"
 )
 
 // StoreEntry is the persisted metadata for a stored hide.

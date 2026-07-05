@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // openAIResponse builds a minimal OpenAI-shaped chat completion response body.

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 func TestLogger_InfoWritesToWriter(t *testing.T) {

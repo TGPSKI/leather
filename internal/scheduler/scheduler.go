@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // JobHandler is the function signature invoked by the scheduler on each trigger.

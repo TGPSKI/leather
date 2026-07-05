@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/devtools/bus"
+	"github.com/TGPSKI/leather/internal/devtools/bus"
 )
 
 const devtoolsSSEHeartbeatInterval = 15 * time.Second

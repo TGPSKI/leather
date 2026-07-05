@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tgpski/leather/internal/devtools/bus"
-	"github.com/tgpski/leather/internal/logging"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/scheduler"
+	"github.com/TGPSKI/leather/internal/devtools/bus"
+	"github.com/TGPSKI/leather/internal/logging"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/scheduler"
 )
 
 // testLogger returns a discard logger for use in API tests.

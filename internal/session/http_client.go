@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // HTTPClient implements LLMClient against any OpenAI-compatible endpoint.

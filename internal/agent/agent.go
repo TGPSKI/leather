@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/tgpski/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/model"
 )
 
 // LoadDir discovers all *.agent.md and *.lifecycle.yaml files in dir,

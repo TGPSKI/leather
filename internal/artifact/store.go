@@ -12,10 +12,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/tgpski/leather/internal/ids"
-	"github.com/tgpski/leather/internal/jsonstore"
-	"github.com/tgpski/leather/internal/model"
-	"github.com/tgpski/leather/internal/safepath"
+	"github.com/TGPSKI/leather/internal/ids"
+	"github.com/TGPSKI/leather/internal/jsonstore"
+	"github.com/TGPSKI/leather/internal/model"
+	"github.com/TGPSKI/leather/internal/safepath"
 )
 
 // Store is a file-backed store for model.Artifact values.

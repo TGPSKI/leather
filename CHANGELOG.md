@@ -7,6 +7,17 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-07-05
+
+### Fixed
+
+- **Module path casing prevented installation** — `go.mod` declared the module
+  path as `github.com/tgpski/leather` (lowercase), but the canonical repository
+  is `github.com/TGPSKI/leather`. Because Go module paths are case-sensitive,
+  `go install github.com/TGPSKI/leather@...` failed with a version-constraints
+  conflict. The module path and all imports now use the repository casing so
+  installs resolve correctly.
+
 ## [0.4.0] — 2026-07-05 "vegan leather"
 
 ### Fixed
@@ -574,11 +585,12 @@ Intentionally out of scope for v0.1.0; tracked for v0.2:
 See [ROADMAP.md](ROADMAP.md) for the full deferred-item list with
 rationales and proposed shapes.
 
-[Unreleased]: https://github.com/tgpski/leather/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/tgpski/leather/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/tgpski/leather/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/tgpski/leather/compare/v0.1.3...v0.2.0
-[0.1.3]: https://github.com/tgpski/leather/compare/v0.1.2...v0.1.3
-[0.1.2]: https://github.com/tgpski/leather/compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com/tgpski/leather/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/tgpski/leather/releases/tag/v0.1.0
+[Unreleased]: https://github.com/TGPSKI/leather/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/TGPSKI/leather/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/TGPSKI/leather/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/TGPSKI/leather/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/TGPSKI/leather/compare/v0.1.3...v0.2.0
+[0.1.3]: https://github.com/TGPSKI/leather/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/TGPSKI/leather/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/TGPSKI/leather/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/TGPSKI/leather/releases/tag/v0.1.0
