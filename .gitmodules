@@ -1,0 +1,3 @@
+[submodule "scripts/record"]
+	path = scripts/record
+	url = git@github.com:TGPSKI/record.git

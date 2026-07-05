@@ -3,6 +3,7 @@
 		cover clean help \
         build-shell-mcp \
         examples examples-smoke examples-all examples-reset example-% \
+        record-help record-example-% \
         link-skills
 
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -75,6 +76,12 @@ examples-reset:
 example-%: build
 	@$(MAKE) -C examples $*
 
+record-help:
+	@./scripts/record/record.sh --help
+
+record-example-%:
+	@./scripts/record/record-example.sh $*
+
 # Symlink every skill in .agents/skills/ into ~/.claude/skills/ so Claude Code
 # discovers them. Safe to re-run; skips skills that are already linked.
 link-skills:
@@ -92,24 +99,25 @@ link-skills:
 
 help:
 	@echo "Targets:"
-	@echo "  build        compile leather binary"
-	@echo "  install      install leather and shell-mcp to GOBIN/GOPATH bin"
-	@echo "  test         go test ./..."
-	@echo "  test-race    go test -race ./..."
-	@echo "  check        gofmt + go vet"
-	@echo "  lint         golangci-lint run"
-	@echo "  integration  integration tests (build tag: integration)"
-	@echo "  ci           check + test-race + lint + integration (full gate)"
-	@echo "  bench        all benchmarks"
-	@echo "  bench-save   save benchmark baseline"
-	@echo "  bench-compare compare against saved baseline (requires benchstat)"
-	@echo "  cover        coverage report (opens browser)"
-	@echo "  clean                           remove build artifacts"
-	@echo "  build-shell-mcp                 compile shell-mcp binary"
-	@echo "  examples                        list runnable examples (see examples/README.md)"
-	@echo "  example-NN                      run a single example (e.g. example-02, example-13, example-rpi-01)"
-	@echo "  examples-smoke                	 validate every example config (no LLM)"
-	@echo "  examples-all               	 validate every example config with LLM"
-	@echo "  examples-reset             	 wipe per-example runtime state (.state/ dirs)"
-	@echo "  link-skills                  symlink .agents/skills/* into ~/.claude/skills/"
-
+	@printf "  %-18s %s\n" "build" "compile leather binary"
+	@printf "  %-18s %s\n" "install" "install leather and shell-mcp to GOBIN/GOPATH bin"
+	@printf "  %-18s %s\n" "test" "go test ./..."
+	@printf "  %-18s %s\n" "test-race" "go test -race ./..."
+	@printf "  %-18s %s\n" "check" "gofmt + go vet"
+	@printf "  %-18s %s\n" "lint" "golangci-lint run"
+	@printf "  %-18s %s\n" "integration" "integration tests (build tag: integration)"
+	@printf "  %-18s %s\n" "ci" "check + test-race + lint + integration (full gate)"
+	@printf "  %-18s %s\n" "bench" "all benchmarks"
+	@printf "  %-18s %s\n" "bench-save" "save benchmark baseline"
+	@printf "  %-18s %s\n" "bench-compare" "compare against saved baseline (requires benchstat)"
+	@printf "  %-18s %s\n" "cover" "coverage report (opens browser)"
+	@printf "  %-18s %s\n" "clean" "remove build artifacts"
+	@printf "  %-18s %s\n" "build-shell-mcp" "compile shell-mcp binary"
+	@printf "  %-18s %s\n" "examples" "list runnable examples (see examples/README.md)"
+	@printf "  %-18s %s\n" "example-NN" "run a single example (e.g. example-02, example-13, example-rpi-01)"
+	@printf "  %-18s %s\n" "examples-smoke" "validate every example config (no LLM)"
+	@printf "  %-18s %s\n" "examples-all" "validate every example config with LLM"
+	@printf "  %-18s %s\n" "examples-reset" "wipe per-example runtime state (.state/ dirs)"
+	@printf "  %-18s %s\n" "record-help" "show recorder CLI help"
+	@printf "  %-18s %s\n" "record-example-NN" "record example NN via scripts/record/record-example.sh"
+	@printf "  %-18s %s\n" "link-skills" "symlink .agents/skills/* into ~/.claude/skills/"
