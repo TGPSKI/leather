@@ -1,6 +1,6 @@
 # leather
 
-[pkg.go.dev](https://pkg.go.dev/github.com/tgpski/leather) | [releases](https://github.com/TGPSKI/leather/releases) | [changelog](CHANGELOG.md) | [leather.sh](https://leather.sh) | [pate.sh](https://pate.sh)
+[releases](https://github.com/TGPSKI/leather/releases) | [changelog](CHANGELOG.md) | [pkg.go.dev](https://pkg.go.dev/github.com/tgpski/leather) | [leather.sh](https://leather.sh) | [pate.sh](https://pate.sh)
 
 **Local agent infrastructure in one stdlib-only Go binary.** 
 
@@ -17,7 +17,7 @@ You are a concise planning assistant. Output bullet points only.
 EOF
 
 leather validate --agent-dir .
-leather run --pretty --stats summarizer.agent.md 
+leather run summarizer.agent.md
 ```
 
 ## See it run
@@ -50,6 +50,12 @@ make example-06
 <img src="docs/media/06-devtools-1.png" alt="Screenshot of the devtools UI showing a causal chain of queue, agent, and tool events for a two-curing run"/>
 </details>
 <br/>
+
+Same code path also runs a profiled 100-webhook burst — 500 LLM calls,
+965K tokens, five fan-out/fan-in stages — end to end in 190s at 6.5% avg
+host CPU and no measurable IO pressure. Leather isn't the bottleneck; the
+model is. Full profile in
+[examples/11-high-volume-ci](examples/11-high-volume-ci/#measured-at-scale-100-webhook-full-system-profile).
 
 ## What it does
 
@@ -121,10 +127,32 @@ go install github.com/tgpski/leather/cmd/shell-mcp@latest
 leather --version    # prints version
 make example-01      # runs a mock-LLM example end-to-end
 ```
-### Cloud LLM endpoints
+## Model and endpoint
 
-`leather` speaks the OpenAI Chat Completions API. Provide the bearer token in
-whichever form fits your deployment:
+Every command above needs a model and an LLM endpoint from somewhere. All
+three forms set the same values — flag wins over env var, env var wins over
+`config.yaml`:
+
+```bash
+# flag
+leather run agent.md --model llama3 --llm-endpoint http://localhost:11434
+```
+
+```bash
+# env var
+export LEATHER_MODEL=llama3
+export LEATHER_LLM_ENDPOINT=http://localhost:11434
+```
+
+```yaml
+# config.yaml
+model: llama3
+llm_endpoint: http://localhost:11434
+```
+
+`leather` speaks the OpenAI Chat Completions API, so cloud endpoints work the
+same way. The bearer token resolves inline value → `pass` → env var, in that
+order:
 
 ```bash
 export LEATHER_LLM_API_KEY="sk-..."
