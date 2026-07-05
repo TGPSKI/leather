@@ -49,6 +49,8 @@ func Run(args []string, stdout, stderr io.Writer, version, commit string) int {
 		return RunDLQ(rest, stdout, stderr)
 	case "attach":
 		return RunAttach(rest, stdout, stderr)
+	case "completion":
+		return RunCompletion(rest, stdout, stderr)
 	case "help", "--help", "-h":
 		fmt.Fprint(stdout, usage)
 		return 0

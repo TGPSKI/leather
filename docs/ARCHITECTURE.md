@@ -174,6 +174,7 @@ curing that waits for N inputs sharing a correlation ID before running.
 | `snapshot` | `RunSnapshot` | Save or restore a point-in-time archive of runtime state. |
 | `attach` | `RunAttach` | Join a running `serve` instance and stream pretty runtime logs. |
 | `version` | `RunVersion` | Build metadata. Top-level `--version` / `-v` is the same. |
+| `completion` | `RunCompletion` | Print a static bash/zsh/fish completion script for subcommands and flags. |
 | `help` | `Run` built-in | Usage summary plus per-command help via standard flags. |
 
 ## Key Domain Types

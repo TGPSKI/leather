@@ -9,7 +9,8 @@ shared flags, loads configuration, assembles the runtime dependencies for each
 command, starts the scheduler and worker supervisor in `serve`, exposes the
 HTTP API and replay endpoints, and provides testable command handlers for
 `init`, `doctor`, `run`, `validate`, `test-agent`, `status`,
-`ingest`, `workflow`, `replay`, `snapshot`, `dlq`, `attach`, and `version`.
+`ingest`, `workflow`, `replay`, `snapshot`, `dlq`, `attach`, `version`, and
+`completion`.
 
 ## Public API
 
@@ -30,6 +31,7 @@ HTTP API and replay endpoints, and provides testable command handlers for
 | `RunDLQ` | `func RunDLQ(args []string, stdout, stderr io.Writer) int` | Inspect and requeue outbound dead-letter queue items. |
 | `RunAttach` | `func RunAttach(args []string, stdout, stderr io.Writer) int` | Join a running `serve` instance and stream pretty-printed DevTools events. |
 | `RunVersion` | `func RunVersion(_ []string, stdout, _ io.Writer, version, commit string) int` | Print build metadata. |
+| `RunCompletion` | `func RunCompletion(args []string, stdout, stderr io.Writer) int` | Print a static bash/zsh/fish completion script (`leather completion <shell>`). |
 
 ## Internal Design
 
@@ -57,6 +59,14 @@ front-matter and lifecycle schema checks, skill schemas, worker schemas, and
 `mcp-servers.yaml` schema. `RunTestAgent` reuses most of the run wiring but
 swaps in `session.MockLLM` and optional canned tool results so agent logic can
 be exercised without a live model.
+
+`RunCompletion` prints one of three static, hand-maintained shell scripts
+(`internal/cli/completion.go`) that mirror the `Run` dispatch table and each
+command's flag registrations. There is no dynamic `__complete` callback into
+the binary; the scripts embed the command/subcommand/flag lists directly, so
+they must be updated alongside `cli.go` and the relevant `cmd_*.go` file when
+a command, subcommand, or flag changes — the same convention `help.go`'s
+`usage` string already follows.
 
 ### Serve API
 
