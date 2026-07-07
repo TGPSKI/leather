@@ -281,8 +281,11 @@ func extractResult(raw json.RawMessage) (text string, isErr bool) {
 		} `json:"content"`
 		IsError bool `json:"isError"`
 	}
-	if err := json.Unmarshal(raw, &result); err != nil || len(result.Content) == 0 {
+	if err := json.Unmarshal(raw, &result); err != nil {
 		return string(raw), false
+	}
+	if len(result.Content) == 0 {
+		return string(raw), result.IsError
 	}
 	var sb strings.Builder
 	for _, item := range result.Content {
@@ -294,7 +297,7 @@ func extractResult(raw json.RawMessage) (text string, isErr bool) {
 		}
 	}
 	if sb.Len() == 0 {
-		return string(raw), false
+		return string(raw), result.IsError
 	}
 	return sb.String(), result.IsError
 }
