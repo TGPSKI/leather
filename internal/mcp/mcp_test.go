@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -65,6 +66,21 @@ func runFakeMCPServer(r io.Reader, w io.Writer) {
 				Name string `json:"name"`
 			}
 			_ = json.Unmarshal(req["params"], &params)
+			// Tool names prefixed "err_" simulate a server reporting a tool
+			// failure via isError: true, per the MCP error-content convention.
+			if strings.HasPrefix(params.Name, "err_") {
+				_ = enc.Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      id,
+					"result": map[string]any{
+						"content": []any{
+							map[string]any{"type": "text", "text": "error: " + params.Name + " failed"},
+						},
+						"isError": true,
+					},
+				})
+				continue
+			}
 			_ = enc.Encode(map[string]any{
 				"jsonrpc": "2.0",
 				"id":      id,
@@ -247,11 +263,12 @@ func TestMCPClient_MultipleCallsSerialised(t *testing.T) {
 	}
 }
 
-func TestExtractTextContent(t *testing.T) {
+func TestExtractResult(t *testing.T) {
 	cases := []struct {
-		name string
-		raw  string
-		want string
+		name      string
+		raw       string
+		want      string
+		wantIsErr bool
 	}{
 		{
 			name: "single text item",
@@ -278,14 +295,59 @@ func TestExtractTextContent(t *testing.T) {
 			raw:  `"just a string"`,
 			want: `"just a string"`,
 		},
+		{
+			name:      "isError true preserves text",
+			raw:       `{"content":[{"type":"text","text":"error: exit 2: boom"}],"isError":true}`,
+			want:      "error: exit 2: boom",
+			wantIsErr: true,
+		},
+		{
+			name:      "isError true with empty content preserves error",
+			raw:       `{"content":[],"isError":true}`,
+			want:      `{"content":[],"isError":true}`,
+			wantIsErr: true,
+		},
+		{
+			name: "isError absent is legacy behavior",
+			raw:  `{"content":[{"type":"text","text":"hello"}]}`,
+			want: "hello",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := extractTextContent(json.RawMessage(tc.raw))
+			got, isErr := extractResult(json.RawMessage(tc.raw))
 			if got != tc.want {
-				t.Errorf("got %q, want %q", got, tc.want)
+				t.Errorf("text = %q, want %q", got, tc.want)
+			}
+			if isErr != tc.wantIsErr {
+				t.Errorf("isErr = %v, want %v", isErr, tc.wantIsErr)
 			}
 		})
+	}
+}
+
+// TestMCPClient_CallToolError verifies that Call returns a *ToolError with
+// the server's text preserved when the server reports isError: true.
+func TestMCPClient_CallToolError(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	c, err := startCmd(ctx, "fake", fakeMCPCmd())
+	if err != nil {
+		t.Fatalf("startCmd: %v", err)
+	}
+	defer c.Close()
+
+	result, err := c.Call(ctx, "err_deploy_bans", map[string]any{})
+	if result != "" {
+		t.Errorf("result = %q, want empty string on tool error", result)
+	}
+	var te *ToolError
+	if !errors.As(err, &te) {
+		t.Fatalf("err = %v (%T), want *ToolError", err, err)
+	}
+	if te.Text != "error: err_deploy_bans failed" {
+		t.Errorf("ToolError.Text = %q, want %q", te.Text, "error: err_deploy_bans failed")
 	}
 }
 

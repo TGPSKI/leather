@@ -230,13 +230,15 @@ func RunWorkflowRun(args []string, stdout, stderr io.Writer) int {
 	}
 
 	runnerDeps := &curing.RunnerDeps{
-		Client:        llmClient,
-		ToolReg:       toolReg,
-		Log:           log,
-		MaxToolRounds: cfg.MaxToolRounds,
-		QueueMgr:      qmgr,
-		MCPReg:        mcpReg,
-		Budget:        resolveTokenBudget(cfg, model.Agent{}),
+		Client:             llmClient,
+		ToolReg:            toolReg,
+		Log:                log,
+		MaxToolRounds:      cfg.MaxToolRounds,
+		QueueMgr:           qmgr,
+		MCPReg:             mcpReg,
+		PersistRunsDetail:  cfg.PersistRunsDetail,
+		PersistRunsToolCap: cfg.PersistRunsToolCap,
+		Budget:             resolveTokenBudget(cfg, model.Agent{}),
 	}
 
 	sup, err := curing.NewSupervisor(

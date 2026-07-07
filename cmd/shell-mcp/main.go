@@ -221,12 +221,14 @@ func (s *server) handleCall(req rpcRequest) rpcResponse {
 	}
 
 	text, err := s.execute(def, params.Arguments)
-	if err != nil {
-		text = "error: " + err.Error()
-	}
-	return s.respond(*req.ID, map[string]any{
+	resp := map[string]any{
 		"content": []map[string]any{{"type": "text", "text": text}},
-	})
+	}
+	if err != nil {
+		resp["content"] = []map[string]any{{"type": "text", "text": "error: " + err.Error()}}
+		resp["isError"] = true
+	}
+	return s.respond(*req.ID, resp)
 }
 
 // execute runs a tool definition with the given call arguments.

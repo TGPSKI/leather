@@ -77,6 +77,8 @@ max_concurrent_jobs: 2     # max simultaneous agent calls
 api: true
 api_addr: 127.0.0.1:7749
 persist_runs: true         # write run history JSONL to state_dir/runs/
+persist_runs_detail: none  # none | tools — "tools" adds per-call name/args/content/error/duration to each turn's tool_calls
+persist_runs_tool_cap: 2048 # per-field byte cap (args/content) when persist_runs_detail: tools
 
 # --- Optional: notification backends ---
 notify:
@@ -378,6 +380,31 @@ commands — use `bash -c` with positional args instead:
 Tool names use `kebab-case`. Match the `name` here to the `name` in your
 `*.skill.yaml` tool list.
 
+### Error contract
+
+When a tool's command exits nonzero, `shell-mcp` reports the failure as an
+MCP tool error, not a plain-text success: the response sets `isError: true`
+and its text content is `error: <exit code and stderr>`. leather's MCP client
+parses `isError` and returns a typed `*mcp.ToolError` from `Call`, which the
+executor surfaces as a `ToolResult.Error` — the model sees a real tool-error
+result, not narrative text it has to notice on its own.
+
+A tool error is treated as **deterministic**: the command ran and failed, so
+the executor does not retry it (retrying would burn attempts and delay
+surfacing the failure to the model, which is the layer that should decide
+what to do next — retry with different arguments, try another tool, or
+report the failure up). It is also never written into the per-run dedupe
+cache (see [§7](#7-dedupe-policy---repeat-calls) below) — only genuinely
+successful calls are eligible for dedupe/replay, so a failed call's retry is
+never silently swallowed.
+
+This is additive on the wire: MCP servers that never set `isError` are
+unaffected, and skill prompts that already key off an `error:` text prefix
+continue to work unchanged.
+
+See [Dedupe policy](#dedupe-policy) in the Skills section for how successful
+calls are cached and replayed within a run.
+
 ---
 
 ## 6. MCP servers — `mcp-servers.yaml`
@@ -462,6 +489,56 @@ tools:
 
 Use toolsets when the agent's own prompt already explains the tools, or when
 you need per-turn scope without extra prompt injection.
+
+### Dedupe policy
+
+Within a single run, the runner tracks each tool call by name + arguments. By
+default, if the model re-issues an identical call after it already succeeded,
+the runner does not re-execute it — it replays the cached result (prefixed
+`[replay: identical call completed earlier this run; result repeated
+below]`) instead of narrating an assertion the model never actually
+observed. This guards against reasoning models that lose track of a prior
+tool call mid-run and repeat it, which would otherwise double a real side
+effect (e.g. posting a comment twice) or spin until max tool rounds is hit.
+
+A **failed** call is never cached and never blocks a retry — only a
+successful execution counts toward the dedupe budget below, so a model
+retrying a failing call always gets a real attempt (see the shell-tools
+[error contract](#error-contract) above). This matters especially for
+zero-argument tools: their dedupe key is constant, so before this fix a
+second legitimate call — after world state changed mid-run — was
+indistinguishable from an accidental repeat and was silently dropped. That
+gap dropped a real IP-ban deployment for 6+ hours in production on
+2026-07-06.
+
+Set `max_repeats` on a tool (in its skill YAML entry) to control how many
+times it may execute before further identical calls start replaying:
+
+| `max_repeats` | Behavior |
+|---|---|
+| unset / `0` (default) | Dedupe on: 1 execution, then every identical call replays the cached result. |
+| `N` (positive) | `N` executions permitted before replay begins. |
+| `-1` | Dedupe disabled entirely: every identical call executes. |
+
+```yaml
+tools:
+  - name: deploy_bans
+    type: mcp
+    max_repeats: 2
+    mcp:
+      server: shell
+      tool: deploy_bans
+```
+
+Prefer restructuring over raising `max_repeats`: side-effect tools whose
+meaning depends on world state that other tools mutate mid-run (deploy,
+sync, apply) are better served by keeping regeneration and deployment in
+separate agent runs (the one-job-per-agent rule) than by loosening dedupe.
+Reach for `max_repeats: 2`–`3` when that restructuring isn't practical yet.
+
+The field lives in skill YAML, not `shell-tools.json`: dedupe is a
+leather-runner concern (it governs whether the runner re-executes a call at
+all), not something the MCP server itself needs to know about.
 
 ---
 

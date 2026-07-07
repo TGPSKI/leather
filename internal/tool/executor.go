@@ -232,6 +232,16 @@ func (e *Executor) execMCPWithRetry(ctx context.Context, def model.ToolDefinitio
 			return content, nil
 		}
 
+		// A ToolError means the call was delivered and the tool ran — it
+		// failed deterministically (e.g. nonzero exit). Retrying burns
+		// attempts and delays surfacing the failure to the model, which is
+		// the layer that should decide what to do. Return immediately: no
+		// backoff, no DLQ enqueue (the call delivered; only the tool failed).
+		var te *mcp.ToolError
+		if errors.As(lastErr, &te) {
+			return "", te
+		}
+
 		if attempt >= maxAttempts {
 			break
 		}

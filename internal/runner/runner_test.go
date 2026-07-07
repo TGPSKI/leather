@@ -1,8 +1,12 @@
 package runner
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,12 +19,99 @@ import (
 
 	"github.com/TGPSKI/leather/internal/hide"
 	"github.com/TGPSKI/leather/internal/logging"
+	"github.com/TGPSKI/leather/internal/mcp"
 	"github.com/TGPSKI/leather/internal/model"
 	"github.com/TGPSKI/leather/internal/notify"
 	"github.com/TGPSKI/leather/internal/queue"
 	"github.com/TGPSKI/leather/internal/session"
 	"github.com/TGPSKI/leather/internal/tool"
 )
+
+// TestMain allows this test binary to be re-invoked as a fake MCP server that
+// always reports a tool failure via isError: true — simulating a shell
+// command that exits nonzero. Used by TestRunner_FailedMCPCallDoesNotBlockRetry
+// to pin the 2026-07-06 incident (see that test's doc comment).
+func TestMain(m *testing.M) {
+	if os.Getenv("LEATHER_RUNNER_TEST_FAILING_MCP_SERVER") == "1" {
+		runFakeFailingMCPServer(os.Stdin, os.Stdout)
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+
+// runFakeFailingMCPServer implements just enough of MCP (initialize,
+// tools/list, tools/call) to drive a Runner end-to-end. Every tools/call
+// response reports isError: true, mirroring shell-mcp's behavior for a
+// command that exits nonzero (plan 03). Each call also appends a byte to
+// LEATHER_RUNNER_TEST_COUNTER_FILE so the test can assert exactly how many
+// times the tool actually executed (as opposed to being deduped).
+func runFakeFailingMCPServer(r io.Reader, w io.Writer) {
+	dec := json.NewDecoder(bufio.NewReader(r))
+	enc := json.NewEncoder(w)
+	counterFile := os.Getenv("LEATHER_RUNNER_TEST_COUNTER_FILE")
+	for {
+		var req map[string]json.RawMessage
+		if err := dec.Decode(&req); err != nil {
+			return
+		}
+		method := strings.Trim(string(req["method"]), `"`)
+		var id int64
+		if idRaw, ok := req["id"]; ok {
+			_ = json.Unmarshal(idRaw, &id)
+		}
+		switch method {
+		case "initialize":
+			_ = enc.Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      id,
+				"result": map[string]any{
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]any{"tools": map[string]any{}},
+					"serverInfo":      map[string]any{"name": "fake-failing-mcp", "version": "0.1"},
+				},
+			})
+		case "notifications/initialized":
+			// no response
+		case "tools/list":
+			_ = enc.Encode(map[string]any{
+				"jsonrpc": "2.0", "id": id,
+				"result": map[string]any{"tools": []any{}},
+			})
+		case "tools/call":
+			var params struct {
+				Name string `json:"name"`
+			}
+			_ = json.Unmarshal(req["params"], &params)
+			if counterFile != "" {
+				if f, ferr := os.OpenFile(counterFile, os.O_APPEND|os.O_WRONLY, 0600); ferr == nil {
+					_, _ = f.WriteString("x")
+					_ = f.Close()
+				}
+			}
+			_ = enc.Encode(map[string]any{
+				"jsonrpc": "2.0", "id": id,
+				"result": map[string]any{
+					"content": []any{
+						map[string]any{"type": "text", "text": "error: " + params.Name + ": command failed"},
+					},
+					"isError": true,
+				},
+			})
+		}
+	}
+}
+
+// fakeFailingMCPServerConfig re-invokes the current test binary as the fake
+// failing MCP server defined above, wired to append to counterFile on every
+// simulated tool execution.
+func fakeFailingMCPServerConfig(name, counterFile string) model.MCPServerConfig {
+	return model.MCPServerConfig{
+		Name: name,
+		Command: "env LEATHER_RUNNER_TEST_FAILING_MCP_SERVER=1 LEATHER_RUNNER_TEST_COUNTER_FILE=" +
+			counterFile + " " + os.Args[0] + " -test.run=^$",
+		Transport: "stdio",
+	}
+}
 
 // testLogger returns a no-op logger suitable for tests.
 func testLogger(t *testing.T) *logging.Logger {
@@ -602,14 +693,20 @@ func TestRunner_MaxRoundsExceeded(t *testing.T) {
 	}
 }
 
-// TestRunner_DuplicateToolCallSkipsReExecution verifies that when the model
+// TestRunner_DuplicateToolCallReplaysResult verifies that when the model
 // re-issues an identical tool call (same name and arguments) that already
 // succeeded earlier in the run, the runner does not execute it again — it
-// returns a synthetic "already completed" result instead. This guards
-// against reasoning models that occasionally lose track of a prior tool call
-// (observed in production) and repeat it, which would otherwise double a
-// real side effect (e.g. posting a comment twice) or spin until max rounds.
-func TestRunner_DuplicateToolCallSkipsReExecution(t *testing.T) {
+// replays the cached result (with a "[replay: ...]" prefix) instead of
+// re-running the side effect. This guards against reasoning models that
+// occasionally lose track of a prior tool call (observed in production) and
+// repeat it, which would otherwise double a real side effect (e.g. posting a
+// comment twice) or spin until max rounds.
+//
+// Plan 04: the model must see the real cached content, not a bare assertion
+// that the call "already completed successfully" — the model can't verify
+// that claim, and narrating unobserved success is exactly the failure mode
+// this replay semantics avoids.
+func TestRunner_DuplicateToolCallReplaysResult(t *testing.T) {
 	var hits int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hits++
@@ -653,6 +750,303 @@ func TestRunner_DuplicateToolCallSkipsReExecution(t *testing.T) {
 	}
 	if hits != 1 {
 		t.Errorf("HTTP tool hits = %d, want 1 (second call should be deduped, not re-executed)", hits)
+	}
+
+	// Find the tool-result message fed back after the second (deduped) call
+	// and verify it carries the real cached content, not a bare assertion.
+	calls := mock.Calls()
+	last := calls[len(calls)-1]
+	var found bool
+	for _, msg := range last {
+		if msg.Role == "tool" && msg.ToolName == "post_comment" && strings.Contains(msg.Content, "[replay:") {
+			found = true
+			if !strings.Contains(msg.Content, "posted") {
+				t.Errorf("replayed content = %q, want it to contain the original cached content %q", msg.Content, "posted")
+			}
+			if strings.Contains(msg.Content, "already completed successfully") {
+				t.Errorf("replayed content still asserts unobserved success: %q", msg.Content)
+			}
+		}
+	}
+	if !found {
+		t.Error("no tool-role message with a [replay: ...] prefix found; expected the second call's result to be a labeled replay")
+	}
+}
+
+func TestRunner_DuplicateBufferedToolCallReplaysOriginalCut(t *testing.T) {
+	var hits int
+	raw := strings.Repeat("abcde", 500)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(raw))
+	}))
+	defer srv.Close()
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name: "buffer-skill",
+		Tools: []model.ToolDefinition{{
+			Name:   "read_big_log",
+			Type:   "http",
+			HTTP:   model.HTTPToolConfig{Method: "GET", URL: srv.URL},
+			Buffer: true,
+		}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	sameCall := model.ToolCall{ID: "call-1", Name: "read_big_log", Arguments: map[string]any{"path": "big.log"}}
+	mock := session.NewMockLLM(session.MockConfig{
+		Response: "done",
+		ToolCallSequence: [][]model.ToolCall{
+			{sameCall},
+			{sameCall},
+		},
+	})
+
+	r := &Runner{
+		Client:        mock,
+		Registry:      reg,
+		Log:           testLogger(t),
+		MaxToolRounds: 5,
+		HideBuffer:    hide.NewHideBuffer(64),
+	}
+	a := testAgent("buffered-replay-agent")
+	a.Skills = []string{"buffer-skill"}
+	a.UserPrompt = "read the log"
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Errorf("status = %q, want success", rec.Status)
+	}
+	if hits != 1 {
+		t.Fatalf("HTTP tool hits = %d, want 1 (duplicate buffered call should replay)", hits)
+	}
+
+	calls := mock.Calls()
+	last := calls[len(calls)-1]
+	var firstHideID, replayHideID string
+	var replayFound bool
+	for _, msg := range last {
+		if msg.Role != "tool" || msg.ToolName != "read_big_log" {
+			continue
+		}
+		match := hidePageHeaderRE.FindStringSubmatch(msg.Content)
+		if len(match) < 2 {
+			t.Fatalf("tool content is not a hide cut: %q", msg.Content)
+		}
+		if firstHideID == "" {
+			firstHideID = match[1]
+			continue
+		}
+		replayFound = true
+		replayHideID = match[1]
+		if !strings.Contains(msg.Content, "[replay:") {
+			t.Fatalf("duplicate buffered result missing replay prefix: %q", msg.Content)
+		}
+	}
+	if !replayFound {
+		t.Fatal("did not find replayed buffered tool result in model context")
+	}
+	if replayHideID != firstHideID {
+		t.Fatalf("replay hide id = %q, want original hide id %q", replayHideID, firstHideID)
+	}
+}
+
+// TestRunner_FailedMCPCallDoesNotBlockRetry pins the exact production failure
+// observed on 2026-07-06: a failed shell-tool exec ("error: ..." text with no
+// isError signal) was treated as a successful call by the runner's dedupe
+// map, which then silently blocked a legitimate retry of the same call —
+// dropping an IP-ban deployment for 6+ hours. With plan 03's error
+// propagation in place (shell-mcp sets isError; the mcp client returns a
+// typed *mcp.ToolError; the executor surfaces it as ToolResult.Error), the
+// runner's existing dedupe-insert guard (`result.Error == "" && dedupeKey !=
+// ""`) never populates completedToolCalls for a failing call — so a second,
+// identical call to the failing tool is executed again rather than silently
+// skipped.
+func TestRunner_FailedMCPCallDoesNotBlockRetry(t *testing.T) {
+	counterFile := filepath.Join(t.TempDir(), "call-counter")
+	if err := os.WriteFile(counterFile, nil, 0600); err != nil {
+		t.Fatalf("create counter file: %v", err)
+	}
+
+	cfg := fakeFailingMCPServerConfig("shell", counterFile)
+	mcpReg := mcp.NewRegistry([]model.MCPServerConfig{cfg}, nil)
+	ctx := context.Background()
+	if err := mcpReg.StartAll(ctx); err != nil {
+		t.Fatalf("StartAll: %v", err)
+	}
+	defer mcpReg.StopAll()
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name: "ban-skill",
+		Tools: []model.ToolDefinition{{
+			Name: "deploy_bans",
+			Type: "mcp",
+			MCP:  model.MCPToolConfig{Server: "shell", Tool: "deploy_bans"},
+		}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	// The model calls the zero-arg deploy_bans tool, sees a failure, and
+	// (as happened in production) calls it again identically.
+	sameCall := model.ToolCall{ID: "call-1", Name: "deploy_bans", Arguments: map[string]any{}}
+	mock := session.NewMockLLM(session.MockConfig{
+		Response: "done",
+		ToolCallSequence: [][]model.ToolCall{
+			{sameCall},
+			{sameCall},
+		},
+	})
+
+	var logBuf bytes.Buffer
+	log := logging.NewWithWriter("test", model.LogLevelInfo, &logBuf, false)
+
+	r := &Runner{
+		Client:        mock,
+		Registry:      reg,
+		MCPRegistry:   mcpReg,
+		Log:           log,
+		MaxToolRounds: 5,
+	}
+	a := testAgent("ban-deploy-agent")
+	a.Skills = []string{"ban-skill"}
+	a.UserPrompt = "deploy the bans"
+
+	rec, err := r.Run(ctx, a, testBudget())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Errorf("status = %q, want success", rec.Status)
+	}
+
+	logOut := logBuf.String()
+	if strings.Contains(logOut, "skipping duplicate") {
+		t.Errorf("log contains a duplicate-skip line; the second call should have executed:\n%s", logOut)
+	}
+
+	// The fake server marks the counter file once per actual invocation. Two
+	// marks means the dedupe map never blocked the second, identical call —
+	// the exact behavior the 2026-07-06 incident violated (only one mark
+	// would appear, and the second call would have returned the canned
+	// "already completed successfully" text instead of executing).
+	counted, err := os.ReadFile(counterFile)
+	if err != nil {
+		t.Fatalf("read counter file: %v", err)
+	}
+	if got := len(counted); got != 2 {
+		t.Errorf("tool executed %d times, want 2 (dedupe map incorrectly blocked a failing call's retry)", got)
+	}
+}
+
+// TestRunner_MaxRepeatsAllowsConfiguredExecutions verifies that a tool
+// declaring max_repeats: 2 executes twice before further identical calls
+// replay the cached result. Production motivation: a zero-arg tool like
+// deploy-bans has a constant dedupe key, so under the default policy a
+// second, semantically distinct call (world state changed mid-run) would be
+// silently dropped. max_repeats gives such tools headroom.
+func TestRunner_MaxRepeatsAllowsConfiguredExecutions(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, "deployed batch %d", hits)
+	}))
+	defer srv.Close()
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name: "ban-skill",
+		Tools: []model.ToolDefinition{{
+			Name:       "deploy_bans",
+			Type:       "http",
+			HTTP:       model.HTTPToolConfig{Method: "POST", URL: srv.URL},
+			MaxRepeats: 2,
+		}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	sameCall := model.ToolCall{ID: "call-1", Name: "deploy_bans", Arguments: map[string]any{}}
+	mock := session.NewMockLLM(session.MockConfig{
+		Response: "done",
+		ToolCallSequence: [][]model.ToolCall{
+			{sameCall},
+			{sameCall},
+			{sameCall},
+		},
+	})
+
+	r := &Runner{Client: mock, Registry: reg, Log: testLogger(t), MaxToolRounds: 5}
+	a := testAgent("max-repeats-agent")
+	a.Skills = []string{"ban-skill"}
+	a.UserPrompt = "deploy the bans"
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Errorf("status = %q, want success", rec.Status)
+	}
+	if hits != 2 {
+		t.Errorf("HTTP tool hits = %d, want 2 (1st and 2nd execute, 3rd replays)", hits)
+	}
+}
+
+// TestRunner_MaxRepeatsNegativeOneDisablesDedupe verifies that max_repeats:
+// -1 disables dedupe entirely: every identical call executes.
+func TestRunner_MaxRepeatsNegativeOneDisablesDedupe(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name: "poll-skill",
+		Tools: []model.ToolDefinition{{
+			Name:       "poll_status",
+			Type:       "http",
+			HTTP:       model.HTTPToolConfig{Method: "GET", URL: srv.URL},
+			MaxRepeats: -1,
+		}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	sameCall := model.ToolCall{ID: "call-1", Name: "poll_status", Arguments: map[string]any{}}
+	mock := session.NewMockLLM(session.MockConfig{
+		Response: "done",
+		ToolCallSequence: [][]model.ToolCall{
+			{sameCall}, {sameCall}, {sameCall}, {sameCall},
+		},
+	})
+
+	r := &Runner{Client: mock, Registry: reg, Log: testLogger(t), MaxToolRounds: 6}
+	a := testAgent("no-dedupe-agent")
+	a.Skills = []string{"poll-skill"}
+	a.UserPrompt = "poll status"
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Errorf("status = %q, want success", rec.Status)
+	}
+	if hits != 4 {
+		t.Errorf("HTTP tool hits = %d, want 4 (max_repeats: -1 disables dedupe entirely)", hits)
 	}
 }
 

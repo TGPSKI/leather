@@ -254,20 +254,38 @@ func (c *Client) Call(ctx context.Context, toolName string, args map[string]any)
 	if err != nil {
 		return "", fmt.Errorf("mcp/Client.Call %s.%s: %w", c.name, toolName, err)
 	}
-	return extractTextContent(raw), nil
+	text, isErr := extractResult(raw)
+	if isErr {
+		return "", &ToolError{Text: text}
+	}
+	return text, nil
 }
 
-// extractTextContent parses an MCP tools/call result and returns the joined text.
+// ToolError is returned by Call when the server reported isError: true.
+// Text carries the server-provided error content (e.g. stderr). Unlike a
+// transport/decode error, a ToolError means the call was delivered and the
+// tool ran — it failed deterministically, so retrying it is not expected to
+// help.
+type ToolError struct{ Text string }
+
+func (e *ToolError) Error() string { return e.Text }
+
+// extractResult parses an MCP tools/call result, returning the joined text
+// content and whether the server flagged the result as an error (isError).
 // Falls back to the raw JSON string when the result is not in the expected format.
-func extractTextContent(raw json.RawMessage) string {
+func extractResult(raw json.RawMessage) (text string, isErr bool) {
 	var result struct {
 		Content []struct {
 			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
+		IsError bool `json:"isError"`
 	}
-	if err := json.Unmarshal(raw, &result); err != nil || len(result.Content) == 0 {
-		return string(raw)
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return string(raw), false
+	}
+	if len(result.Content) == 0 {
+		return string(raw), result.IsError
 	}
 	var sb strings.Builder
 	for _, item := range result.Content {
@@ -279,9 +297,9 @@ func extractTextContent(raw json.RawMessage) string {
 		}
 	}
 	if sb.Len() == 0 {
-		return string(raw)
+		return string(raw), result.IsError
 	}
-	return sb.String()
+	return sb.String(), result.IsError
 }
 
 // readResponse reads the next JSON-RPC 2.0 response from the server and

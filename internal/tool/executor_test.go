@@ -1,19 +1,105 @@
 package tool
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/TGPSKI/leather/internal/mcp"
 	"github.com/TGPSKI/leather/internal/model"
 	"github.com/TGPSKI/leather/internal/queue"
 )
+
+// TestMain allows this test binary to be re-invoked as a fake MCP server that
+// always reports a tool failure via isError: true, so execMCPWithRetry's
+// ToolError handling (plan 03) can be exercised end-to-end.
+func TestMain(m *testing.M) {
+	if os.Getenv("LEATHER_TOOL_TEST_FAILING_MCP_SERVER") == "1" {
+		runFakeFailingMCPServer(os.Stdin, os.Stdout)
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+
+// runFakeFailingMCPServer implements just enough of MCP (initialize,
+// tools/list, tools/call) to drive execMCPWithRetry. Every tools/call
+// response reports isError: true. A counter is bumped on every call so
+// tests can assert exactly one attempt was made.
+func runFakeFailingMCPServer(r io.Reader, w io.Writer) {
+	dec := json.NewDecoder(bufio.NewReader(r))
+	enc := json.NewEncoder(w)
+	counterFile := os.Getenv("LEATHER_TOOL_TEST_COUNTER_FILE")
+	for {
+		var req map[string]json.RawMessage
+		if err := dec.Decode(&req); err != nil {
+			return
+		}
+		method := strings.Trim(string(req["method"]), `"`)
+		var id int64
+		if idRaw, ok := req["id"]; ok {
+			_ = json.Unmarshal(idRaw, &id)
+		}
+		switch method {
+		case "initialize":
+			_ = enc.Encode(map[string]any{
+				"jsonrpc": "2.0", "id": id,
+				"result": map[string]any{
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]any{"tools": map[string]any{}},
+					"serverInfo":      map[string]any{"name": "fake-failing-mcp", "version": "0.1"},
+				},
+			})
+		case "notifications/initialized":
+			// no response
+		case "tools/list":
+			_ = enc.Encode(map[string]any{
+				"jsonrpc": "2.0", "id": id,
+				"result": map[string]any{"tools": []any{}},
+			})
+		case "tools/call":
+			var params struct {
+				Name string `json:"name"`
+			}
+			_ = json.Unmarshal(req["params"], &params)
+			if counterFile != "" {
+				if f, ferr := os.OpenFile(counterFile, os.O_APPEND|os.O_WRONLY, 0600); ferr == nil {
+					_, _ = f.WriteString("x")
+					_ = f.Close()
+				}
+			}
+			_ = enc.Encode(map[string]any{
+				"jsonrpc": "2.0", "id": id,
+				"result": map[string]any{
+					"content": []any{
+						map[string]any{"type": "text", "text": "error: " + params.Name + ": command failed"},
+					},
+					"isError": true,
+				},
+			})
+		}
+	}
+}
+
+// fakeFailingMCPServerConfig re-invokes the current test binary as the fake
+// failing MCP server, wired to append to counterFile on every call.
+func fakeFailingMCPServerConfig(name, counterFile string) model.MCPServerConfig {
+	return model.MCPServerConfig{
+		Name: name,
+		Command: "env LEATHER_TOOL_TEST_FAILING_MCP_SERVER=1 LEATHER_TOOL_TEST_COUNTER_FILE=" +
+			counterFile + " " + os.Args[0] + " -test.run=^$",
+		Transport: "stdio",
+	}
+}
 
 func TestExecute_HTTPSuccess(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -572,6 +658,66 @@ func TestExecute_DLQEnqueueOnPermanent(t *testing.T) {
 	items := dlqQ.Scan()
 	if len(items) != 1 {
 		t.Fatalf("dlq depth = %d, want 1", len(items))
+	}
+}
+
+// TestExecute_MCPToolErrorNotRetried verifies that a *mcp.ToolError (the
+// server reported isError: true) is treated as deterministic — the executor
+// makes exactly one attempt even when retry.max_attempts allows more, does
+// not enqueue to the outbound DLQ (the call delivered; only the tool
+// failed), and surfaces a non-empty ToolResult.Error so the runner's dedupe
+// map (internal/runner) never records the call as completed. Regression
+// coverage for plan 03 (2026-07-06 incident).
+func TestExecute_MCPToolErrorNotRetried(t *testing.T) {
+	counterFile := t.TempDir() + "/counter"
+	if err := os.WriteFile(counterFile, nil, 0600); err != nil {
+		t.Fatalf("create counter file: %v", err)
+	}
+
+	cfg := fakeFailingMCPServerConfig("shell", counterFile)
+	reg := mcp.NewRegistry([]model.MCPServerConfig{cfg}, nil)
+	ctx := context.Background()
+	if err := reg.StartAll(ctx); err != nil {
+		t.Fatalf("StartAll: %v", err)
+	}
+	defer reg.StopAll()
+
+	queueDir := t.TempDir()
+	mgr := newTestQueueManager(t, queueDir)
+
+	def := model.ToolDefinition{
+		Name:  "deploy_bans",
+		Type:  "mcp",
+		MCP:   model.MCPToolConfig{Server: "shell", Tool: "deploy_bans"},
+		Retry: model.ToolRetryConfig{MaxAttempts: 3, BaseDelay: 0, MaxDelay: time.Millisecond},
+	}
+	exec := &Executor{MCP: reg, QueueMgr: mgr, AgentName: "test-agent"}
+	result := exec.Execute(ctx, def, map[string]any{})
+
+	if result.Error == "" {
+		t.Fatal("expected result.Error to be non-empty for a tool-reported failure")
+	}
+	if strings.Contains(result.Error, "tool/execMCP") {
+		t.Fatalf("result.Error = %q, want clean MCP ToolError text without executor wrapper", result.Error)
+	}
+	if want := "error: deploy_bans: command failed"; result.Error != want {
+		t.Fatalf("result.Error = %q, want %q", result.Error, want)
+	}
+
+	counted, err := os.ReadFile(counterFile)
+	if err != nil {
+		t.Fatalf("read counter file: %v", err)
+	}
+	if got := len(counted); got != 1 {
+		t.Errorf("tool invoked %d times, want exactly 1 (ToolError should not be retried)", got)
+	}
+
+	dlqQ, err := mgr.Get(outboundDLQName)
+	if err != nil {
+		t.Fatalf("get dlq: %v", err)
+	}
+	if items := dlqQ.Scan(); len(items) != 0 {
+		t.Errorf("dlq depth = %d, want 0 (the call delivered; only the tool failed)", len(items))
 	}
 }
 

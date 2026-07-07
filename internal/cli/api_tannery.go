@@ -88,18 +88,20 @@ func initTannery(ctx context.Context, tanneryFile string, deps *apiDeps) (*tanne
 	curingRouter := curing.NewRouter(tannCfg.Routes)
 
 	runnerDeps := &curing.RunnerDeps{
-		Client:         session.NewHTTPClient(deps.cfg.LLMEndpoint, deps.cfg.LLMAPIKey, deps.cfg.LLMTimeout),
-		ToolReg:        deps.toolReg,
-		Log:            deps.log,
-		MaxToolRounds:  deps.cfg.MaxToolRounds,
-		Cache:          deps.agentCache,
-		QueueMgr:       deps.queueMgr,
-		Notifiers:      deps.notifiers,
-		MCPReg:         deps.mcpReg,
-		Budget:         resolveTokenBudget(deps.cfg, model.Agent{}),
-		DebugContextFn: func(runner.ContextSnapshot) {},
-		OnComplete:     deps.onCuringJobDone,
-		EventFn:        deps.onCuringEvent,
+		Client:             session.NewHTTPClient(deps.cfg.LLMEndpoint, deps.cfg.LLMAPIKey, deps.cfg.LLMTimeout),
+		ToolReg:            deps.toolReg,
+		Log:                deps.log,
+		MaxToolRounds:      deps.cfg.MaxToolRounds,
+		Cache:              deps.agentCache,
+		QueueMgr:           deps.queueMgr,
+		Notifiers:          deps.notifiers,
+		MCPReg:             deps.mcpReg,
+		PersistRunsDetail:  deps.cfg.PersistRunsDetail,
+		PersistRunsToolCap: deps.cfg.PersistRunsToolCap,
+		Budget:             resolveTokenBudget(deps.cfg, model.Agent{}),
+		DebugContextFn:     func(runner.ContextSnapshot) {},
+		OnComplete:         deps.onCuringJobDone,
+		EventFn:            deps.onCuringEvent,
 	}
 	// Persist run records for curing-driven agents (both successes and failures)
 	// when PersistRuns is enabled. Without this, DLQ-bound agents that never
