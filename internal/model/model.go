@@ -78,10 +78,12 @@ type ToolDefinition struct {
 	// A positive N permits that many executions before replay begins.
 	// -1 disables dedupe entirely: every call executes.
 	//
-	// Side-effect tools whose meaning depends on world state that other
-	// tools mutate mid-run (deploy, sync, apply) should set this to 2-3, or
-	// better, restructure so regeneration and deployment aren't interleaved
-	// in the same run (see docs/GUIDE.md's one-job-per-agent guidance).
+	// MaxRepeats is a narrow escape hatch, not a general solution for
+	// stateful side-effect workflows. Tools whose meaning depends on world
+	// state that other tools mutate mid-run (deploy, sync, apply) should set
+	// this to 2-3 only as a stopgap, or better, restructure so regeneration
+	// and deployment aren't interleaved in the same run (see docs/GUIDE.md's
+	// one-job-per-agent guidance).
 	// Failed calls never count against this budget — only a successful
 	// execution is cached and counted, so a failing call's retry always
 	// executes regardless of MaxRepeats.
