@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/TGPSKI/leather/internal/model"
 	"github.com/TGPSKI/leather/internal/session"
@@ -265,6 +266,17 @@ func TestRunner_ToolTrace_CapsEnforced(t *testing.T) {
 	wantOver := over[:cap0] + "…[capped]"
 	if traces[1].Content != wantOver {
 		t.Fatalf("over-cap content = %q, want %q", traces[1].Content, wantOver)
+	}
+}
+
+func TestRunner_ToolTrace_CapPreservesUTF8(t *testing.T) {
+	got := capToolField("abc😀def", 5)
+	if !utf8.ValidString(got) {
+		t.Fatalf("capped content is invalid UTF-8: %q", got)
+	}
+	want := "abc…[capped]"
+	if got != want {
+		t.Fatalf("capped content = %q, want %q", got, want)
 	}
 }
 
