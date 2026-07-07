@@ -57,6 +57,8 @@ func Load(fs *flag.FlagSet) (model.Config, error) {
 		ShowVars:           envBool("SHOW_VARS", false),
 		ShowContext:        envBool("SHOW_CONTEXT", false),
 		PersistRuns:        envBool("PERSIST_RUNS", false),
+		PersistRunsDetail:  envString("PERSIST_RUNS_DETAIL", DefaultPersistRunsDetail),
+		PersistRunsToolCap: envInt("PERSIST_RUNS_TOOL_CAP", DefaultPersistRunsToolCap),
 		RunHistoryDir:      envString("RUN_HISTORY_DIR", ""),
 		RunMaxBytes:        envInt64("RUN_MAX_BYTES", DefaultRunMaxBytes),
 		ReplayFile:         envString("REPLAY", ""),
@@ -201,6 +203,8 @@ func BindFlags(fs *flag.FlagSet) {
 	fs.Bool("show-vars", envBool("SHOW_VARS", false), "print extracted turn variables as timeline events in pretty mode (LEATHER_SHOW_VARS)")
 	fs.Bool("show-context", envBool("SHOW_CONTEXT", false), "print the exact message window and tool exposure before each LLM call (LEATHER_SHOW_CONTEXT)")
 	fs.Bool("persist-runs", envBool("PERSIST_RUNS", false), "persist run records to JSONL files (LEATHER_PERSIST_RUNS)")
+	fs.String("persist-runs-detail", envString("PERSIST_RUNS_DETAIL", DefaultPersistRunsDetail), "run record detail level: none or tools (LEATHER_PERSIST_RUNS_DETAIL)")
+	fs.Int("persist-runs-tool-cap", envInt("PERSIST_RUNS_TOOL_CAP", DefaultPersistRunsToolCap), "per-field byte cap for persisted tool trace args/content (LEATHER_PERSIST_RUNS_TOOL_CAP)")
 	fs.String("run-history-dir", envString("RUN_HISTORY_DIR", ""), "directory for per-agent JSONL run logs; default <state-dir>/runs (LEATHER_RUN_HISTORY_DIR)")
 	fs.Int64("run-max-bytes", envInt64("RUN_MAX_BYTES", DefaultRunMaxBytes), "rotate run log at this size in bytes (LEATHER_RUN_MAX_BYTES)")
 	fs.String("replay", envString("REPLAY", ""), "start in replay mode: path to a snapshot JSON file (LEATHER_REPLAY)")
@@ -355,6 +359,14 @@ func applyYAML(r io.Reader, cfg *model.Config) error {
 			cfg.PersistRuns = b
 		}
 	}
+	if v, ok := strVal("persist_runs_detail"); ok {
+		cfg.PersistRunsDetail = v
+	}
+	if v, ok := strVal("persist_runs_tool_cap"); ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.PersistRunsToolCap = n
+		}
+	}
 	if v, ok := strVal("run_history_dir"); ok {
 		cfg.RunHistoryDir = v
 	}
@@ -483,6 +495,12 @@ func applyFlag(f *flag.Flag, cfg *model.Config) {
 	case "persist-runs":
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.PersistRuns = b
+		}
+	case "persist-runs-detail":
+		cfg.PersistRunsDetail = v
+	case "persist-runs-tool-cap":
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.PersistRunsToolCap = n
 		}
 	case "run-history-dir":
 		cfg.RunHistoryDir = v

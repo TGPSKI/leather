@@ -77,6 +77,8 @@ max_concurrent_jobs: 2     # max simultaneous agent calls
 api: true
 api_addr: 127.0.0.1:7749
 persist_runs: true         # write run history JSONL to state_dir/runs/
+persist_runs_detail: none  # none | tools — "tools" adds per-call name/args/content/error/duration to each turn's tool_calls
+persist_runs_tool_cap: 2048 # per-field byte cap (args/content) when persist_runs_detail: tools
 
 # --- Optional: notification backends ---
 notify:

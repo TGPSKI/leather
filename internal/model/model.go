@@ -576,6 +576,17 @@ type Config struct {
 	// expressed as "N/s", "N/m", or "N/h". An empty map means no limits.
 	// Populated from the tools.rate_limits block in config.yaml.
 	ToolRateLimits map[string]string
+	// PersistRunsDetail selects how much tool-execution detail is captured in
+	// persisted RunRecords when PersistRuns is enabled. "none" (default) keeps
+	// legacy behavior — Turn.ToolCalls stays empty and the JSONL output is
+	// byte-identical to records written before ToolTrace existed. "tools"
+	// populates Turn.ToolCalls with a redacted, capped trace of every tool
+	// invocation (name, args, result content, error, duration, replay status).
+	PersistRunsDetail string
+	// PersistRunsToolCap is the maximum number of bytes retained per ToolTrace
+	// Args/Content field before truncation (with a "…[capped]" suffix).
+	// Only meaningful when PersistRunsDetail == "tools". Defaults to 2048.
+	PersistRunsToolCap int
 }
 
 // SessionContext is a point-in-time snapshot of a session's conversation window.
@@ -587,6 +598,27 @@ type SessionContext struct {
 	UsedTokens int
 	// Metadata holds arbitrary key-value labels for this snapshot (e.g. agent name, job ID).
 	Metadata map[string]string
+}
+
+// ToolTrace records one tool invocation within a turn. Populated only when
+// Config.PersistRunsDetail == "tools"; otherwise Turn.ToolCalls stays nil and
+// the JSON field is omitted entirely, keeping legacy records byte-identical.
+type ToolTrace struct {
+	// Name is the tool name as declared in its *.skill.yaml / *.toolset.yaml definition.
+	Name string `json:"name"`
+	// Args is the canonical JSON encoding of the call arguments, secret-redacted
+	// and capped to Config.PersistRunsToolCap bytes.
+	Args string `json:"args,omitempty"`
+	// Content is the result content delivered to the model (post hide-cut for
+	// buffered tools), capped to Config.PersistRunsToolCap bytes.
+	Content string `json:"content,omitempty"`
+	// Error holds the tool's error text, if the call failed.
+	Error string `json:"error,omitempty"`
+	// Replayed is true when this call was skipped because an identical call
+	// already completed successfully earlier in the run (see runner dedupe).
+	Replayed bool `json:"replayed,omitempty"`
+	// DurationMs is the wall-clock duration of the tool execution in milliseconds.
+	DurationMs int64 `json:"duration_ms,omitempty"`
 }
 
 // Turn is a single prompt/response exchange within an agent execution.
@@ -601,6 +633,12 @@ type Turn struct {
 	CompletionTokens int `json:"completion_tokens,omitempty"`
 	// TotalTokens is PromptTokens + CompletionTokens for this turn.
 	TotalTokens int `json:"total_tokens,omitempty"`
+	// ToolCalls holds the structured trace of tool invocations that occurred
+	// while producing this turn's response. Only populated when
+	// Config.PersistRunsDetail == "tools"; nil (and omitted from JSON)
+	// otherwise, so `persist_runs_detail: none` output is byte-identical to
+	// records written before ToolTrace existed.
+	ToolCalls []ToolTrace `json:"tool_calls,omitempty"`
 }
 
 // RunTokens holds the token usage breakdown for a single agent execution.

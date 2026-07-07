@@ -1312,15 +1312,17 @@ func registerAgentJob(deps agentRegDeps, a model.Agent) error {
 	}
 	budget := resolveTokenBudget(deps.cfg, agentCopy)
 	agentRunner := &runner.Runner{
-		Client:        session.NewHTTPClient(deps.cfg.LLMEndpoint, deps.cfg.LLMAPIKey, deps.cfg.LLMTimeout),
-		Registry:      deps.toolReg,
-		Log:           deps.log,
-		MaxToolRounds: deps.cfg.MaxToolRounds,
-		Cache:         deps.agentCache,
-		QueueMgr:      deps.queueMgr,
-		Notifiers:     deps.notifiers,
-		MCPRegistry:   deps.mcpReg,
-		ToolLimiter:   deps.toolLimiter,
+		Client:             session.NewHTTPClient(deps.cfg.LLMEndpoint, deps.cfg.LLMAPIKey, deps.cfg.LLMTimeout),
+		Registry:           deps.toolReg,
+		Log:                deps.log,
+		MaxToolRounds:      deps.cfg.MaxToolRounds,
+		Cache:              deps.agentCache,
+		QueueMgr:           deps.queueMgr,
+		Notifiers:          deps.notifiers,
+		MCPRegistry:        deps.mcpReg,
+		ToolLimiter:        deps.toolLimiter,
+		PersistRunsDetail:  deps.cfg.PersistRunsDetail,
+		PersistRunsToolCap: deps.cfg.PersistRunsToolCap,
 	}
 	deps.metrics.registerAgent(agentCopy)
 	// Curing-driven agents have no schedule or queue input; the curing worker wakes
