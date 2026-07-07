@@ -697,6 +697,12 @@ func TestExecute_MCPToolErrorNotRetried(t *testing.T) {
 	if result.Error == "" {
 		t.Fatal("expected result.Error to be non-empty for a tool-reported failure")
 	}
+	if strings.Contains(result.Error, "tool/execMCP") {
+		t.Fatalf("result.Error = %q, want clean MCP ToolError text without executor wrapper", result.Error)
+	}
+	if want := "error: deploy_bans: command failed"; result.Error != want {
+		t.Fatalf("result.Error = %q, want %q", result.Error, want)
+	}
 
 	counted, err := os.ReadFile(counterFile)
 	if err != nil {
