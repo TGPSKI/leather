@@ -1,7 +1,10 @@
 package runner
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -15,12 +18,99 @@ import (
 
 	"github.com/TGPSKI/leather/internal/hide"
 	"github.com/TGPSKI/leather/internal/logging"
+	"github.com/TGPSKI/leather/internal/mcp"
 	"github.com/TGPSKI/leather/internal/model"
 	"github.com/TGPSKI/leather/internal/notify"
 	"github.com/TGPSKI/leather/internal/queue"
 	"github.com/TGPSKI/leather/internal/session"
 	"github.com/TGPSKI/leather/internal/tool"
 )
+
+// TestMain allows this test binary to be re-invoked as a fake MCP server that
+// always reports a tool failure via isError: true — simulating a shell
+// command that exits nonzero. Used by TestRunner_FailedMCPCallDoesNotBlockRetry
+// to pin the 2026-07-06 incident (see that test's doc comment).
+func TestMain(m *testing.M) {
+	if os.Getenv("LEATHER_RUNNER_TEST_FAILING_MCP_SERVER") == "1" {
+		runFakeFailingMCPServer(os.Stdin, os.Stdout)
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+
+// runFakeFailingMCPServer implements just enough of MCP (initialize,
+// tools/list, tools/call) to drive a Runner end-to-end. Every tools/call
+// response reports isError: true, mirroring shell-mcp's behavior for a
+// command that exits nonzero (plan 03). Each call also appends a byte to
+// LEATHER_RUNNER_TEST_COUNTER_FILE so the test can assert exactly how many
+// times the tool actually executed (as opposed to being deduped).
+func runFakeFailingMCPServer(r io.Reader, w io.Writer) {
+	dec := json.NewDecoder(bufio.NewReader(r))
+	enc := json.NewEncoder(w)
+	counterFile := os.Getenv("LEATHER_RUNNER_TEST_COUNTER_FILE")
+	for {
+		var req map[string]json.RawMessage
+		if err := dec.Decode(&req); err != nil {
+			return
+		}
+		method := strings.Trim(string(req["method"]), `"`)
+		var id int64
+		if idRaw, ok := req["id"]; ok {
+			_ = json.Unmarshal(idRaw, &id)
+		}
+		switch method {
+		case "initialize":
+			_ = enc.Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      id,
+				"result": map[string]any{
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]any{"tools": map[string]any{}},
+					"serverInfo":      map[string]any{"name": "fake-failing-mcp", "version": "0.1"},
+				},
+			})
+		case "notifications/initialized":
+			// no response
+		case "tools/list":
+			_ = enc.Encode(map[string]any{
+				"jsonrpc": "2.0", "id": id,
+				"result": map[string]any{"tools": []any{}},
+			})
+		case "tools/call":
+			var params struct {
+				Name string `json:"name"`
+			}
+			_ = json.Unmarshal(req["params"], &params)
+			if counterFile != "" {
+				if f, ferr := os.OpenFile(counterFile, os.O_APPEND|os.O_WRONLY, 0600); ferr == nil {
+					_, _ = f.WriteString("x")
+					_ = f.Close()
+				}
+			}
+			_ = enc.Encode(map[string]any{
+				"jsonrpc": "2.0", "id": id,
+				"result": map[string]any{
+					"content": []any{
+						map[string]any{"type": "text", "text": "error: " + params.Name + ": command failed"},
+					},
+					"isError": true,
+				},
+			})
+		}
+	}
+}
+
+// fakeFailingMCPServerConfig re-invokes the current test binary as the fake
+// failing MCP server defined above, wired to append to counterFile on every
+// simulated tool execution.
+func fakeFailingMCPServerConfig(name, counterFile string) model.MCPServerConfig {
+	return model.MCPServerConfig{
+		Name: name,
+		Command: "env LEATHER_RUNNER_TEST_FAILING_MCP_SERVER=1 LEATHER_RUNNER_TEST_COUNTER_FILE=" +
+			counterFile + " " + os.Args[0] + " -test.run=^$",
+		Transport: "stdio",
+	}
+}
 
 // testLogger returns a no-op logger suitable for tests.
 func testLogger(t *testing.T) *logging.Logger {
@@ -653,6 +743,95 @@ func TestRunner_DuplicateToolCallSkipsReExecution(t *testing.T) {
 	}
 	if hits != 1 {
 		t.Errorf("HTTP tool hits = %d, want 1 (second call should be deduped, not re-executed)", hits)
+	}
+}
+
+// TestRunner_FailedMCPCallDoesNotBlockRetry pins the exact production failure
+// observed on 2026-07-06: a failed shell-tool exec ("error: ..." text with no
+// isError signal) was treated as a successful call by the runner's dedupe
+// map, which then silently blocked a legitimate retry of the same call —
+// dropping an IP-ban deployment for 6+ hours. With plan 03's error
+// propagation in place (shell-mcp sets isError; the mcp client returns a
+// typed *mcp.ToolError; the executor surfaces it as ToolResult.Error), the
+// runner's existing dedupe-insert guard (`result.Error == "" && dedupeKey !=
+// ""`) never populates completedToolCalls for a failing call — so a second,
+// identical call to the failing tool is executed again rather than silently
+// skipped.
+func TestRunner_FailedMCPCallDoesNotBlockRetry(t *testing.T) {
+	counterFile := filepath.Join(t.TempDir(), "call-counter")
+	if err := os.WriteFile(counterFile, nil, 0600); err != nil {
+		t.Fatalf("create counter file: %v", err)
+	}
+
+	cfg := fakeFailingMCPServerConfig("shell", counterFile)
+	mcpReg := mcp.NewRegistry([]model.MCPServerConfig{cfg}, nil)
+	ctx := context.Background()
+	if err := mcpReg.StartAll(ctx); err != nil {
+		t.Fatalf("StartAll: %v", err)
+	}
+	defer mcpReg.StopAll()
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name: "ban-skill",
+		Tools: []model.ToolDefinition{{
+			Name: "deploy_bans",
+			Type: "mcp",
+			MCP:  model.MCPToolConfig{Server: "shell", Tool: "deploy_bans"},
+		}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	// The model calls the zero-arg deploy_bans tool, sees a failure, and
+	// (as happened in production) calls it again identically.
+	sameCall := model.ToolCall{ID: "call-1", Name: "deploy_bans", Arguments: map[string]any{}}
+	mock := session.NewMockLLM(session.MockConfig{
+		Response: "done",
+		ToolCallSequence: [][]model.ToolCall{
+			{sameCall},
+			{sameCall},
+		},
+	})
+
+	var logBuf bytes.Buffer
+	log := logging.NewWithWriter("test", model.LogLevelInfo, &logBuf, false)
+
+	r := &Runner{
+		Client:        mock,
+		Registry:      reg,
+		MCPRegistry:   mcpReg,
+		Log:           log,
+		MaxToolRounds: 5,
+	}
+	a := testAgent("ban-deploy-agent")
+	a.Skills = []string{"ban-skill"}
+	a.UserPrompt = "deploy the bans"
+
+	rec, err := r.Run(ctx, a, testBudget())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Errorf("status = %q, want success", rec.Status)
+	}
+
+	logOut := logBuf.String()
+	if strings.Contains(logOut, "skipping duplicate") {
+		t.Errorf("log contains a duplicate-skip line; the second call should have executed:\n%s", logOut)
+	}
+
+	// The fake server marks the counter file once per actual invocation. Two
+	// marks means the dedupe map never blocked the second, identical call —
+	// the exact behavior the 2026-07-06 incident violated (only one mark
+	// would appear, and the second call would have returned the canned
+	// "already completed successfully" text instead of executing).
+	counted, err := os.ReadFile(counterFile)
+	if err != nil {
+		t.Fatalf("read counter file: %v", err)
+	}
+	if got := len(counted); got != 2 {
+		t.Errorf("tool executed %d times, want 2 (dedupe map incorrectly blocked a failing call's retry)", got)
 	}
 }
 

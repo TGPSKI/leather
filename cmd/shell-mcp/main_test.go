@@ -349,6 +349,101 @@ func TestExampleShellToolsJSON_PatternsCompileAndAreDeclared(t *testing.T) {
 	}
 }
 
+// --- handleCall: isError wire format ---
+
+// TestHandleCallSetsIsErrorOnFailure verifies that a failing command sets
+// isError: true in the MCP response, with the error: prefix preserved in the
+// text content. Regression coverage for the 2026-07-06 incident: a failed
+// exec that only surfaced as "error: ..." text (no isError) was treated as a
+// successful call further up the stack.
+func TestHandleCallSetsIsErrorOnFailure(t *testing.T) {
+	tools := []toolDef{
+		{Name: "fail_tool", Command: "false"},
+	}
+	s := newTestServer(tools, 0)
+	id := int64(10)
+	resp := s.dispatch(rpcRequest{
+		JSONRPC: "2.0", ID: &id, Method: "tools/call",
+		Params: mustJSON(t, map[string]any{"name": "fail_tool", "arguments": map[string]any{}}),
+	})
+	if resp.Error != nil {
+		t.Fatalf("unexpected JSON-RPC error: %v", resp.Error.Message)
+	}
+	b, _ := json.Marshal(resp.Result)
+	var result map[string]any
+	if err := json.Unmarshal(b, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	isErr, ok := result["isError"].(bool)
+	if !ok || !isErr {
+		t.Fatalf("expected isError: true, got result: %s", b)
+	}
+	content := result["content"].([]any)
+	text := content[0].(map[string]any)["text"].(string)
+	if !strings.HasPrefix(text, "error: ") {
+		t.Errorf("text = %q, want error: prefix", text)
+	}
+}
+
+// TestHandleCallSetsIsErrorOnStderrExit verifies a command that exits
+// nonzero with stderr output also gets isError: true and the exit-code text.
+func TestHandleCallSetsIsErrorOnStderrExit(t *testing.T) {
+	tools := []toolDef{
+		{Name: "stderr_tool", Command: "sh", Args: []string{"-c", "echo boom >&2; exit 2"}},
+	}
+	s := newTestServer(tools, 0)
+	id := int64(11)
+	resp := s.dispatch(rpcRequest{
+		JSONRPC: "2.0", ID: &id, Method: "tools/call",
+		Params: mustJSON(t, map[string]any{"name": "stderr_tool", "arguments": map[string]any{}}),
+	})
+	b, _ := json.Marshal(resp.Result)
+	var result map[string]any
+	if err := json.Unmarshal(b, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if isErr, ok := result["isError"].(bool); !ok || !isErr {
+		t.Fatalf("expected isError: true, got result: %s", b)
+	}
+	content := result["content"].([]any)
+	text := content[0].(map[string]any)["text"].(string)
+	if !strings.Contains(text, "error: exit 2:") || !strings.Contains(text, "boom") {
+		t.Errorf("text = %q, want error: exit 2: ... boom", text)
+	}
+}
+
+// TestHandleCallNoIsErrorOnSuccess verifies a successful call carries no
+// isError key at all (not even isError: false), preserving byte-identical
+// behavior for clients that only check for the key's presence.
+func TestHandleCallNoIsErrorOnSuccess(t *testing.T) {
+	tools := []toolDef{
+		{Name: "ok_tool", Command: "echo", Args: []string{"hi"}},
+	}
+	s := newTestServer(tools, 0)
+	id := int64(12)
+	resp := s.dispatch(rpcRequest{
+		JSONRPC: "2.0", ID: &id, Method: "tools/call",
+		Params: mustJSON(t, map[string]any{"name": "ok_tool", "arguments": map[string]any{}}),
+	})
+	b, _ := json.Marshal(resp.Result)
+	var result map[string]any
+	if err := json.Unmarshal(b, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if _, present := result["isError"]; present {
+		t.Errorf("isError key present on success: %s", b)
+	}
+}
+
+func mustJSON(t *testing.T, v any) json.RawMessage {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return b
+}
+
 // --- resolveConfigPath: positional arg ---
 
 func TestResolveConfigPathArg(t *testing.T) {

@@ -378,6 +378,31 @@ commands — use `bash -c` with positional args instead:
 Tool names use `kebab-case`. Match the `name` here to the `name` in your
 `*.skill.yaml` tool list.
 
+### Error contract
+
+When a tool's command exits nonzero, `shell-mcp` reports the failure as an
+MCP tool error, not a plain-text success: the response sets `isError: true`
+and its text content is `error: <exit code and stderr>`. leather's MCP client
+parses `isError` and returns a typed `*mcp.ToolError` from `Call`, which the
+executor surfaces as a `ToolResult.Error` — the model sees a real tool-error
+result, not narrative text it has to notice on its own.
+
+A tool error is treated as **deterministic**: the command ran and failed, so
+the executor does not retry it (retrying would burn attempts and delay
+surfacing the failure to the model, which is the layer that should decide
+what to do next — retry with different arguments, try another tool, or
+report the failure up). It is also never written into the per-run dedupe
+cache (see [§7](#7-dedupe-policy---repeat-calls) below) — only genuinely
+successful calls are eligible for dedupe/replay, so a failed call's retry is
+never silently swallowed.
+
+This is additive on the wire: MCP servers that never set `isError` are
+unaffected, and skill prompts that already key off an `error:` text prefix
+continue to work unchanged.
+
+See [Dedupe policy](#dedupe-policy) in the Skills section for how successful
+calls are cached and replayed within a run.
+
 ---
 
 ## 6. MCP servers — `mcp-servers.yaml`
