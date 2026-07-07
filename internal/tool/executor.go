@@ -239,7 +239,7 @@ func (e *Executor) execMCPWithRetry(ctx context.Context, def model.ToolDefinitio
 		// backoff, no DLQ enqueue (the call delivered; only the tool failed).
 		var te *mcp.ToolError
 		if errors.As(lastErr, &te) {
-			return "", lastErr
+			return "", te
 		}
 
 		if attempt >= maxAttempts {
