@@ -141,13 +141,15 @@ func RunOnce(args []string, stdout, stderr io.Writer) int {
 	}
 
 	r := &runner.Runner{
-		Client:        session.NewHTTPClient(cfg.LLMEndpoint, cfg.LLMAPIKey, cfg.LLMTimeout),
-		Registry:      toolReg,
-		MCPRegistry:   mcpReg,
-		Log:           log,
-		MaxToolRounds: cfg.MaxToolRounds,
-		Notifiers:     notifiers,
-		ToolLimiter:   toolLimiter,
+		Client:             session.NewHTTPClient(cfg.LLMEndpoint, cfg.LLMAPIKey, cfg.LLMTimeout),
+		Registry:           toolReg,
+		MCPRegistry:        mcpReg,
+		Log:                log,
+		MaxToolRounds:      cfg.MaxToolRounds,
+		Notifiers:          notifiers,
+		ToolLimiter:        toolLimiter,
+		PersistRunsDetail:  cfg.PersistRunsDetail,
+		PersistRunsToolCap: cfg.PersistRunsToolCap,
 	}
 
 	// Cancel the run context on SIGINT/SIGTERM/SIGHUP so in-flight LLM calls

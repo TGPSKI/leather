@@ -24,6 +24,7 @@ import (
 	"github.com/TGPSKI/leather/internal/model"
 	"github.com/TGPSKI/leather/internal/notify"
 	"github.com/TGPSKI/leather/internal/queue"
+	"github.com/TGPSKI/leather/internal/secret"
 	"github.com/TGPSKI/leather/internal/session"
 	"github.com/TGPSKI/leather/internal/tool"
 )
@@ -98,6 +99,31 @@ type Runner struct {
 	// leather run when skills declare parameters.
 	Vars      map[string]string
 	hidePages map[string]int
+	// PersistRunsDetail selects how much tool-execution detail is captured
+	// into Turn.ToolCalls. "tools" populates traces; anything else (including
+	// the empty string / "none") leaves Turn.ToolCalls nil, matching legacy
+	// output byte-for-byte. Sourced from Config.PersistRunsDetail.
+	PersistRunsDetail string
+	// PersistRunsToolCap is the per-field byte cap applied to ToolTrace
+	// Args/Content when PersistRunsDetail == "tools". Defaults to 2048 when <= 0.
+	PersistRunsToolCap int
+}
+
+// toolTraceCap returns the effective per-field byte cap for tool traces.
+func (r *Runner) toolTraceCap() int {
+	if r.PersistRunsToolCap > 0 {
+		return r.PersistRunsToolCap
+	}
+	return 2048
+}
+
+// capToolField truncates s to at most n bytes, appending a "…[capped]"
+// marker when truncation occurs. n <= 0 disables capping.
+func capToolField(s string, n int) string {
+	if n <= 0 || len(s) <= n {
+		return s
+	}
+	return s[:n] + "…[capped]"
 }
 
 // ContextSnapshot is a point-in-time view of the exact input sent to one LLM
@@ -378,6 +404,12 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 		// only the last round's text.
 		var answerParts []string
 
+		// toolTraces accumulates a structured record of every tool call made
+		// while producing this user prompt's response (across all rounds), and
+		// is attached to the Turn once a text response closes the round loop.
+		// Only populated when PersistRunsDetail == "tools" (see appendToolTrace).
+		var toolTraces []model.ToolTrace
+
 		for round := 0; round < rounds; round++ {
 			reflectionTextTurn := r.ForceTextAfterHide && len(opts.Tools) == 0
 			// The run-level deadline (set at function entry) bounds this call.
@@ -483,6 +515,7 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 						PromptTokens:     resp.PromptTokens,
 						CompletionTokens: resp.CompletionTokens,
 						TotalTokens:      resp.TotalTokens,
+						ToolCalls:        toolTraces,
 					})
 				}
 				// Add the assistant response to session so subsequent prompts see it.
@@ -561,6 +594,8 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 				if effectiveMax == 0 {
 					effectiveMax = 1
 				}
+				replayed := false
+				execStart := time.Now()
 				switch {
 				case dedupeKey != "" && effectiveMax > 0 && toolCallCounts[dedupeKey] >= effectiveMax:
 					r.Log.Info("replaying duplicate tool call result",
@@ -569,6 +604,7 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 					result = model.ToolResult{
 						Content: fmt.Sprintf("[replay: identical call completed earlier this run; result repeated below]\n%s", cached.Content),
 					}
+					replayed = true
 				case def.Type == "hide":
 					result = r.executeHideTool(def.Name, tc.ID, tc.Arguments)
 					if result.Error == "" {
@@ -581,6 +617,7 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 						toolCallCounts[dedupeKey]++
 					}
 				}
+				execDuration := time.Since(execStart)
 				if result.Error == "" && def.Buffer {
 					if r.HideBuffer == nil {
 						result.Error = fmt.Sprintf("tool %s requested buffering but no hide buffer is configured", tc.Name)
@@ -633,6 +670,27 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 					content = "error: " + result.Error
 				} else {
 					r.recordHidePages(content)
+				}
+				if r.PersistRunsDetail == "tools" {
+					fieldCap := r.toolTraceCap()
+					trace := model.ToolTrace{
+						Name:       tc.Name,
+						Error:      result.Error,
+						Replayed:   replayed,
+						DurationMs: execDuration.Milliseconds(),
+					}
+					if argErr == nil {
+						trace.Args = capToolField(secret.RedactJSON(argBytes), fieldCap)
+					}
+					// Hide-type tools intentionally never persist content: the
+					// buffer's raw pages are not run-record material, and the
+					// paged cut delivered to the model is navigation, not a result.
+					if def.Type != "hide" && result.Error == "" {
+						// Buffered tools: result.Content here is already the
+						// model-visible cut (set above), not the raw stored blob.
+						trace.Content = capToolField(result.Content, fieldCap)
+					}
+					toolTraces = append(toolTraces, trace)
 				}
 				if err := sess.Add(ctx, model.Message{
 					Role:       "tool",

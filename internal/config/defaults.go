@@ -25,4 +25,6 @@ const (
 	DefaultRunMaxBytes        int64   = 10 * 1024 * 1024 // 10 MB
 	DefaultReplaySpeed        float64 = 1.0
 	DefaultMaxToolRounds              = 5
+	DefaultPersistRunsDetail          = "none"
+	DefaultPersistRunsToolCap         = 2048
 )

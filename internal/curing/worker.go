@@ -77,6 +77,13 @@ type RunnerDeps struct {
 	QueueMgr      *queue.Manager
 	Notifiers     map[string]notify.Notifier
 	MCPReg        *mcp.Registry
+	// PersistRunsDetail selects how much tool-execution detail is captured
+	// into persisted RunRecords ("none" or "tools"). Forwarded to each
+	// runner.Runner built from these deps.
+	PersistRunsDetail string
+	// PersistRunsToolCap is the per-field byte cap for tool trace Args/Content
+	// when PersistRunsDetail == "tools".
+	PersistRunsToolCap int
 	// Budget is the base token budget derived from the global config.
 	// Per-agent MaxTokens overrides are applied at process time.
 	Budget model.TokenBudget
@@ -1091,17 +1098,19 @@ func (w *Worker) process(ctx context.Context, item model.QueueItem) error {
 // Never share Runner instances across goroutines or calls.
 func (w *Worker) buildRunner(buf *hide.HideBuffer) runner.Runner {
 	return runner.Runner{
-		Client:         w.deps.Client,
-		Registry:       w.deps.ToolReg,
-		Log:            w.deps.Log,
-		MaxToolRounds:  w.deps.MaxToolRounds,
-		Cache:          w.deps.Cache,
-		QueueMgr:       w.deps.QueueMgr,
-		Notifiers:      w.deps.Notifiers,
-		MCPRegistry:    w.deps.MCPReg,
-		HideBuffer:     buf,
-		ProgressFn:     w.deps.ProgressFn,
-		DebugContextFn: w.deps.DebugContextFn,
+		Client:             w.deps.Client,
+		Registry:           w.deps.ToolReg,
+		Log:                w.deps.Log,
+		MaxToolRounds:      w.deps.MaxToolRounds,
+		Cache:              w.deps.Cache,
+		QueueMgr:           w.deps.QueueMgr,
+		Notifiers:          w.deps.Notifiers,
+		MCPRegistry:        w.deps.MCPReg,
+		HideBuffer:         buf,
+		PersistRunsDetail:  w.deps.PersistRunsDetail,
+		PersistRunsToolCap: w.deps.PersistRunsToolCap,
+		ProgressFn:         w.deps.ProgressFn,
+		DebugContextFn:     w.deps.DebugContextFn,
 	}
 }
 

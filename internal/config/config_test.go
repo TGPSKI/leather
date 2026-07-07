@@ -123,6 +123,47 @@ func TestLoad_ReasoningReserveYAML(t *testing.T) {
 	}
 }
 
+func TestLoad_PersistRunsDetailDefaults(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	BindFlags(fs)
+	cfg, err := Load(fs)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.PersistRunsDetail != "none" {
+		t.Errorf("PersistRunsDetail = %q, want default \"none\"", cfg.PersistRunsDetail)
+	}
+	if cfg.PersistRunsToolCap != 2048 {
+		t.Errorf("PersistRunsToolCap = %d, want default 2048", cfg.PersistRunsToolCap)
+	}
+}
+
+func TestLoad_PersistRunsDetailYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := dir + "/config.yaml"
+	content := "persist_runs_detail: tools\npersist_runs_tool_cap: 512\n"
+	if err := os.WriteFile(cfgFile, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("LEATHER_CONFIG", cfgFile)
+	t.Setenv("LEATHER_PERSIST_RUNS_DETAIL", "")
+	t.Setenv("LEATHER_PERSIST_RUNS_TOOL_CAP", "")
+
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	BindFlags(fs)
+	cfg, err := Load(fs)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.PersistRunsDetail != "tools" {
+		t.Errorf("PersistRunsDetail = %q, want tools", cfg.PersistRunsDetail)
+	}
+	if cfg.PersistRunsToolCap != 512 {
+		t.Errorf("PersistRunsToolCap = %d, want 512", cfg.PersistRunsToolCap)
+	}
+}
+
 func TestLoad_EnvShowContextOverridesYAML(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := filepath.Join(dir, "config.yaml")
