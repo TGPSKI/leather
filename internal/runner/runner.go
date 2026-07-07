@@ -16,6 +16,7 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"unicode/utf8"
 
 	"github.com/TGPSKI/leather/internal/cache"
 	"github.com/TGPSKI/leather/internal/hide"
@@ -117,13 +118,26 @@ func (r *Runner) toolTraceCap() int {
 	return 2048
 }
 
-// capToolField truncates s to at most n bytes, appending a "…[capped]"
+// capToolField truncates s at a valid UTF-8 boundary, appending a "…[capped]"
 // marker when truncation occurs. n <= 0 disables capping.
 func capToolField(s string, n int) string {
 	if n <= 0 || len(s) <= n {
 		return s
 	}
+	for !utf8.ValidString(s[:n]) {
+		_, size := utf8.DecodeLastRuneInString(s[:n])
+		if size == 0 {
+			n--
+			continue
+		}
+		n -= size
+	}
 	return s[:n] + "…[capped]"
+}
+
+type completedToolCall struct {
+	result model.ToolResult
+	count  int
 }
 
 // ContextSnapshot is a point-in-time view of the exact input sent to one LLM
@@ -326,12 +340,7 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 	// replay) rather than a synthetic "already completed" assertion, so the
 	// model works from real observed data instead of narrating success it
 	// never verified.
-	completedToolCalls := make(map[string]model.ToolResult)
-	// toolCallCounts tracks how many times each dedupe key has *successfully*
-	// executed this run. Compared against the tool's MaxRepeats policy to
-	// decide whether the next identical call executes again or replays the
-	// cached result.
-	toolCallCounts := make(map[string]int)
+	completedToolCalls := make(map[string]completedToolCall)
 
 	for i, userPrompt := range userPrompts {
 		// Apply turn-level vars (may include values extracted from previous tool calls).
@@ -597,10 +606,10 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 				replayed := false
 				execStart := time.Now()
 				switch {
-				case dedupeKey != "" && effectiveMax > 0 && toolCallCounts[dedupeKey] >= effectiveMax:
-					r.Log.Info("replaying duplicate tool call result",
-						"agent", a.Name, "tool", tc.Name, "count", toolCallCounts[dedupeKey])
-					cached := completedToolCalls[dedupeKey]
+				case dedupeKey != "" && effectiveMax > 0 && completedToolCalls[dedupeKey].count >= effectiveMax:
+					r.Log.Warn("replaying duplicate tool call result",
+						"agent", a.Name, "tool", tc.Name, "count", completedToolCalls[dedupeKey].count)
+					cached := completedToolCalls[dedupeKey].result
 					result = model.ToolResult{
 						Content: fmt.Sprintf("[replay: identical call completed earlier this run; result repeated below]\n%s", cached.Content),
 					}
@@ -612,13 +621,9 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 					}
 				default:
 					result = (&tool.Executor{MCP: r.MCPRegistry, QueueMgr: r.QueueMgr, AgentName: a.Name, Limiter: r.ToolLimiter}).Execute(ctx, def, tc.Arguments)
-					if result.Error == "" && dedupeKey != "" {
-						completedToolCalls[dedupeKey] = result
-						toolCallCounts[dedupeKey]++
-					}
 				}
 				execDuration := time.Since(execStart)
-				if result.Error == "" && def.Buffer {
+				if result.Error == "" && def.Buffer && !replayed {
 					if r.HideBuffer == nil {
 						result.Error = fmt.Sprintf("tool %s requested buffering but no hide buffer is configured", tc.Name)
 					} else {
@@ -646,6 +651,12 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 							}
 						}
 					}
+				}
+				if result.Error == "" && dedupeKey != "" && !replayed {
+					completed := completedToolCalls[dedupeKey]
+					completed.result = result
+					completed.count++
+					completedToolCalls[dedupeKey] = completed
 				}
 				if result.Error != "" {
 					r.Log.Error("tool execution failed", "agent", a.Name, "tool", tc.Name, "error", result.Error)
