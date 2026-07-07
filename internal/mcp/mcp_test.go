@@ -302,6 +302,12 @@ func TestExtractResult(t *testing.T) {
 			wantIsErr: true,
 		},
 		{
+			name:      "isError true with empty content preserves error",
+			raw:       `{"content":[],"isError":true}`,
+			want:      `{"content":[],"isError":true}`,
+			wantIsErr: true,
+		},
+		{
 			name: "isError absent is legacy behavior",
 			raw:  `{"content":[{"type":"text","text":"hello"}]}`,
 			want: "hello",
