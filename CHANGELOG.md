@@ -7,6 +7,41 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Failed MCP tool calls were silently treated as successes** — `cmd/shell-mcp`
+  returned execution failures as ordinary `error: ...` text with no `isError`
+  flag, so `internal/mcp` couldn't distinguish a failed call from a real
+  result. The failure survived three layers as plain text and reached the
+  runner's dedupe map as a success, permanently blocking retries of a call
+  that never actually happened — the root cause of a production incident
+  where IP ban deployments were silently dropped for 6+ hours. `shell-mcp`
+  now sets `isError: true` on execution failure; `internal/mcp.Call` returns
+  a typed `*ToolError`; the executor stops retrying deterministic tool
+  errors instead of burning its retry budget; and the runner's dedupe map is
+  never populated by a failed call.
+- **Duplicate tool calls asserted unverifiable success** — the dedupe map
+  stored only a boolean, so a repeated identical call was answered with
+  "already completed successfully earlier in this run" and no result
+  content, letting the model narrate success it never observed. Duplicate
+  calls now replay the cached `model.ToolResult` with a
+  `[replay: identical call completed earlier this run; result repeated
+  below]` prefix. Zero-argument write tools could also never re-run within
+  a run regardless of intervening world-state changes; `ToolDefinition`
+  gains a per-tool `max_repeats` (skill yaml), with `-1` disabling dedupe
+  entirely.
+
+### Added
+
+- **Structured tool-call traces in run records** — `.state/runs/*.jsonl`
+  previously recorded only turn-level text, making tool-call forensics
+  (exact argv, result content, error, timing) unrecoverable without source
+  archaeology. `Turn` gains an opt-in `tool_calls` field (`ToolTrace`: name,
+  redacted args, capped content, error, replay flag, duration) controlled by
+  new `persist_runs_detail: none|tools` config (default `none`, byte-identical
+  legacy output) and `persist_runs_tool_cap` (default 2048 bytes/field). Args
+  are redacted via `internal/secret` before persisting.
+
 ## [0.4.1] — 2026-07-05
 
 ### Fixed
