@@ -957,7 +957,7 @@ func TestRunner_MaxRepeatsAllowsConfiguredExecutions(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hits++
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(fmt.Sprintf("deployed batch %d", hits)))
+		_, _ = fmt.Fprintf(w, "deployed batch %d", hits)
 	}))
 	defer srv.Close()
 
