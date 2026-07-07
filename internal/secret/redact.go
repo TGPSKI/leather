@@ -31,7 +31,7 @@ func RedactJSON(raw []byte) string {
 }
 
 func redactValue(key string, value any) any {
-	if isSensitiveKey(key) {
+	if IsSensitiveKey(key) {
 		return "[REDACTED]"
 	}
 	switch typed := value.(type) {
@@ -54,11 +54,10 @@ func redactValue(key string, value any) any {
 	}
 }
 
-// isSensitiveKey reports whether key looks like it holds a credential,
-// mirroring the discipline already applied to devtools bus event payloads
-// (internal/devtools/bus/redact.go) — same key-substring heuristics, extended
-// here to tool-call arguments persisted in run records.
-func isSensitiveKey(key string) bool {
+// IsSensitiveKey reports whether key looks like it holds a credential. It is
+// shared by replay/run-record redaction and devtools bus event redaction so
+// credential-key heuristics stay in one place.
+func IsSensitiveKey(key string) bool {
 	k := strings.ToLower(strings.TrimSpace(key))
 	if k == "" {
 		return false
