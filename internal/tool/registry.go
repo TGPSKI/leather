@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/TGPSKI/leather/internal/model"
@@ -632,6 +633,15 @@ func parseToolBlock(block string) (model.ToolDefinition, error) {
 			td.Type = skillUnquote(val)
 		case "output_file":
 			td.OutputFile = skillUnquote(val)
+		case "max_repeats":
+			n, err := strconv.Atoi(skillUnquote(val))
+			if err != nil {
+				return model.ToolDefinition{}, fmt.Errorf("tool %q: max_repeats: %w", td.Name, err)
+			}
+			if n < -1 {
+				return model.ToolDefinition{}, fmt.Errorf("tool %q: max_repeats: %d is below the minimum of -1", td.Name, n)
+			}
+			td.MaxRepeats = n
 		}
 	}
 	if td.Type == "" {

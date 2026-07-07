@@ -71,6 +71,21 @@ type ToolDefinition struct {
 	// Retry configures the per-tool retry policy for transient failures.
 	// The zero value preserves the legacy single-retry-on-rate-limit behaviour.
 	Retry ToolRetryConfig `json:"retry,omitempty"`
+	// MaxRepeats caps how many times an identical call (same name and
+	// arguments) may successfully execute within a single run before further
+	// identical calls replay the cached result instead of re-executing.
+	// 0 (unset) is the default: dedupe on, one execution then replay.
+	// A positive N permits that many executions before replay begins.
+	// -1 disables dedupe entirely: every call executes.
+	//
+	// Side-effect tools whose meaning depends on world state that other
+	// tools mutate mid-run (deploy, sync, apply) should set this to 2-3, or
+	// better, restructure so regeneration and deployment aren't interleaved
+	// in the same run (see docs/GUIDE.md's one-job-per-agent guidance).
+	// Failed calls never count against this budget — only a successful
+	// execution is cached and counted, so a failing call's retry always
+	// executes regardless of MaxRepeats.
+	MaxRepeats int `json:"max_repeats,omitempty"`
 }
 
 // MCPToolConfig holds the configuration for an mcp-type tool.

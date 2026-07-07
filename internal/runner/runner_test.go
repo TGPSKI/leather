@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -692,14 +693,20 @@ func TestRunner_MaxRoundsExceeded(t *testing.T) {
 	}
 }
 
-// TestRunner_DuplicateToolCallSkipsReExecution verifies that when the model
+// TestRunner_DuplicateToolCallReplaysResult verifies that when the model
 // re-issues an identical tool call (same name and arguments) that already
 // succeeded earlier in the run, the runner does not execute it again — it
-// returns a synthetic "already completed" result instead. This guards
-// against reasoning models that occasionally lose track of a prior tool call
-// (observed in production) and repeat it, which would otherwise double a
-// real side effect (e.g. posting a comment twice) or spin until max rounds.
-func TestRunner_DuplicateToolCallSkipsReExecution(t *testing.T) {
+// replays the cached result (with a "[replay: ...]" prefix) instead of
+// re-running the side effect. This guards against reasoning models that
+// occasionally lose track of a prior tool call (observed in production) and
+// repeat it, which would otherwise double a real side effect (e.g. posting a
+// comment twice) or spin until max rounds.
+//
+// Plan 04: the model must see the real cached content, not a bare assertion
+// that the call "already completed successfully" — the model can't verify
+// that claim, and narrating unobserved success is exactly the failure mode
+// this replay semantics avoids.
+func TestRunner_DuplicateToolCallReplaysResult(t *testing.T) {
 	var hits int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hits++
@@ -743,6 +750,26 @@ func TestRunner_DuplicateToolCallSkipsReExecution(t *testing.T) {
 	}
 	if hits != 1 {
 		t.Errorf("HTTP tool hits = %d, want 1 (second call should be deduped, not re-executed)", hits)
+	}
+
+	// Find the tool-result message fed back after the second (deduped) call
+	// and verify it carries the real cached content, not a bare assertion.
+	calls := mock.Calls()
+	last := calls[len(calls)-1]
+	var found bool
+	for _, msg := range last {
+		if msg.Role == "tool" && msg.ToolName == "post_comment" && strings.Contains(msg.Content, "[replay:") {
+			found = true
+			if !strings.Contains(msg.Content, "posted") {
+				t.Errorf("replayed content = %q, want it to contain the original cached content %q", msg.Content, "posted")
+			}
+			if strings.Contains(msg.Content, "already completed successfully") {
+				t.Errorf("replayed content still asserts unobserved success: %q", msg.Content)
+			}
+		}
+	}
+	if !found {
+		t.Error("no tool-role message with a [replay: ...] prefix found; expected the second call's result to be a labeled replay")
 	}
 }
 
@@ -832,6 +859,110 @@ func TestRunner_FailedMCPCallDoesNotBlockRetry(t *testing.T) {
 	}
 	if got := len(counted); got != 2 {
 		t.Errorf("tool executed %d times, want 2 (dedupe map incorrectly blocked a failing call's retry)", got)
+	}
+}
+
+// TestRunner_MaxRepeatsAllowsConfiguredExecutions verifies that a tool
+// declaring max_repeats: 2 executes twice before further identical calls
+// replay the cached result. Production motivation: a zero-arg tool like
+// deploy-bans has a constant dedupe key, so under the default policy a
+// second, semantically distinct call (world state changed mid-run) would be
+// silently dropped. max_repeats gives such tools headroom.
+func TestRunner_MaxRepeatsAllowsConfiguredExecutions(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(fmt.Sprintf("deployed batch %d", hits)))
+	}))
+	defer srv.Close()
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name: "ban-skill",
+		Tools: []model.ToolDefinition{{
+			Name:       "deploy_bans",
+			Type:       "http",
+			HTTP:       model.HTTPToolConfig{Method: "POST", URL: srv.URL},
+			MaxRepeats: 2,
+		}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	sameCall := model.ToolCall{ID: "call-1", Name: "deploy_bans", Arguments: map[string]any{}}
+	mock := session.NewMockLLM(session.MockConfig{
+		Response: "done",
+		ToolCallSequence: [][]model.ToolCall{
+			{sameCall},
+			{sameCall},
+			{sameCall},
+		},
+	})
+
+	r := &Runner{Client: mock, Registry: reg, Log: testLogger(t), MaxToolRounds: 5}
+	a := testAgent("max-repeats-agent")
+	a.Skills = []string{"ban-skill"}
+	a.UserPrompt = "deploy the bans"
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Errorf("status = %q, want success", rec.Status)
+	}
+	if hits != 2 {
+		t.Errorf("HTTP tool hits = %d, want 2 (1st and 2nd execute, 3rd replays)", hits)
+	}
+}
+
+// TestRunner_MaxRepeatsNegativeOneDisablesDedupe verifies that max_repeats:
+// -1 disables dedupe entirely: every identical call executes.
+func TestRunner_MaxRepeatsNegativeOneDisablesDedupe(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name: "poll-skill",
+		Tools: []model.ToolDefinition{{
+			Name:       "poll_status",
+			Type:       "http",
+			HTTP:       model.HTTPToolConfig{Method: "GET", URL: srv.URL},
+			MaxRepeats: -1,
+		}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	sameCall := model.ToolCall{ID: "call-1", Name: "poll_status", Arguments: map[string]any{}}
+	mock := session.NewMockLLM(session.MockConfig{
+		Response: "done",
+		ToolCallSequence: [][]model.ToolCall{
+			{sameCall}, {sameCall}, {sameCall}, {sameCall},
+		},
+	})
+
+	r := &Runner{Client: mock, Registry: reg, Log: testLogger(t), MaxToolRounds: 6}
+	a := testAgent("no-dedupe-agent")
+	a.Skills = []string{"poll-skill"}
+	a.UserPrompt = "poll status"
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Errorf("status = %q, want success", rec.Status)
+	}
+	if hits != 4 {
+		t.Errorf("HTTP tool hits = %d, want 4 (max_repeats: -1 disables dedupe entirely)", hits)
 	}
 }
 

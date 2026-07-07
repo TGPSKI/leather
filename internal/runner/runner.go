@@ -290,7 +290,22 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 	// of a prior tool call and repeat it verbatim, spinning until max tool
 	// rounds is hit). Scoped to non-"hide" tools only — hide pagination tools
 	// legitimately expect repeated/similar calls across a run.
-	completedToolCalls := make(map[string]bool)
+	//
+	// Only successful calls are ever recorded here (see the dedupe-insert
+	// guard below): a failed call's identical retry must always execute, not
+	// be silently swallowed — that exact failure mode dropped an IP-ban
+	// deployment for 6+ hours in production on 2026-07-06 (see plan 03/04).
+	//
+	// The cached ToolResult is replayed verbatim (with a prefix noting the
+	// replay) rather than a synthetic "already completed" assertion, so the
+	// model works from real observed data instead of narrating success it
+	// never verified.
+	completedToolCalls := make(map[string]model.ToolResult)
+	// toolCallCounts tracks how many times each dedupe key has *successfully*
+	// executed this run. Compared against the tool's MaxRepeats policy to
+	// decide whether the next identical call executes again or replays the
+	// cached result.
+	toolCallCounts := make(map[string]int)
 
 	for i, userPrompt := range userPrompts {
 		// Apply turn-level vars (may include values extracted from previous tool calls).
@@ -537,12 +552,22 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 				if def.Type != "hide" && argErr == nil {
 					dedupeKey = tc.Name + "\x00" + string(argBytes)
 				}
+				// effectiveMax is the number of successful executions of this
+				// exact call permitted before further identical calls replay
+				// the cached result instead of re-executing. 0 (unset) means
+				// dedupe-on: one execution, then replay. A negative value
+				// (-1) disables dedupe entirely — every call executes.
+				effectiveMax := def.MaxRepeats
+				if effectiveMax == 0 {
+					effectiveMax = 1
+				}
 				switch {
-				case dedupeKey != "" && completedToolCalls[dedupeKey]:
-					r.Log.Warn("skipping duplicate tool call already completed this run",
-						"agent", a.Name, "tool", tc.Name)
+				case dedupeKey != "" && effectiveMax > 0 && toolCallCounts[dedupeKey] >= effectiveMax:
+					r.Log.Info("replaying duplicate tool call result",
+						"agent", a.Name, "tool", tc.Name, "count", toolCallCounts[dedupeKey])
+					cached := completedToolCalls[dedupeKey]
 					result = model.ToolResult{
-						Content: fmt.Sprintf("%s with these exact arguments already completed successfully earlier in this run. Do not call it again — proceed to the next step.", tc.Name),
+						Content: fmt.Sprintf("[replay: identical call completed earlier this run; result repeated below]\n%s", cached.Content),
 					}
 				case def.Type == "hide":
 					result = r.executeHideTool(def.Name, tc.ID, tc.Arguments)
@@ -552,7 +577,8 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 				default:
 					result = (&tool.Executor{MCP: r.MCPRegistry, QueueMgr: r.QueueMgr, AgentName: a.Name, Limiter: r.ToolLimiter}).Execute(ctx, def, tc.Arguments)
 					if result.Error == "" && dedupeKey != "" {
-						completedToolCalls[dedupeKey] = true
+						completedToolCalls[dedupeKey] = result
+						toolCallCounts[dedupeKey]++
 					}
 				}
 				if result.Error == "" && def.Buffer {

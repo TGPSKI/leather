@@ -78,6 +78,66 @@ tools:
 	}
 }
 
+// TestParseSkillYAML_MaxRepeats verifies max_repeats round-trips from skill
+// YAML into ToolDefinition.MaxRepeats (plan 04: per-tool dedupe policy).
+func TestParseSkillYAML_MaxRepeats(t *testing.T) {
+	src := `
+name: ban-skill
+tools:
+  - name: deploy_bans
+    description: Deploy the current IP ban plan.
+    type: mcp
+    max_repeats: 3
+    mcp:
+      server: shell
+      tool: deploy_bans
+`
+	skill := mustParseSkill(t, src)
+	if len(skill.Tools) != 1 {
+		t.Fatalf("len(Tools) = %d, want 1", len(skill.Tools))
+	}
+	if got := skill.Tools[0].MaxRepeats; got != 3 {
+		t.Errorf("MaxRepeats = %d, want 3", got)
+	}
+}
+
+// TestParseSkillYAML_MaxRepeatsUnsetDefaultsToZero verifies a tool with no
+// max_repeats field parses to the zero value (dedupe-on default).
+func TestParseSkillYAML_MaxRepeatsUnsetDefaultsToZero(t *testing.T) {
+	src := `
+name: plain-skill
+tools:
+  - name: plain_tool
+    type: http
+    http:
+      method: GET
+      url: https://api.example.com/x
+`
+	skill := mustParseSkill(t, src)
+	if got := skill.Tools[0].MaxRepeats; got != 0 {
+		t.Errorf("MaxRepeats = %d, want 0 (unset)", got)
+	}
+}
+
+// TestParseSkillYAML_MaxRepeatsBelowMinimumRejected verifies values below the
+// documented minimum of -1 are rejected at parse time rather than silently
+// accepted and misinterpreted at runtime.
+func TestParseSkillYAML_MaxRepeatsBelowMinimumRejected(t *testing.T) {
+	src := `
+name: bad-skill
+tools:
+  - name: bad_tool
+    type: http
+    max_repeats: -2
+    http:
+      method: GET
+      url: https://api.example.com/x
+`
+	if _, err := parseSkillYAML(strings.TrimSpace(src)); err == nil {
+		t.Error("expected error for max_repeats below -1, got nil")
+	}
+}
+
 func TestParseSkillYAML_MultipleTools(t *testing.T) {
 	src := `
 name: multi
