@@ -773,6 +773,90 @@ func TestRunner_DuplicateToolCallReplaysResult(t *testing.T) {
 	}
 }
 
+func TestRunner_DuplicateBufferedToolCallReplaysOriginalCut(t *testing.T) {
+	var hits int
+	raw := strings.Repeat("abcde", 500)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(raw))
+	}))
+	defer srv.Close()
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name: "buffer-skill",
+		Tools: []model.ToolDefinition{{
+			Name:   "read_big_log",
+			Type:   "http",
+			HTTP:   model.HTTPToolConfig{Method: "GET", URL: srv.URL},
+			Buffer: true,
+		}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	sameCall := model.ToolCall{ID: "call-1", Name: "read_big_log", Arguments: map[string]any{"path": "big.log"}}
+	mock := session.NewMockLLM(session.MockConfig{
+		Response: "done",
+		ToolCallSequence: [][]model.ToolCall{
+			{sameCall},
+			{sameCall},
+		},
+	})
+
+	r := &Runner{
+		Client:        mock,
+		Registry:      reg,
+		Log:           testLogger(t),
+		MaxToolRounds: 5,
+		HideBuffer:    hide.NewHideBuffer(64),
+	}
+	a := testAgent("buffered-replay-agent")
+	a.Skills = []string{"buffer-skill"}
+	a.UserPrompt = "read the log"
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Errorf("status = %q, want success", rec.Status)
+	}
+	if hits != 1 {
+		t.Fatalf("HTTP tool hits = %d, want 1 (duplicate buffered call should replay)", hits)
+	}
+
+	calls := mock.Calls()
+	last := calls[len(calls)-1]
+	var firstHideID, replayHideID string
+	var replayFound bool
+	for _, msg := range last {
+		if msg.Role != "tool" || msg.ToolName != "read_big_log" {
+			continue
+		}
+		match := hidePageHeaderRE.FindStringSubmatch(msg.Content)
+		if len(match) < 2 {
+			t.Fatalf("tool content is not a hide cut: %q", msg.Content)
+		}
+		if firstHideID == "" {
+			firstHideID = match[1]
+			continue
+		}
+		replayFound = true
+		replayHideID = match[1]
+		if !strings.Contains(msg.Content, "[replay:") {
+			t.Fatalf("duplicate buffered result missing replay prefix: %q", msg.Content)
+		}
+	}
+	if !replayFound {
+		t.Fatal("did not find replayed buffered tool result in model context")
+	}
+	if replayHideID != firstHideID {
+		t.Fatalf("replay hide id = %q, want original hide id %q", replayHideID, firstHideID)
+	}
+}
+
 // TestRunner_FailedMCPCallDoesNotBlockRetry pins the exact production failure
 // observed on 2026-07-06: a failed shell-tool exec ("error: ..." text with no
 // isError signal) was treated as a successful call by the runner's dedupe
