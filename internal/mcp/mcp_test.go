@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -66,6 +67,13 @@ func runFakeMCPServer(r io.Reader, w io.Writer) {
 				Name string `json:"name"`
 			}
 			_ = json.Unmarshal(req["params"], &params)
+			// Tool names prefixed "sleep_" stall well past any test timeout so
+			// the client's readResponse times out and poisons the connection,
+			// exercising the registry recreation path.
+			if strings.HasPrefix(params.Name, "sleep_") {
+				time.Sleep(30 * time.Second)
+				continue
+			}
 			// Tool names prefixed "err_" simulate a server reporting a tool
 			// failure via isError: true, per the MCP error-content convention.
 			if strings.HasPrefix(params.Name, "err_") {
@@ -415,6 +423,108 @@ func TestStartAll_AllFail(t *testing.T) {
 	err := reg.StartAll(ctx)
 	if err == nil {
 		t.Fatal("StartAll with all failing servers should return error")
+	}
+}
+
+// TestRegistry_RecreateAfterPoison drives the full poison→recover cycle: a
+// slow tool call times out and poisons the shared client, a subsequent call
+// short-circuits with ErrPoisoned, and Recreate swaps in a fresh client so the
+// same server name works again without a process-wide restart.
+func TestRegistry_RecreateAfterPoison(t *testing.T) {
+	cfg := fakeServerConfig("srv")
+	reg := NewRegistry([]model.MCPServerConfig{cfg}, nil)
+	if err := reg.StartAll(context.Background()); err != nil {
+		t.Fatalf("StartAll: %v", err)
+	}
+	defer reg.StopAll()
+
+	c, ok := reg.Get("srv")
+	if !ok {
+		t.Fatal("server not registered")
+	}
+
+	// Induce a read timeout → poison via a sleeping tool with a short ctx.
+	shortCtx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	_, err := c.Call(shortCtx, "sleep_forever", nil)
+	cancel()
+	if err == nil {
+		t.Fatal("expected timeout error from sleeping tool")
+	}
+
+	// A subsequent call on the same (now poisoned) client must fail fast.
+	if _, err := c.Call(context.Background(), "scan", nil); !errors.Is(err, ErrPoisoned) {
+		t.Fatalf("expected ErrPoisoned on poisoned client, got %v", err)
+	}
+
+	// Recreate swaps in a fresh client; the same server name now works again.
+	fresh, err := reg.Recreate(context.Background(), "srv", c)
+	if err != nil {
+		t.Fatalf("Recreate: %v", err)
+	}
+	if fresh == c {
+		t.Fatal("Recreate returned the same poisoned client")
+	}
+	result, err := fresh.Call(context.Background(), "scan", nil)
+	if err != nil {
+		t.Fatalf("Call after recreate: %v", err)
+	}
+	if result != "result for scan" {
+		t.Errorf("result after recreate = %q, want %q", result, "result for scan")
+	}
+	// Registry.Get now returns the recreated client.
+	if got, _ := reg.Get("srv"); got != fresh {
+		t.Error("Get did not return the recreated client")
+	}
+}
+
+// TestRegistry_RecreateConcurrent verifies Recreate is serialized: many callers
+// passing the same stale client trigger exactly one restart, and all receive
+// the single fresh client.
+func TestRegistry_RecreateConcurrent(t *testing.T) {
+	cfg := fakeServerConfig("srv")
+	reg := NewRegistry([]model.MCPServerConfig{cfg}, nil)
+	if err := reg.StartAll(context.Background()); err != nil {
+		t.Fatalf("StartAll: %v", err)
+	}
+	defer reg.StopAll()
+
+	stale, ok := reg.Get("srv")
+	if !ok {
+		t.Fatal("server not registered")
+	}
+
+	const n = 8
+	results := make([]*Client, n)
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			results[i], errs[i] = reg.Recreate(context.Background(), "srv", stale)
+		}(i)
+	}
+	wg.Wait()
+
+	var first *Client
+	for i := 0; i < n; i++ {
+		if errs[i] != nil {
+			t.Fatalf("Recreate[%d]: %v", i, errs[i])
+		}
+		if results[i] == stale {
+			t.Errorf("Recreate[%d] returned the stale client", i)
+		}
+		if first == nil {
+			first = results[i]
+			continue
+		}
+		if results[i] != first {
+			t.Errorf("Recreate[%d] returned a different client than the first caller; expected exactly one restart", i)
+		}
+	}
+	// The fresh client is usable.
+	if _, err := first.Call(context.Background(), "scan", nil); err != nil {
+		t.Errorf("Call on recreated client: %v", err)
 	}
 }
 

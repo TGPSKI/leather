@@ -146,6 +146,7 @@ func RunOnce(args []string, stdout, stderr io.Writer) int {
 		MCPRegistry:        mcpReg,
 		Log:                log,
 		MaxToolRounds:      cfg.MaxToolRounds,
+		ToolTimeout:        cfg.ToolTimeout,
 		Notifiers:          notifiers,
 		ToolLimiter:        toolLimiter,
 		PersistRunsDetail:  cfg.PersistRunsDetail,

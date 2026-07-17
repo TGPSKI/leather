@@ -31,6 +31,7 @@ type lifecycleRecord struct {
 	MaxTokens         int
 	CompletionReserve int
 	Timeout           time.Duration
+	ToolTimeout       time.Duration
 	Temperature       float64
 	Tags              []string
 	Skills            []string            // skill names for tool calling
@@ -347,6 +348,13 @@ func applyLifecycleFields(vals map[string]string, lists map[string][]string, rec
 			return fmt.Errorf("invalid timeout %q: %w", v, err)
 		}
 		rec.Timeout = d
+	}
+	if v, ok := vals["tool_timeout"]; ok {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return fmt.Errorf("invalid tool_timeout %q: %w", v, err)
+		}
+		rec.ToolTimeout = d
 	}
 	if v, ok := vals["temperature"]; ok {
 		f, err := strconv.ParseFloat(v, 64)

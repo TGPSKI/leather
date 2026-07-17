@@ -307,6 +307,20 @@ func execMCP(ctx context.Context, reg *mcp.Registry, cfg model.MCPToolConfig, ar
 	}
 	result, err := client.Call(ctx, cfg.Tool, args)
 	if err != nil {
+		// A prior call's read timeout poisoned the shared transport. Nothing
+		// recovers it on its own, so one stalled tool call would brick every
+		// agent sharing this server. Recreate the client once and retry.
+		if errors.Is(err, mcp.ErrPoisoned) {
+			fresh, rerr := reg.Recreate(ctx, cfg.Server, client)
+			if rerr != nil {
+				return "", fmt.Errorf("tool/execMCP: recreate %q: %w", cfg.Server, rerr)
+			}
+			result, err = fresh.Call(ctx, cfg.Tool, args)
+			if err != nil {
+				return "", fmt.Errorf("tool/execMCP: %w", err)
+			}
+			return result, nil
+		}
 		return "", fmt.Errorf("tool/execMCP: %w", err)
 	}
 	return result, nil

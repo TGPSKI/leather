@@ -251,6 +251,87 @@ func TestRunner_ToolCall(t *testing.T) {
 	}
 }
 
+// TestRunner_PerToolTimeoutFailsOneCall verifies that a tool exceeding the
+// per-tool timeout fails that single call with an attributable error, the run
+// continues, and the run's own (much larger) budget is not consumed — the
+// distinction that keeps one slow tool from eating the whole run and expiring
+// the shared MCP transport read.
+func TestRunner_PerToolTimeoutFailsOneCall(t *testing.T) {
+	// A server that sleeps far longer than the per-tool timeout.
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		select {
+		case <-release:
+		case <-time.After(10 * time.Second):
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name: "slow-skill",
+		Tools: []model.ToolDefinition{{
+			Name: "slow_tool",
+			Type: "http",
+			HTTP: model.HTTPToolConfig{Method: "GET", URL: srv.URL},
+		}},
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	mock := session.NewMockLLM(session.MockConfig{
+		Response: "final answer",
+		ToolCallSequence: [][]model.ToolCall{
+			{{ID: "call-1", Name: "slow_tool", Arguments: map[string]any{}}},
+		},
+	})
+
+	r := &Runner{
+		Client:            mock,
+		Registry:          reg,
+		Log:               testLogger(t),
+		MaxToolRounds:     5,
+		ToolTimeout:       100 * time.Millisecond,
+		PersistRunsDetail: "tools",
+	}
+	a := testAgent("slow-agent")
+	a.Skills = []string{"slow-skill"}
+	a.UserPrompt = "call the slow tool"
+	a.Timeout = 10 * time.Second // ample run budget; the per-tool timeout must fire first
+
+	start := time.Now()
+	rec, err := r.Run(context.Background(), a, testBudget())
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("run should not fail on a single tool timeout: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Errorf("status = %q, want success", rec.Status)
+	}
+	// The run must return promptly — the per-tool deadline fired, not the run budget.
+	if elapsed > 5*time.Second {
+		t.Errorf("run took %v; the per-tool timeout did not bound the call", elapsed)
+	}
+	// Two LLM calls: the tool-call round, then the final answer after the error.
+	if mock.CallCount() != 2 {
+		t.Errorf("LLM call count = %d, want 2", mock.CallCount())
+	}
+	// The tool trace records the attributable per-tool timeout error.
+	var found bool
+	for _, turn := range rec.Turns {
+		for _, tc := range turn.ToolCalls {
+			if tc.Name == "slow_tool" && strings.Contains(tc.Error, "exceeded tool_timeout") {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Errorf("expected a slow_tool trace with an 'exceeded tool_timeout' error; turns=%+v", rec.Turns)
+	}
+}
+
 func TestRunner_BufferedToolResultUsesHideBuffer(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

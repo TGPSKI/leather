@@ -17,6 +17,7 @@ type frontMatter struct {
 	MaxTokens         int
 	CompletionReserve int
 	Timeout           time.Duration
+	ToolTimeout       time.Duration
 	Temperature       float64
 	Enabled           bool
 	Tags              []string
@@ -138,6 +139,12 @@ func applyFrontMatterFields(yamlBlock string, fm *frontMatter) error {
 				return fmt.Errorf("invalid timeout %q: %w", raw, err)
 			}
 			fm.Timeout = d
+		case "tool_timeout":
+			d, err := time.ParseDuration(raw)
+			if err != nil {
+				return fmt.Errorf("invalid tool_timeout %q: %w", raw, err)
+			}
+			fm.ToolTimeout = d
 		case "temperature":
 			f, err := strconv.ParseFloat(raw, 64)
 			if err != nil {

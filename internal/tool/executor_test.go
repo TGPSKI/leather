@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,7 +29,75 @@ func TestMain(m *testing.M) {
 		runFakeFailingMCPServer(os.Stdin, os.Stdout)
 		os.Exit(0)
 	}
+	if os.Getenv("LEATHER_TOOL_TEST_MCP_SERVER") == "1" {
+		runFakeOKMCPServer(os.Stdin, os.Stdout)
+		os.Exit(0)
+	}
 	os.Exit(m.Run())
+}
+
+// runFakeOKMCPServer answers tools/call with a success result, except for
+// tools whose name is prefixed "sleep_", which stall past any test timeout so
+// the client read poisons — used to exercise execMCP's poison-recovery path.
+func runFakeOKMCPServer(r io.Reader, w io.Writer) {
+	dec := json.NewDecoder(bufio.NewReader(r))
+	enc := json.NewEncoder(w)
+	for {
+		var req map[string]json.RawMessage
+		if err := dec.Decode(&req); err != nil {
+			return
+		}
+		method := strings.Trim(string(req["method"]), `"`)
+		var id int64
+		if idRaw, ok := req["id"]; ok {
+			_ = json.Unmarshal(idRaw, &id)
+		}
+		switch method {
+		case "initialize":
+			_ = enc.Encode(map[string]any{
+				"jsonrpc": "2.0", "id": id,
+				"result": map[string]any{
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]any{"tools": map[string]any{}},
+					"serverInfo":      map[string]any{"name": "fake-ok-mcp", "version": "0.1"},
+				},
+			})
+		case "notifications/initialized":
+			// no response
+		case "tools/list":
+			_ = enc.Encode(map[string]any{
+				"jsonrpc": "2.0", "id": id,
+				"result": map[string]any{"tools": []any{}},
+			})
+		case "tools/call":
+			var params struct {
+				Name string `json:"name"`
+			}
+			_ = json.Unmarshal(req["params"], &params)
+			if strings.HasPrefix(params.Name, "sleep_") {
+				time.Sleep(30 * time.Second)
+				continue
+			}
+			_ = enc.Encode(map[string]any{
+				"jsonrpc": "2.0", "id": id,
+				"result": map[string]any{
+					"content": []any{
+						map[string]any{"type": "text", "text": "result for " + params.Name},
+					},
+				},
+			})
+		}
+	}
+}
+
+// fakeOKMCPServerConfig re-invokes the current test binary as the resilient
+// fake MCP server.
+func fakeOKMCPServerConfig(name string) model.MCPServerConfig {
+	return model.MCPServerConfig{
+		Name:      name,
+		Command:   "env LEATHER_TOOL_TEST_MCP_SERVER=1 " + os.Args[0] + " -test.run=^$",
+		Transport: "stdio",
+	}
 }
 
 // runFakeFailingMCPServer implements just enough of MCP (initialize,
@@ -718,6 +787,40 @@ func TestExecute_MCPToolErrorNotRetried(t *testing.T) {
 	}
 	if items := dlqQ.Scan(); len(items) != 0 {
 		t.Errorf("dlq depth = %d, want 0 (the call delivered; only the tool failed)", len(items))
+	}
+}
+
+// TestExecMCP_RecoversFromPoison verifies that when the shared MCP client has
+// been poisoned by a prior read timeout, execMCP transparently recreates the
+// client via the registry and retries, so a single stalled tool call no longer
+// bricks every subsequent call to that server.
+func TestExecMCP_RecoversFromPoison(t *testing.T) {
+	cfg := fakeOKMCPServerConfig("shell")
+	reg := mcp.NewRegistry([]model.MCPServerConfig{cfg}, nil)
+	if err := reg.StartAll(context.Background()); err != nil {
+		t.Fatalf("StartAll: %v", err)
+	}
+	defer reg.StopAll()
+
+	// Poison the shared client with a sleeping tool under a short deadline.
+	c, ok := reg.Get("shell")
+	if !ok {
+		t.Fatal("server not registered")
+	}
+	shortCtx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	_, _ = c.Call(shortCtx, "sleep_stuck", nil)
+	cancel()
+	if _, err := c.Call(context.Background(), "ping", nil); !errors.Is(err, mcp.ErrPoisoned) {
+		t.Fatalf("expected client to be poisoned, got %v", err)
+	}
+
+	// execMCP must recreate the client and succeed on the same server.
+	out, err := execMCP(context.Background(), reg, model.MCPToolConfig{Server: "shell", Tool: "ping"}, nil)
+	if err != nil {
+		t.Fatalf("execMCP after poison: %v", err)
+	}
+	if want := "result for ping"; out != want {
+		t.Errorf("execMCP result = %q, want %q", out, want)
 	}
 }
 
