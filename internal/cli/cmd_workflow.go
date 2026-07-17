@@ -234,6 +234,7 @@ func RunWorkflowRun(args []string, stdout, stderr io.Writer) int {
 		ToolReg:            toolReg,
 		Log:                log,
 		MaxToolRounds:      cfg.MaxToolRounds,
+		ToolTimeout:        cfg.ToolTimeout,
 		QueueMgr:           qmgr,
 		MCPReg:             mcpReg,
 		PersistRunsDetail:  cfg.PersistRunsDetail,

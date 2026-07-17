@@ -83,6 +83,7 @@ func buildDoctorRows(cfg model.Config) []doctorField {
 		{"model", cfg.Model, src(cfg.Model, "")},
 		{"llm_endpoint", cfg.LLMEndpoint, src(cfg.LLMEndpoint, config.DefaultLLMEndpoint)},
 		{"llm_timeout", cfg.LLMTimeout.String(), src(cfg.LLMTimeout.String(), config.DefaultLLMTimeout.String())},
+		{"tool_timeout", cfg.ToolTimeout.String(), src(cfg.ToolTimeout.String(), config.DefaultToolTimeout.String())},
 		{"llm_api_key", redact(cfg.LLMAPIKey), src(cfg.LLMAPIKey, "")},
 
 		// -- token budget --

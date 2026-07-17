@@ -1316,6 +1316,7 @@ func registerAgentJob(deps agentRegDeps, a model.Agent) error {
 		Registry:           deps.toolReg,
 		Log:                deps.log,
 		MaxToolRounds:      deps.cfg.MaxToolRounds,
+		ToolTimeout:        deps.cfg.ToolTimeout,
 		Cache:              deps.agentCache,
 		QueueMgr:           deps.queueMgr,
 		Notifiers:          deps.notifiers,

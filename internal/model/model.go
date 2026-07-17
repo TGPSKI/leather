@@ -371,6 +371,11 @@ type Agent struct {
 	CompletionReserve int
 	// Timeout overrides the global LLM request timeout. Zero means use the global default.
 	Timeout time.Duration
+	// ToolTimeout overrides the global per-tool-call timeout (Config.ToolTimeout).
+	// Each tool call is bounded by this deadline, distinct from the run-level
+	// Timeout budget. Zero means use the global default. Set via front-matter or
+	// lifecycle YAML `tool_timeout:`.
+	ToolTimeout time.Duration
 	// Temperature is the sampling temperature sent to the model.
 	Temperature float64
 	// Enabled controls whether the agent is registered with the scheduler.
@@ -512,8 +517,14 @@ type Config struct {
 	SummarizeThreshold float64
 	LLMEndpoint        string
 	LLMTimeout         time.Duration
-	SchedulerTick      time.Duration // how often the scheduler wakes to check for due jobs
-	MaxConcurrentJobs  int
+	// ToolTimeout is the global default per-tool-call timeout. Each tool call is
+	// wrapped in a child context with this deadline so one slow tool fails a
+	// single call cleanly instead of consuming the whole run budget (and, for
+	// MCP tools, expiring the shared transport read and poisoning the client).
+	// Agents may override with Agent.ToolTimeout. 0 = no per-tool timeout.
+	ToolTimeout       time.Duration
+	SchedulerTick     time.Duration // how often the scheduler wakes to check for due jobs
+	MaxConcurrentJobs int
 	// RunDuration caps the total wall-clock life of leather serve. 0 = unlimited.
 	RunDuration time.Duration
 	// MaxJobs caps the total number of completed jobs before a clean shutdown. 0 = unlimited.

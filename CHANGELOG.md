@@ -9,6 +9,17 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- **One slow MCP tool call bricked the whole scheduler until a manual restart** —
+  a tool call that consumed the run budget and expired mid-read poisoned the
+  shared MCP client (`internal/mcp`), and nothing ever recovered it: the
+  registry held one client per server for the process lifetime, so every
+  subsequent tool call from every agent short-circuited with
+  `client poisoned by prior read timeout` (a 7.5-hour outage in production).
+  `Registry` now serializes an on-demand recreate path (`Registry.Recreate`);
+  on `mcp.ErrPoisoned` the executor recreates the client once and retries, so
+  a poisoned transport self-heals on the next call instead of requiring a
+  `leather serve` restart.
+
 - **Failed MCP tool calls were silently treated as successes** — `cmd/shell-mcp`
   returned execution failures as ordinary `error: ...` text with no `isError`
   flag, so `internal/mcp` couldn't distinguish a failed call from a real
@@ -32,6 +43,16 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   entirely.
 
 ### Added
+
+- **Per-tool-call timeout** — a single run-level timeout previously governed
+  every LLM call *and* every tool call, so one slow tool (e.g. an 89-repo
+  fetch) would consume the entire run budget and expire the shared MCP
+  transport read mid-call. New `tool_timeout` config (global, default `600s`;
+  env `LEATHER_TOOL_TIMEOUT`; flag `--tool-timeout`), overridable per agent via
+  front-matter / lifecycle `tool_timeout:`, wraps each tool call in its own
+  child deadline. A tool that exceeds it fails a single call cleanly
+  (`tool X exceeded tool_timeout …`) while the run continues; the run-level
+  `timeout` remains the outer budget. `0` disables the per-tool deadline.
 
 - **Structured tool-call traces in run records** — `.state/runs/*.jsonl`
   previously recorded only turn-level text, making tool-call forensics

@@ -37,6 +37,7 @@ schedule: "0 * * * *"
 model: llama3
 max_tokens: 4096
 timeout: 45s
+tool_timeout: 120s
 temperature: 0.5
 enabled: true
 tags: [daily, summary]
@@ -62,6 +63,9 @@ This is the system prompt.
 	}
 	if fm.Timeout != 45*time.Second {
 		t.Errorf("Timeout = %v, want 45s", fm.Timeout)
+	}
+	if fm.ToolTimeout != 120*time.Second {
+		t.Errorf("ToolTimeout = %v, want 120s", fm.ToolTimeout)
 	}
 	if fm.Temperature != 0.5 {
 		t.Errorf("Temperature = %v, want 0.5", fm.Temperature)

@@ -42,6 +42,7 @@ func Load(fs *flag.FlagSet) (model.Config, error) {
 		SummarizeThreshold: envFloat("SUMMARIZE_THRESHOLD", DefaultSummarizeThreshold),
 		LLMEndpoint:        envString("LLM_ENDPOINT", DefaultLLMEndpoint),
 		LLMTimeout:         envDuration("LLM_TIMEOUT", DefaultLLMTimeout),
+		ToolTimeout:        envDuration("TOOL_TIMEOUT", DefaultToolTimeout),
 		SchedulerTick:      envDuration("SCHEDULER_TICK", DefaultSchedulerTick),
 		MaxConcurrentJobs:  envInt("MAX_CONCURRENT_JOBS", DefaultMaxConcurrentJobs),
 		RunDuration:        envDuration("RUN_DURATION", 0),
@@ -139,6 +140,7 @@ func applyEnvOverrides(cfg *model.Config) {
 	cfg.SummarizeThreshold = envFloat("SUMMARIZE_THRESHOLD", cfg.SummarizeThreshold)
 	cfg.LLMEndpoint = envString("LLM_ENDPOINT", cfg.LLMEndpoint)
 	cfg.LLMTimeout = envDuration("LLM_TIMEOUT", cfg.LLMTimeout)
+	cfg.ToolTimeout = envDuration("TOOL_TIMEOUT", cfg.ToolTimeout)
 	cfg.SchedulerTick = envDuration("SCHEDULER_TICK", cfg.SchedulerTick)
 	cfg.MaxConcurrentJobs = envInt("MAX_CONCURRENT_JOBS", cfg.MaxConcurrentJobs)
 	cfg.RunDuration = envDuration("RUN_DURATION", cfg.RunDuration)
@@ -188,6 +190,7 @@ func BindFlags(fs *flag.FlagSet) {
 	fs.Float64("summarize-threshold", envFloat("SUMMARIZE_THRESHOLD", DefaultSummarizeThreshold), "summarization trigger fraction (LEATHER_SUMMARIZE_THRESHOLD)")
 	fs.String("llm-endpoint", envString("LLM_ENDPOINT", DefaultLLMEndpoint), "LLM base URL (LEATHER_LLM_ENDPOINT)")
 	fs.Duration("llm-timeout", envDuration("LLM_TIMEOUT", DefaultLLMTimeout), "LLM request timeout (LEATHER_LLM_TIMEOUT)")
+	fs.Duration("tool-timeout", envDuration("TOOL_TIMEOUT", DefaultToolTimeout), "global default per-tool-call timeout, 0=none (LEATHER_TOOL_TIMEOUT)")
 	fs.Duration("scheduler-tick", envDuration("SCHEDULER_TICK", DefaultSchedulerTick), "scheduler wake interval (LEATHER_SCHEDULER_TICK)")
 	fs.Int("max-concurrent-jobs", envInt("MAX_CONCURRENT_JOBS", DefaultMaxConcurrentJobs), "max simultaneous jobs (LEATHER_MAX_CONCURRENT_JOBS)")
 	fs.Duration("run-duration", envDuration("RUN_DURATION", 0), "exit cleanly after this duration, 0=unlimited (LEATHER_RUN_DURATION)")
@@ -301,6 +304,11 @@ func applyYAML(r io.Reader, cfg *model.Config) error {
 	if v, ok := strVal("llm_timeout"); ok {
 		if d, err := time.ParseDuration(v); err == nil {
 			cfg.LLMTimeout = d
+		}
+	}
+	if v, ok := strVal("tool_timeout"); ok {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.ToolTimeout = d
 		}
 	}
 	if v, ok := strVal("scheduler_tick"); ok {
@@ -443,6 +451,10 @@ func applyFlag(f *flag.Flag, cfg *model.Config) {
 	case "llm-timeout":
 		if d, err := time.ParseDuration(v); err == nil {
 			cfg.LLMTimeout = d
+		}
+	case "tool-timeout":
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.ToolTimeout = d
 		}
 	case "scheduler-tick":
 		if d, err := time.ParseDuration(v); err == nil {

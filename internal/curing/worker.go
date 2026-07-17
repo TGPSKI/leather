@@ -73,6 +73,7 @@ type RunnerDeps struct {
 	ToolReg       *tool.Registry
 	Log           *logging.Logger
 	MaxToolRounds int
+	ToolTimeout   time.Duration
 	Cache         *cache.FileCache
 	QueueMgr      *queue.Manager
 	Notifiers     map[string]notify.Notifier
@@ -1102,6 +1103,7 @@ func (w *Worker) buildRunner(buf *hide.HideBuffer) runner.Runner {
 		Registry:           w.deps.ToolReg,
 		Log:                w.deps.Log,
 		MaxToolRounds:      w.deps.MaxToolRounds,
+		ToolTimeout:        w.deps.ToolTimeout,
 		Cache:              w.deps.Cache,
 		QueueMgr:           w.deps.QueueMgr,
 		Notifiers:          w.deps.Notifiers,

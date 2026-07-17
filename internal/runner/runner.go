@@ -54,6 +54,11 @@ type Runner struct {
 	// MaxToolRounds is the global default tool call cycle limit.
 	// Agents may override with Agent.ToolRounds.
 	MaxToolRounds int
+	// ToolTimeout is the global default per-tool-call timeout. Each tool call is
+	// wrapped in a child context with this deadline, distinct from the run-level
+	// Agent.Timeout budget. Agents may override with Agent.ToolTimeout.
+	// 0 = no per-tool timeout (tool calls bounded only by the run context).
+	ToolTimeout time.Duration
 	// Cache is the sha256-keyed file cache for agent responses.
 	// May be nil; nil means caching is disabled globally.
 	Cache *cache.FileCache
@@ -303,6 +308,13 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 	// When there are no tools, cap at 1 round (no tool loop needed).
 	if !r.agentHasAnyTools(a, baseTools) {
 		rounds = 1
+	}
+
+	// Resolve the per-tool-call timeout: agent override, else global default.
+	// <= 0 means no per-tool deadline (tool calls bounded only by the run ctx).
+	toolTimeout := a.ToolTimeout
+	if toolTimeout <= 0 {
+		toolTimeout = r.ToolTimeout
 	}
 
 	// Build the ordered list of user prompts for this run.
@@ -620,7 +632,25 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 						hideToolSucceeded = true
 					}
 				default:
-					result = (&tool.Executor{MCP: r.MCPRegistry, QueueMgr: r.QueueMgr, AgentName: a.Name, Limiter: r.ToolLimiter}).Execute(ctx, def, tc.Arguments)
+					// Bound each tool call by its own deadline so one slow tool
+					// fails a single call cleanly instead of consuming the run
+					// budget (and, for MCP tools, expiring the shared transport
+					// read and poisoning the client). The run ctx stays the outer
+					// budget; the child deadline fires first when it is tighter.
+					execCtx := ctx
+					var toolCancel context.CancelFunc
+					if toolTimeout > 0 {
+						execCtx, toolCancel = context.WithTimeout(ctx, toolTimeout)
+					}
+					result = (&tool.Executor{MCP: r.MCPRegistry, QueueMgr: r.QueueMgr, AgentName: a.Name, Limiter: r.ToolLimiter}).Execute(execCtx, def, tc.Arguments)
+					// Attribute a per-tool timeout distinctly from a run timeout:
+					// only the child deadline fired (parent ctx still live).
+					if toolCancel != nil {
+						if execCtx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
+							result.Error = fmt.Sprintf("tool %s exceeded tool_timeout %s", tc.Name, toolTimeout)
+						}
+						toolCancel()
+					}
 				}
 				execDuration := time.Since(execStart)
 				if result.Error == "" && def.Buffer && !replayed {

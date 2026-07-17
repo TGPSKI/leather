@@ -15,6 +15,7 @@ const (
 	DefaultSummarizeThreshold         = 0.85
 	DefaultLLMEndpoint                = "http://localhost:11434"
 	DefaultLLMTimeout                 = 60 * time.Second
+	DefaultToolTimeout                = 600 * time.Second
 	DefaultSchedulerTick              = time.Minute
 	DefaultMaxConcurrentJobs          = 4
 	DefaultLogLevel                   = "info"

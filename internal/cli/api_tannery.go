@@ -92,6 +92,7 @@ func initTannery(ctx context.Context, tanneryFile string, deps *apiDeps) (*tanne
 		ToolReg:            deps.toolReg,
 		Log:                deps.log,
 		MaxToolRounds:      deps.cfg.MaxToolRounds,
+		ToolTimeout:        deps.cfg.ToolTimeout,
 		Cache:              deps.agentCache,
 		QueueMgr:           deps.queueMgr,
 		Notifiers:          deps.notifiers,
