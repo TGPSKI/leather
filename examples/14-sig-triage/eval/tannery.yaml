@@ -1,6 +1,10 @@
+# Eval tannery. Paths are relative to THIS file's directory (leather resolves
+# tannery hide_dir/artifact_dir/curing_dir against filepath.Dir(tannery)).
+# run-eval.sh rewrites these to absolute at runtime so the writer (workflow run)
+# and the reader (run-eval.sh) always agree regardless of cwd or checkout path.
 hide_dir: .state-eval/hides
 artifact_dir: .state-eval/artifacts
-curing_dir: eval/curings
+curing_dir: curings
 
 queues:
   analyze-in:
