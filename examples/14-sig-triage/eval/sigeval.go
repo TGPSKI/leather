@@ -69,6 +69,19 @@ func acceptable(g gold) map[string]bool {
 	return s
 }
 
+// normSIG canonicalizes a SIG token: trims, lowercases, and folds the GitHub
+// label form "sig/foo" into the catalog form "sig-foo". The match agent is
+// asked for the catalog name (sig-foo) but smaller models sometimes emit the
+// label form (sig/foo); the two denote the same SIG, so scoring them as a
+// mismatch would understate accuracy. "unknown" and empty pass through unchanged.
+func normSIG(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if strings.HasPrefix(s, "sig/") {
+		s = "sig-" + s[len("sig/"):]
+	}
+	return s
+}
+
 func main() {
 	goldPath := flag.String("gold", "eval/gold.jsonl", "answer-key JSONL {number,sig,accept?}")
 	predPath := flag.String("pred", "eval/predictions.jsonl", "predictions JSONL")
@@ -87,6 +100,18 @@ func main() {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "predictions:", err)
 		os.Exit(2)
+	}
+	// Canonicalize SIG notation (sig/foo -> sig-foo) on both sides so label-form
+	// predictions match catalog-form gold and the report stays free of duplicate
+	// slash/dash rows for the same SIG.
+	for i := range golds {
+		golds[i].SIG = normSIG(golds[i].SIG)
+		for j := range golds[i].Accept {
+			golds[i].Accept[j] = normSIG(golds[i].Accept[j])
+		}
+	}
+	for i := range preds {
+		preds[i].Predicted = normSIG(preds[i].Predicted)
 	}
 	pByNum := map[int]pred{}
 	for _, p := range preds {

@@ -55,6 +55,30 @@ func TestGatePasses(t *testing.T) {
 	}
 }
 
+func TestSlashFormPredictionsNormalized(t *testing.T) {
+	// The match agent should emit catalog form (sig-network) but sometimes emits
+	// the label form (sig/network). The scorer must treat them as equal.
+	corpus := writeTmp(t, "c.jsonl", strings.Join([]string{
+		`{"number":1,"sig":"sig-network"}`,
+		`{"number":2,"sig":"sig-storage"}`,
+	}, "\n"))
+	pred := writeTmp(t, "p.jsonl", strings.Join([]string{
+		`{"number":1,"predicted":"sig/network"}`, // label form -> should count correct
+		`{"number":2,"predicted":"SIG-STORAGE "}`, // upper + trailing space -> correct
+	}, "\n"))
+	out, code := run(t, corpus, pred, "-min-accuracy", "0.90", "-min-core-recall", "0.90",
+		"-core", "sig-network,sig-storage")
+	if code != 0 {
+		t.Errorf("expected gate pass (0) after normalization, got %d\n%s", code, out)
+	}
+	if !strings.Contains(out, "100.0%") {
+		t.Errorf("expected 100%% accuracy after slash/case normalization\n%s", out)
+	}
+	if strings.Contains(out, "sig/network") {
+		t.Errorf("report should not contain un-normalized slash form\n%s", out)
+	}
+}
+
 func TestGateFailsOnCoreRecall(t *testing.T) {
 	corpus := writeTmp(t, "c.jsonl", strings.Join([]string{
 		`{"number":1,"sig":"sig-network"}`,

@@ -1,5 +1,6 @@
 ---
 name: analyze
+thinking: false
 ---
 
 You receive the title and body of one Kubernetes GitHub issue. Extract the

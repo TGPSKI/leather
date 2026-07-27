@@ -71,6 +71,26 @@ the model is *cautious* about it (good — pair with abstention); low precision
 means it *over-assigns* that SIG (a catalog-features problem you fix in
 `sigs.reference.yaml`, deterministically, not by swapping models).
 
+## Scoring robustness
+
+Two normalizations keep the score measuring *classification*, not *formatting*:
+
+- **Notation folding.** The catalog name is `sig-foo`; the GitHub label is
+  `sig/foo`. Smaller models sometimes emit the label form. `sigeval.go` folds
+  `sig/foo` -> `sig-foo` (and trims/lowercases) on both sides, so the two denote
+  the same SIG instead of scoring as a miss.
+- **Content-free issues are `unknown`.** A handful of real issues are pure noise
+  (e.g. body `Created by mistake`). A triage bot *should* abstain on those, so
+  gold treats any issue with a `< 60`-char body as `sig: unknown` — correct
+  abstention scores correct, and the junk no longer drags a core SIG's recall
+  denominator below what perfect classification could reach. The rule is a body
+  length threshold (junk clusters at <= 19 chars; the next real issue is 427), not
+  a hardcoded issue list.
+
+The `analyze`/`match` agents run with `thinking: false` (Qwen3 no-think): the
+`match` prompt reasons in a visible `REASONING:` line before committing to `SIG:`,
+which is faster and avoids long hidden traces timing out mid-run.
+
 ## Wiring
 
 `go test ./eval/` verifies the scorer's own math. Gate PRs that touch
