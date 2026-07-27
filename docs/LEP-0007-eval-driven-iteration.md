@@ -1,0 +1,312 @@
+# LEP-0007 — Eval-Driven Iteration
+
+- **Status:** Draft
+- **Target:** leather v0.6.0 (with LEP-0006) / v0.6.x
+- **Depends on:** [LEP-0006 — Group Evals](LEP-0006-group-evals.md) (the gate primitive)
+- **Anchors:** the 14-sig-triage 35B validation loop (64.5% → gated) — a real
+  session where a failing gate was walked to a shippable one *without touching
+  model weights*, using only scorer, gold-hygiene, catalog, and prompt fixes.
+
+---
+
+## 0. TL;DR
+
+LEP-0006 makes quality **measurable and gate-able** — it answers *is the gate
+green?* and fails closed when it is not. It does not tell you **why** it is red or
+**what to change**. LEP-0007 adds the missing half: a deterministic,
+regression-guarded **improvement loop** that (1) **attributes** every failure to
+the layer that owns it, (2) applies the **cheapest correct fix at that layer** —
+exhausting free/deterministic layers before ever reaching for weights — and (3)
+**re-measures on a cheap hard slice, guards against per-item regression, and
+confirms on the full held corpus**. It turns a red gate from a verdict into a
+prioritized, non-overfitting worklist. Same cost shape as 0006: the loop is
+harness work; the model is the only real cost, and most of the highest-value
+fixes touch no model at all.
+
+---
+
+## 1. Motivation
+
+**A gate is a verdict, not a plan.** LEP-0006 gives you `GATE FAILED — overall
+accuracy 64.5% (threshold ≥80%)` and a confusion table. That is necessary and not
+sufficient: a red gate is only useful if there is a *repeatable, cheap, honest*
+procedure for turning it green. Today that procedure is tribal knowledge — the
+person who wrote the harness knows to read the confusion table, notice that a
+third of the "errors" are a notation mismatch, spot the junk gold rows, and fix
+the catalog before blaming the model. None of that is encoded, so every example
+re-derives it and most stop at "the model isn't good enough."
+
+**The failure we want to prevent is the wrong fix.** Faced with a red gate the
+tempting move is to reach for a bigger model or a longer context — the two levers
+leather's thesis says you *cannot afford* and *should not need*. In the anchor
+session, of the 35.5-point accuracy gap:
+
+- **~15 points were the harness mis-measuring** (the model emitted the label form
+  `sig/network`; the catalog name is `sig-network`) — a scorer bug, not a model
+  error;
+- **~5 points were junk gold** ("Created by mistake" issues the model correctly
+  abstained on) — a corpus-hygiene bug;
+- the remainder were **genuine confusions** fixable in the **catalog and prompt**
+  (storage-vs-node, auth-surfacing-through-kubelet) — the layer you own.
+
+Not one point required a different model. LEP-0007 is the discipline that makes
+that the *default* path, and makes the cheap deterministic fixes come *first*.
+
+**Why now.** LEP-0006 promotes eval to a first-class gate wired into CI and the
+catalog-currency cron. A gate that can only say "no" strands the operator. For the
+self-updating-catalog loop to be autonomous, the *response* to a red gate must be
+as legible and bounded as the gate itself.
+
+**Non-motivation.** Not an autotuner, not a prompt-search / RL loop, not a
+"make-it-pass" script. It is a **decision procedure for humans and agents** that
+keeps fixes at the cheapest honest layer and refuses to overfit the eval.
+
+---
+
+## 2. Design principles (extending LEP-0006 §2)
+
+Inherits all of LEP-0006's principles. Adds five that are load-bearing here:
+
+- **Fix the layer you own.** A failing gate is a worklist over layers *you
+  control*: scorer parsing → gold hygiene → catalog features → prompt/curing
+  boundaries → decoding (`thinking`, `temperature`) → and only then model size.
+  You descend that ladder and stop at the first layer that explains the failure.
+  Weights are the last resort, not the first reflex.
+- **Deterministic before probabilistic.** A large share of "model failures" are
+  the harness mis-measuring: notation/parse artifacts, unclassifiable gold. These
+  are fixed in *code* (scorer, gold lint) — free, permanent, and they never
+  regress. Exhaust them before you spend a single model call on tuning.
+- **Guard every step against regression.** A prompt edit that lifts class A
+  routinely, silently, breaks class B. Every iteration is scored **per item**
+  against the prior run — *N fixed, M regressed* — not just on the aggregate,
+  which can rise while quietly rotting a core class.
+- **Iterate cheap, accept honest.** Tune against a **hard slice** (failures +
+  regression guards) so a round costs seconds, but **never accept on the slice** —
+  the slice is where you overfit. Acceptance is always a full-corpus, held-gold
+  confirmation, and the number of tuning rounds is **capped** and logged.
+- **Gold is code.** The answer key is a maintained artifact with its own lints
+  (leakage *and* sanity), not ground truth handed down. Correcting an obviously
+  unclassifiable label is a *fix*, not cheating — but it must be a **general,
+  documented rule**, never a hand-picked list of ids that happen to be wrong.
+
+---
+
+## 3. Concepts and vocabulary (delta over LEP-0006 §3)
+
+| Term | Definition |
+|---|---|
+| **Failure class** | The bucket a miss falls into: `parse-artifact`, `gold-noise`, `over-assign` (low precision), `confusion-pair`, `abstention-gap`, `genuine`. Drives which layer fixes it. |
+| **Attribution** | The scorer step that tags each incorrect prediction with a failure class + a suggested fix layer. |
+| **Fix ladder** | The ordered layers a fix may live in, cheapest/most-deterministic first (§5). |
+| **Hard slice** | A small, failure-weighted subset of the corpus (last run's misses + a stratified set of correct "regression guards"), used for fast iteration. |
+| **Flip diff** | Per-item comparison of two runs: `fixed` (was wrong, now right), `regressed` (was right, now wrong), `unchanged`. The unit of iteration feedback. |
+| **Holdout discipline** | Tuning happens on the slice; acceptance happens on the full corpus with held gold. Rounds are capped to resist slice-overfitting. |
+| **Gold-sanity guard** | A fail-closed corpus lint: an input with no recoverable signal must have gold `unknown` (or accept `unknown`), not a concrete label. |
+
+---
+
+## 4. The loop
+
+```
+        ┌─────────────────────────────────────────────────────────────┐
+        │                                                             │
+   full run ──▶ attribute ──▶ per-class worklist ──▶ pick lowest ladder rung
+   (gate)         (§5)                                   that explains it
+        ▲                                                     │
+        │                                                     ▼
+   confirm on full  ◀── regression-guard ◀── re-run HARD SLICE ◀── apply fix
+   (held gold)          (flip diff)          (seconds, not full)     at that layer
+        │
+        ▼
+   accept → promote baseline (LEP-0006 §8.3)
+```
+
+One turn of the loop:
+
+1. **Measure.** `leather eval run` → report + gate (LEP-0006). If green, stop.
+2. **Attribute.** `leather eval attribute` tags each miss with a failure class and
+   the ladder rung that owns it, and rolls them up per class (§5, §6).
+3. **Pick the cheapest rung.** For each dominant failure class, take the
+   lowest/most-deterministic rung on the fix ladder that explains it (§5).
+4. **Fix at that layer.** Scorer normalization, a gold-lint rule, catalog
+   features, a prompt/curing boundary, or a decoding flag — in that order of
+   preference.
+5. **Re-run the hard slice.** `leather eval run --slice` over failures + guards.
+   Seconds, because the slice is ~½ the size and `thinking: false`.
+6. **Regression-guard.** `leather eval diff` shows *fixed / regressed* per item.
+   A net gain that regresses a core class is **rejected**, not shipped.
+7. **Confirm on full.** When the slice looks good, run the full held corpus. Cap:
+   ≤ K tuning rounds before a mandatory full confirmation (default K=3).
+8. **Accept.** Promote the report to baseline (LEP-0006 §8.3).
+
+The loop is *stateless across examples*: it reads only the report, the gold, and
+the artifacts LEP-0006 already produces.
+
+---
+
+## 5. Failure attribution and the fix ladder
+
+The heart of this LEP. Attribution answers *which layer owns this miss*; the
+ladder says *fix it there, and prefer the cheapest rung*.
+
+### 5.1 Failure classes → fix ladder rung
+
+| Failure class | Signature in the report | Rung (fix here) | Determinism |
+|---|---|---|---|
+| **parse-artifact** | predicted value is a valid answer in the *wrong notation/format* (`sig/x` vs `sig-x`, casing, whitespace, extra prose) | **Scorer** — normalize on load; or tighten the `parse:` regex | deterministic, free |
+| **gold-noise** | input has no recoverable signal but gold demands a concrete label; model abstains and is marked wrong | **Gold lint** — sanity guard relabels/accepts `unknown` by a general rule (§5.3) | deterministic, free |
+| **over-assign** | one class has **low precision** — it is predicted for inputs that belong elsewhere | **Catalog** — the class's `features` are too broad; narrow them in the reference file | deterministic, free |
+| **confusion-pair** | a stable A→B off-diagonal (e.g. storage→node) | **Prompt / catalog boundary** — a principled ownership rule ("volumes are storage even via kubelet") | cheap model runs |
+| **abstention-gap** | high `unknown` where a concrete answer exists | **Accept-sets / confidence** — or a prompt nudge to commit when a class clearly fits | cheap model runs |
+| **genuine** | none of the above; the model is simply wrong on a well-posed input | **Decoding → model** — `thinking`, `temperature`, then (last) a bigger model | expensive |
+
+The ladder is strict: **you may not attribute a miss to `genuine` (and reach for
+weights) until the deterministic rungs above it have been ruled out.** In the
+anchor session, doing this in order converted a "the 35B isn't good enough"
+conclusion into four cheap fixes.
+
+### 5.2 Deterministic-first: the two free rungs
+
+`parse-artifact` and `gold-noise` are *harness* bugs. They are fixed once, in
+code, and never regress. They must be swept **before** any model-touching tuning,
+because otherwise every prompt experiment is measured through a noisy scorer and
+you tune against ghosts. (Anchor: normalization alone was +15 points; it would
+have been invisible under a broken scorer.)
+
+### 5.3 Gold-sanity guard (fold into LEP-0006 §5, sibling of the leakage guard)
+
+LEP-0006 §5.2 already lints for *answer leakage* (is the answer in the question?).
+Its mirror image is *answer absence* (does the question contain enough to answer
+at all?). Add a fail-closed **gold-sanity** lint:
+
+- An input the builder judges **content-free** (a length floor, or a
+  builder-declared junk pattern) **must** have gold `sig: unknown` (or an
+  `accept` that includes `unknown`). Otherwise a well-calibrated abstention is
+  scored as a miss, and the junk drags a core class's recall denominator below
+  what perfect classification could reach.
+- The rule is a **declared, general predicate** (e.g. `min_body_chars: 60`), not a
+  hand-maintained id list — reproducible, auditable, and stable as the corpus is
+  rebuilt. Anchor: junk clustered at ≤19 chars; the next real issue was 427, so a
+  60-char floor isolated exactly the five "Created by mistake" rows with no false
+  positives.
+- `leather eval gold-lint` reports every relabel and **fails closed** if a
+  content-free input still carries a concrete gold label. Gold hygiene is a
+  build-time gate, exactly like leakage.
+
+### 5.4 Anti-overfitting rails
+
+Because iteration edits prompts/catalogs against observed failures, it can overfit
+the eval. Rails:
+
+- **Principled fixes only.** A fix must be a general rule ("volumes → storage
+  wherever they surface"), never "issue #139535 → storage." Reviewers reject
+  id-specific catalog/prompt edits.
+- **Hard slice ≠ acceptance set.** Tune on the slice; accept on the full held
+  corpus. The slice carries **regression guards** (known-correct rows) so a fix
+  that trades them away is caught immediately.
+- **Round cap.** ≤ K prompt/catalog rounds per full confirmation (default 3),
+  logged in the report. Chasing the last few points on a small corpus is a
+  variance-mining smell (LEP-0006 §11 small-corpus variance).
+- **Baseline regression bound.** LEP-0006 §8.3's `max_core_regression` is the
+  final backstop: no accepted change may regress a core class beyond the delta.
+
+---
+
+## 6. Reporting additions (fold into LEP-0006 §8)
+
+`report.json` gains, per incorrect prediction and rolled up per class:
+
+- `failure_class` ∈ {parse-artifact, gold-noise, over-assign, confusion-pair,
+  abstention-gap, genuine};
+- `suggested_rung` (the ladder layer to fix it at);
+- `normalized` (whether notation folding changed the compared value — surfaces
+  parse-artifact volume at a glance).
+
+`report.txt` gains a **worklist footer**: failure classes ranked by count, each
+with its rung and the affected classes — the operator's to-do list, cheapest rung
+first. This is the natural extension of LEP-0006 §8.1's precision/recall reading
+guidance from *interpretation* to *action*.
+
+---
+
+## 7. Commands (extending LEP-0006 §7.1)
+
+| Command | Purpose |
+|---|---|
+| `leather eval attribute <group>` | tag the last run's misses with failure class + rung; print the ranked worklist |
+| `leather eval slice <group> [--from-last] [--guards N]` | materialize a hard slice from the last run's failures + N stratified regression guards |
+| `leather eval run <group> --slice` | run only the current hard slice (fast iteration) |
+| `leather eval diff <group> <runA> <runB>` | per-item flip diff: fixed / regressed / unchanged |
+| `leather eval gold-lint <group>` | leakage **and** sanity checks; relabels junk by rule; fails closed |
+
+All are harness-only except `run --slice` (which is a small model job). `attribute`,
+`slice`, `diff`, and `gold-lint` need **no model** — they operate on artifacts,
+gold, and reports LEP-0006 already emits.
+
+---
+
+## 8. Worked reference — the 14-sig-triage 35B loop
+
+The session this LEP generalizes, on a single box serving Qwen3-35B via vLLM,
+`analyze → match` terminal, `thinking: false`:
+
+| Step | Rung | Change | Effect (full corpus / hard slice) |
+|---|---|---|---|
+| 0. Baseline | — | harness fixed, gate run | **64.5%**, GATE FAILED |
+| 1. Attribute | — | confusion table → ~⅓ of misses are `sig/x` vs `sig-x` | worklist: parse-artifact dominant |
+| 2. Deterministic | Scorer | fold `sig/x → sig-x`, trim/case | **64.5 → 79.6%**, +15 pts, zero model calls |
+| 3. Deterministic | Gold lint | relabel 5 content-free rows → `unknown` (body < 60) | api-machinery recall ceiling unblocked; correct abstention now scores correct |
+| 4. Confusion-pair | Prompt/catalog | balanced ownership rules (storage-via-kubelet, auth-via-anywhere, HPA→autoscaling); `REASONING:` before `SIG:` under no-think | hard slice **25 → 33/44**; 11 fixed / 3 regressed |
+| 5. Confirm | — | full held corpus | **64.5% → 87.1%** (81/93); macro-F1 **87%**; storage recall **29% → 100%**, auth **50% → 90%** |
+
+The pattern: **two free deterministic rungs did the heavy lifting** (+15 from the
+scorer, junk unblocked the ceiling); the model prompt closed the genuine
+confusions (+~7); no weights changed. The gate still fails only on the 90%
+per-core-SIG recall floor (support 7–13; one miss = −8 to −14 pts) — a threshold
+*calibration* question (LEP-0006 §11), **not** a rung on the fix ladder, and
+explicitly out of scope for this loop (§9). The `REASONING:`-before-
+`SIG:` ordering is a reusable `thinking: false` note — with no hidden trace, put
+the visible reasoning token *before* the committed answer field so the model
+decides before it commits (worth surfacing in LEP-0006 §7.2).
+
+---
+
+## 9. Non-goals and open questions
+
+**Non-goals.** Not automated prompt search / RL / autotuning; not a
+statistical-significance engine; not a way to *lower thresholds* to pass (gate
+thresholds are a separate, human calibration decision — moving them is not a rung
+on the fix ladder).
+
+**Open questions.**
+
+- **Attribution accuracy.** `confusion-pair` vs `genuine` is itself a judgment;
+  mis-attribution sends you to the wrong rung. Start rule-based (notation regex,
+  off-diagonal stability, precision floor) and treat any `judged` attribution with
+  LEP-0006 §11's determinism caveats.
+- **Slice construction.** Failure-weighting risks a slice that is unrepresentative;
+  guards mitigate but do not eliminate it. How many guards, stratified how?
+- **Gold-fix provenance.** Every automated gold relabel must be diffable and
+  reversible; should relabels live in a separate `gold.overrides.jsonl` rather
+  than mutating `gold.jsonl`, so the raw fetch stays pristine?
+- **Round-cap enforcement.** Advisory (logged) vs hard (refuse to accept past K)?
+
+---
+
+## 10. Rollout
+
+- **Phase 1 — attribution + gold-sanity.** `eval attribute`, the failure-class
+  tags in `report.json`, and the `gold-lint` sanity guard (the two deterministic
+  rungs). Ships with or just after LEP-0006 Phase 2; pure harness, no new model
+  path.
+- **Phase 2 — slice + diff.** `eval slice`, `run --slice`, `eval diff` (flip
+  tracking). The cheap iteration loop.
+- **Phase 3 — worklist + rails.** Report worklist footer, round-cap logging,
+  reviewer guidance on principled-fix-only. Documented as the standard response to
+  a red gate.
+
+**Compatibility.** Additive over LEP-0006; introduces no new runtime primitive.
+The gold-sanity guard and per-error attribution are extensions to LEP-0006 §5 and
+§8 respectively and may be merged there instead of kept here, at the editors'
+discretion — this LEP owns the **loop**; those two owe their home to the sections
+they extend.
