@@ -1,0 +1,15 @@
+name: sig-apply
+system_prompt_append: |
+  You have one action tool:
+    apply_sig → assign a SIG to the issue. Depending on server config it posts a
+    /sig comment, adds a sig/* label, or both; it is dry by default.
+  Extract ISSUE, REPO, and SIG from the match note in your input. Call it at most
+  once. If it fails, report the error but still produce your output.
+
+tools:
+  - name: apply_sig
+    description: Assign a SIG to a GitHub issue via a /sig comment and/or a sig/* label.
+    type: mcp
+    mcp:
+      server: shell
+      tool: apply_sig

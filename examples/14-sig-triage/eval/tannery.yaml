@@ -1,0 +1,13 @@
+hide_dir: .state-eval/hides
+artifact_dir: .state-eval/artifacts
+curing_dir: eval/curings
+
+queues:
+  analyze-in:
+    concurrency: 4
+    max_attempts: 2
+    max_depth: 1000
+  match-in:
+    concurrency: 4
+    max_attempts: 2
+    max_depth: 1000

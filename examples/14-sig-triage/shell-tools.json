@@ -1,0 +1,34 @@
+{
+  "tools": [
+    {
+      "name": "get_sig_reference",
+      "description": "Return the SIG feature catalog (YAML: each SIG with its signifying components and keywords). Call once, then match the issue's signals against it.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "cat \"${SIG_REFERENCE:-sigs.reference.yaml}\""
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 8000
+    },
+    {
+      "name": "apply_sig",
+      "description": "Assign a SIG to a GitHub issue. SIG_ACTION selects comment (default, posts /sig <name>), label (adds sig/<name>), or both. Dry unless LEATHER_DEMO_MODE=live.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "name=\"${3#sig-}\"; label=\"sig/${name}\"; action=\"${SIG_ACTION:-comment}\"; mode=\"${LEATHER_DEMO_MODE:-dry}\"; if [ \"$action\" = comment ] || [ \"$action\" = both ]; then if [ \"$mode\" = live ]; then gh issue comment \"$1\" --repo \"$2\" --body \"/sig ${name}\"; else printf 'dry-mode: would comment /sig %s on issue #%s in %s\\n' \"$name\" \"$1\" \"$2\"; fi; fi; if [ \"$action\" = label ] || [ \"$action\" = both ]; then if [ \"$mode\" = live ]; then gh issue edit \"$1\" --repo \"$2\" --add-label \"$label\"; else printf 'dry-mode: would add label %s to issue #%s in %s\\n' \"$label\" \"$1\" \"$2\"; fi; fi",
+        "--",
+        "{{issue}}",
+        "{{repo}}",
+        "{{sig}}"
+      ],
+      "required": [
+        "issue",
+        "repo",
+        "sig"
+      ],
+      "timeout_seconds": 20
+    }
+  ]
+}

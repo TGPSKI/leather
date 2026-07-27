@@ -1,0 +1,6 @@
+{
+  "number": 128734,
+  "repo": "kubernetes/kubernetes",
+  "title": "kube-proxy iptables mode drops traffic to Service after EndpointSlice update",
+  "body": "After scaling a Deployment down and back up, connections to the ClusterIP Service intermittently fail for ~30s. kube-proxy logs show it syncing iptables rules but the stale endpoint isn't removed until the next full resync. Seen on v1.30 in iptables mode; nftables mode not affected. NetworkPolicy is not in use."
+}

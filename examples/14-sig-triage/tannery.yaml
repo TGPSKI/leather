@@ -1,0 +1,34 @@
+hide_dir: .state/hides
+artifact_dir: .state/artifacts
+curing_dir: curings
+
+# Live mode (optional): classify issues as they're opened upstream.
+webhooks:
+  - name: github
+    path: /webhooks/github
+    source: github
+    secret: "{{env:GITHUB_WEBHOOK_SECRET}}"
+    max_body_bytes: 524288
+
+routes:
+  - name: new-issue
+    match:
+      source: github
+      event_type: issues
+    hide_kind: github.issues
+    curing: analyze
+    queue: analyze-in
+
+queues:
+  analyze-in:
+    concurrency: 4
+    max_attempts: 2
+    max_depth: 500
+  match-in:
+    concurrency: 4
+    max_attempts: 2
+    max_depth: 500
+  label-in:
+    concurrency: 1        # serialize the side-effect stage
+    max_attempts: 2
+    max_depth: 500

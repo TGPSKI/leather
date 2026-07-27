@@ -1,0 +1,15 @@
+name: sig-catalog
+system_prompt_append: |
+  You have one tool:
+    get_sig_reference → returns the SIG feature catalog (YAML: each SIG with its
+    signifying components and keywords). Call it once, then match against it.
+  If the tool fails, reason from your own knowledge of Kubernetes SIGs and still
+  produce your structured output — a tool failure does not block the pipeline.
+
+tools:
+  - name: get_sig_reference
+    description: Return the SIG feature catalog used for matching.
+    type: mcp
+    mcp:
+      server: shell
+      tool: get_sig_reference

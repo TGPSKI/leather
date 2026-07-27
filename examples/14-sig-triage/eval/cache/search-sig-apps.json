@@ -1,0 +1,1226 @@
+{
+  "total_count": 1994,
+  "incomplete_results": false,
+  "items": [
+    {
+      "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140910",
+      "repository_url": "https://api.github.com/repos/kubernetes/kubernetes",
+      "labels_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140910/labels{/name}",
+      "comments_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140910/comments",
+      "events_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140910/events",
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/140910",
+      "id": 4968566673,
+      "node_id": "I_kwDOAToIks8AAAABKCZPkQ",
+      "number": 140910,
+      "title": "Failure cluster [08ffb694...] `StatefulSet` problems in `ci-kubernetes-e2e-kind-alpha-beta-features-canary`",
+      "user": {
+        "login": "dims",
+        "id": 23304,
+        "node_id": "MDQ6VXNlcjIzMzA0",
+        "avatar_url": "https://avatars.githubusercontent.com/u/23304?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/dims",
+        "html_url": "https://github.com/dims",
+        "followers_url": "https://api.github.com/users/dims/followers",
+        "following_url": "https://api.github.com/users/dims/following{/other_user}",
+        "gists_url": "https://api.github.com/users/dims/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/dims/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/dims/subscriptions",
+        "organizations_url": "https://api.github.com/users/dims/orgs",
+        "repos_url": "https://api.github.com/users/dims/repos",
+        "events_url": "https://api.github.com/users/dims/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/dims/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "labels": [
+        {
+          "id": 404091735,
+          "node_id": "MDU6TGFiZWw0MDQwOTE3MzU=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/apps",
+          "name": "sig/apps",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Apps."
+        },
+        {
+          "id": 496752468,
+          "node_id": "MDU6TGFiZWw0OTY3NTI0Njg=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/kind/failing-test",
+          "name": "kind/failing-test",
+          "color": "e11d21",
+          "default": false,
+          "description": "Categorizes issue or PR as related to a consistently or frequently failing test."
+        },
+        {
+          "id": 2389815605,
+          "node_id": "MDU6TGFiZWwyMzg5ODE1NjA1",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/needs-triage",
+          "name": "needs-triage",
+          "color": "ededed",
+          "default": false,
+          "description": "Indicates an issue or PR lacks a `triage/foo` label and requires one."
+        }
+      ],
+      "state": "open",
+      "locked": false,
+      "assignees": [
+
+      ],
+      "milestone": null,
+      "comments": 5,
+      "created_at": "2026-07-24T12:50:31Z",
+      "updated_at": "2026-07-25T21:02:43Z",
+      "closed_at": null,
+      "assignee": null,
+      "author_association": "MEMBER",
+      "issue_field_values": [
+
+      ],
+      "type": null,
+      "active_lock_reason": null,
+      "sub_issues_summary": {
+        "total": 0,
+        "completed": 0,
+        "percent_completed": 0
+      },
+      "issue_dependencies_summary": {
+        "blocked_by": 0,
+        "total_blocked_by": 0,
+        "blocking": 0,
+        "total_blocking": 0
+      },
+      "body": "### Failure cluster [08ffb694187fb53f5d54](https://go.k8s.io/triage#08ffb694187fb53f5d54)\n\n##### Error text:\n```\n[FAILED] Failed waiting for pods to enter running: context deadline exceeded\nIn [It] at: k8s.io/kubernetes/test/e2e/framework/statefulset/wait.go:63 @ 07/10/26 16:56:53.526\n\n```\n#### Recent failures:\n[7/23/2026, 8:56:30 PM ci-kubernetes-e2e-kind-alpha-beta-features-canary](https://prow.k8s.io/view/gs/kubernetes-ci-logs/logs/ci-kubernetes-e2e-kind-alpha-beta-features-canary/2080456944480423936)\n[7/23/2026, 12:55:33 PM ci-kubernetes-e2e-kind-alpha-beta-features-canary](https://prow.k8s.io/view/gs/kubernetes-ci-logs/logs/ci-kubernetes-e2e-kind-alpha-beta-features-canary/2080335900859961344)\n[7/23/2026, 4:56:29 AM ci-kubernetes-e2e-kind-alpha-beta-features-canary](https://prow.k8s.io/view/gs/kubernetes-ci-logs/logs/ci-kubernetes-e2e-kind-alpha-beta-features-canary/2080215099477331968)\n[7/22/2026, 8:55:20 PM ci-kubernetes-e2e-kind-alpha-beta-features-canary](https://prow.k8s.io/view/gs/kubernetes-ci-logs/logs/ci-kubernetes-e2e-kind-alpha-beta-features-canary/2080094057907884032)\n[7/22/2026, 12:53:54 PM ci-kubernetes-e2e-kind-alpha-beta-features-canary](https://prow.k8s.io/view/gs/kubernetes-ci-logs/logs/ci-kubernetes-e2e-kind-alpha-beta-features-canary/2079973098446131200)\n\n\n/kind failing-test\n<!-- If this is a flake, please add: /kind flake -->\n\n/sig apps",
+      "reactions": {
+        "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140910/reactions",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "timeline_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140910/timeline",
+      "performed_via_github_app": null,
+      "state_reason": null,
+      "pinned_comment": null,
+      "score": 1.0
+    },
+    {
+      "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140901",
+      "repository_url": "https://api.github.com/repos/kubernetes/kubernetes",
+      "labels_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140901/labels{/name}",
+      "comments_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140901/comments",
+      "events_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140901/events",
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/140901",
+      "id": 4966054941,
+      "node_id": "I_kwDOAToIks8AAAABJ__8HQ",
+      "number": 140901,
+      "title": "E2E Test Flakiness: API Server Timeouts, Silent Failures, and Resource Cleanup Issues",
+      "user": {
+        "login": "kairosci",
+        "id": 252924706,
+        "node_id": "U_kgDODxNTIg",
+        "avatar_url": "https://avatars.githubusercontent.com/u/252924706?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/kairosci",
+        "html_url": "https://github.com/kairosci",
+        "followers_url": "https://api.github.com/users/kairosci/followers",
+        "following_url": "https://api.github.com/users/kairosci/following{/other_user}",
+        "gists_url": "https://api.github.com/users/kairosci/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/kairosci/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/kairosci/subscriptions",
+        "organizations_url": "https://api.github.com/users/kairosci/orgs",
+        "repos_url": "https://api.github.com/users/kairosci/repos",
+        "events_url": "https://api.github.com/users/kairosci/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/kairosci/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "labels": [
+        {
+          "id": 105146071,
+          "node_id": "MDU6TGFiZWwxMDUxNDYwNzE=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/kind/bug",
+          "name": "kind/bug",
+          "color": "e11d21",
+          "default": false,
+          "description": "Categorizes issue or PR as related to a bug."
+        },
+        {
+          "id": 116712108,
+          "node_id": "MDU6TGFiZWwxMTY3MTIxMDg=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/network",
+          "name": "sig/network",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Network."
+        },
+        {
+          "id": 122775691,
+          "node_id": "MDU6TGFiZWwxMjI3NzU2OTE=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/kind/cleanup",
+          "name": "kind/cleanup",
+          "color": "c7def8",
+          "default": false,
+          "description": "Categorizes issue or PR as related to cleaning up code, process, or technical debt."
+        },
+        {
+          "id": 169428334,
+          "node_id": "MDU6TGFiZWwxNjk0MjgzMzQ=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/storage",
+          "name": "sig/storage",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Storage."
+        },
+        {
+          "id": 173493665,
+          "node_id": "MDU6TGFiZWwxNzM0OTM2NjU=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/node",
+          "name": "sig/node",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Node."
+        },
+        {
+          "id": 173493835,
+          "node_id": "MDU6TGFiZWwxNzM0OTM4MzU=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/api-machinery",
+          "name": "sig/api-machinery",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG API Machinery."
+        },
+        {
+          "id": 404091735,
+          "node_id": "MDU6TGFiZWw0MDQwOTE3MzU=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/apps",
+          "name": "sig/apps",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Apps."
+        },
+        {
+          "id": 483069764,
+          "node_id": "MDU6TGFiZWw0ODMwNjk3NjQ=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/testing",
+          "name": "sig/testing",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Testing."
+        },
+        {
+          "id": 496752468,
+          "node_id": "MDU6TGFiZWw0OTY3NTI0Njg=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/kind/failing-test",
+          "name": "kind/failing-test",
+          "color": "e11d21",
+          "default": false,
+          "description": "Categorizes issue or PR as related to a consistently or frequently failing test."
+        },
+        {
+          "id": 958178286,
+          "node_id": "MDU6TGFiZWw5NTgxNzgyODY=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/cloud-provider",
+          "name": "sig/cloud-provider",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Cloud Provider."
+        },
+        {
+          "id": 1285569325,
+          "node_id": "MDU6TGFiZWwxMjg1NTY5MzI1",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/area/e2e-test-framework",
+          "name": "area/e2e-test-framework",
+          "color": "0052cc",
+          "default": false,
+          "description": "Issues or PRs related to refactoring the kubernetes e2e test framework"
+        },
+        {
+          "id": 2389815605,
+          "node_id": "MDU6TGFiZWwyMzg5ODE1NjA1",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/needs-triage",
+          "name": "needs-triage",
+          "color": "ededed",
+          "default": false,
+          "description": "Indicates an issue or PR lacks a `triage/foo` label and requires one."
+        }
+      ],
+      "state": "closed",
+      "locked": false,
+      "assignees": [
+
+      ],
+      "milestone": null,
+      "comments": 2,
+      "created_at": "2026-07-24T06:59:49Z",
+      "updated_at": "2026-07-24T10:59:19Z",
+      "closed_at": "2026-07-24T10:59:19Z",
+      "assignee": null,
+      "author_association": "CONTRIBUTOR",
+      "issue_field_values": [
+
+      ],
+      "type": null,
+      "active_lock_reason": null,
+      "sub_issues_summary": {
+        "total": 0,
+        "completed": 0,
+        "percent_completed": 0
+      },
+      "issue_dependencies_summary": {
+        "blocked_by": 0,
+        "total_blocked_by": 0,
+        "blocking": 0,
+        "total_blocking": 0
+      },
+      "body": "The e2e test framework has several patterns that cause flakiness, silent resource leaks, and hard-to-debug failures, especially in disruptive tests that restart API servers or control plane components. PR 137832 addresses these across 13 files (185 additions, 41 deletions), touching SIG api-machinery, apps, cloud-provider, network, node, storage, and testing.\n\nError suppression hides resource leaks. Across the test suite, cleanup code discards errors from Delete calls. In test/e2e/apimachinery/aggregator.go, the cleanupSampleAPIServer function has 10 such calls (APIService, Deployment, Secret, Service, ServiceAccount, RoleBinding, ClusterRoleBinding, ClusterRole) all silently swallowed. Same pattern in test/e2e/apimachinery/apply.go (4 deployments/pods), test/e2e/apps/rc.go (DeleteCollection), and test/e2e/apps/statefulset.go (ConfigMaps in defer blocks). When these fail, resources leak into subsequent tests with zero trace of what went wrong.\n\nNo retry on transient API server errors. GetControlPlaneNodes in test/e2e/framework/util.go calls Nodes().List() and immediately fails on any error. During disruptive tests (daemon restarts, etcd failure injection), the API server is expected to be briefly unreachable. The same issue exists in allNodesReady at test/e2e/framework/node/helper.go and RestartNodes at test/e2e/common/util.go. A transient connection refused or 503 kills the entire test instead of retrying. The fix introduces IsRetryableAPIError which checks for connection refused/reset, server timeout, 429, 503, 500, and unexpected server errors, plus a new WaitForControlPlaneNodes that wraps the listing in a polling loop with retry-on-transient logic.\n\nHealthz returns 200 before daemon is ready. RestartDaemonConfig.waitUp in test/e2e/apps/daemon_restart.go considers the daemon ready when /healthz returns HTTP 200. After a kubelet restart, the health endpoint can report ok while kubelet is still recovering. Logs show errors, pods are not yet scheduled. The fix adds verifyDaemonReadiness which SSHes into the node and checks the last 20 lines of /var/log/kubelet.log for error patterns before declaring readiness.\n\nGoroutines not gracefully stopped. In test/e2e/apps/daemon_restart.go, a cache.NewInformer controller is started with go controller.Run(backgroundCtx.Done()). The cleanup calls cancel() but does not wait for the controller goroutine to finish. The fix replaces this with a dedicated stopCh channel and DeferCleanup that closes the channel then sleeps 100ms to allow graceful shutdown.\n\nPVC deletion races with pod references. DeleteAllStatefulSets in test/e2e/framework/statefulset/rest.go has a TODO comment about not checking whether pods still reference PVCs before deleting them. The current code deletes PVCs immediately, which can fail or leave orphaned PVs when pods are still running. The fix lists pods, checks volume references, and only deletes PVCs that are not in use, with foreground propagation.\n\nDuplicated control plane filtering. GetControlPlaneNodes and WaitForControlPlaneNodes both contain the same node filtering logic (check for control-plane label and NoSchedule taint). The second commit extracts this into a shared filterControlPlaneNodes helper.\n\nAll changes are in e2e test code, no user-facing impact.\n\nRelated issues:\n- 109600: prevent the Expect(err).NotTo(HaveOccurred()) and ExpectNoError(err) anti-pattern in e2e tests (same category of error handling problems)\n- 86253: sample-apiserver returns error instead of falling back to second Accept type (directly affects the aggregator.go test modified in this PR)\n- 135285: GOAWAY are not handled gracefully in apiserver when aggregating (related network error handling)\n- 105536: Orphaned pod found, but error not a directory occurred when trying to remove the volumes dir (related resource cleanup issue)\n\n/kind bug\n/kind cleanup\n/kind failing-test\n/area e2e-test-framework\n/sig testing\n/sig api-machinery\n/sig node\n/sig storage\n/sig apps\n/sig cloud-provider\n/sig network",
+      "reactions": {
+        "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140901/reactions",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "timeline_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140901/timeline",
+      "performed_via_github_app": null,
+      "state_reason": "completed",
+      "pinned_comment": null,
+      "score": 1.0
+    },
+    {
+      "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140858",
+      "repository_url": "https://api.github.com/repos/kubernetes/kubernetes",
+      "labels_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140858/labels{/name}",
+      "comments_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140858/comments",
+      "events_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140858/events",
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/140858",
+      "id": 4954616134,
+      "node_id": "I_kwDOAToIks8AAAABJ1FxRg",
+      "number": 140858,
+      "title": "A StatefulSet cannot be correctly scaled down after a failed scale-up",
+      "user": {
+        "login": "changshuchao",
+        "id": 15356673,
+        "node_id": "MDQ6VXNlcjE1MzU2Njcz",
+        "avatar_url": "https://avatars.githubusercontent.com/u/15356673?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/changshuchao",
+        "html_url": "https://github.com/changshuchao",
+        "followers_url": "https://api.github.com/users/changshuchao/followers",
+        "following_url": "https://api.github.com/users/changshuchao/following{/other_user}",
+        "gists_url": "https://api.github.com/users/changshuchao/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/changshuchao/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/changshuchao/subscriptions",
+        "organizations_url": "https://api.github.com/users/changshuchao/orgs",
+        "repos_url": "https://api.github.com/users/changshuchao/repos",
+        "events_url": "https://api.github.com/users/changshuchao/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/changshuchao/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "labels": [
+        {
+          "id": 105146071,
+          "node_id": "MDU6TGFiZWwxMDUxNDYwNzE=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/kind/bug",
+          "name": "kind/bug",
+          "color": "e11d21",
+          "default": false,
+          "description": "Categorizes issue or PR as related to a bug."
+        },
+        {
+          "id": 404091735,
+          "node_id": "MDU6TGFiZWw0MDQwOTE3MzU=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/apps",
+          "name": "sig/apps",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Apps."
+        },
+        {
+          "id": 2389815605,
+          "node_id": "MDU6TGFiZWwyMzg5ODE1NjA1",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/needs-triage",
+          "name": "needs-triage",
+          "color": "ededed",
+          "default": false,
+          "description": "Indicates an issue or PR lacks a `triage/foo` label and requires one."
+        }
+      ],
+      "state": "open",
+      "locked": false,
+      "assignees": [
+
+      ],
+      "milestone": null,
+      "comments": 4,
+      "created_at": "2026-07-23T01:45:11Z",
+      "updated_at": "2026-07-27T01:09:20Z",
+      "closed_at": null,
+      "assignee": null,
+      "author_association": "CONTRIBUTOR",
+      "issue_field_values": [
+
+      ],
+      "type": null,
+      "active_lock_reason": null,
+      "sub_issues_summary": {
+        "total": 0,
+        "completed": 0,
+        "percent_completed": 0
+      },
+      "issue_dependencies_summary": {
+        "blocked_by": 0,
+        "total_blocked_by": 0,
+        "blocking": 0,
+        "total_blocking": 0
+      },
+      "body": "### What happened?\n\nResource quota is set, can not scaling up to the desired number of replicas ;\n an attempt to scale down failed while the system was in an intermediate state.\n\n### What did you expect to happen?\n\nCan scale down correctly.\n\n### How can we reproduce it (as minimally and precisely as possible)?\n\ncreate sts like below:\n`\napiVersion: apps/v1\nkind: StatefulSet\nmetadata:\n  name: test-sts\n  namespace: cg-09\nspec:\n  podManagementPolicy: Parallel\n  replicas: 2\n  serviceName: test-svc\n    spec:\n      containers:\n        image: busybox\n        imagePullPolicy: IfNotPresent\n        name: vru-cgf-gtp-spu\n        resources:\n          limits:\n            cnrm.xxx.com.cn/bandwidth-sriov-sig: 1k\n            cnrm.xxx.com.cn/vf-sig-number: \"1\"\n            cpu: \"4\"\n            memory: 16Gi\n          requests:\n            cnrm.xxx.com.cn/bandwidth-sriov-sig: 1k\n            cnrm.xxx.com.cn/vf-sig-number: \"1\"\n            cpu: \"4\"\n            memory: 16Gi\n  updateStrategy:\n    rollingUpdate:\n      partition: 0\n    type: RollingUpdate\n`\nThe initial replica count was 2, and it was then scaled up to 32 (though the quota could only accommodate 21 pods). The scale-up failed as shown in the image; subsequently, a scale-down operation was attempted, but the process could not be executed.\n\n<img width=\"965\" height=\"508\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/1fcb962e-f352-43b8-ac0a-d7e7c729d090\" />\n\n### Anything else we need to know?\n\n_No response_\n\n### Kubernetes version\n\n<details>\n\n```console\n$ kubectl version\nClient Version: v1.34.0\nKustomize Version: v5.7.1\nServer Version: v1.34.0\n```\n\n</details>\n\n\n### Cloud provider\n\n<details>\nnone\n</details>\n\n\n### OS version\n\n<details>\n\n```console\n# On Linux:\n$ cat /etc/os-release\ncentos\n$ uname -a\nx86\n\n# On Windows:\nC:\\> wmic os get Caption, Version, BuildNumber, OSArchitecture\n# paste output here\n```\n\n</details>\n\n\n### Install tools\n\n<details>\nkubeadm\n</details>\n\n\n### Container runtime (CRI) and version (if applicable)\n\n<details>\ncontainerd\n</details>\n\n\n### Related plugins (CNI, CSI, ...) and versions (if applicable)\n\n<details>\ncilium\n</details>\n",
+      "reactions": {
+        "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140858/reactions",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "timeline_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140858/timeline",
+      "performed_via_github_app": null,
+      "state_reason": null,
+      "pinned_comment": null,
+      "score": 1.0
+    },
+    {
+      "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140839",
+      "repository_url": "https://api.github.com/repos/kubernetes/kubernetes",
+      "labels_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140839/labels{/name}",
+      "comments_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140839/comments",
+      "events_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140839/events",
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/140839",
+      "id": 4948755008,
+      "node_id": "I_kwDOAToIks8AAAABJvgCQA",
+      "number": 140839,
+      "title": "Changing batch.kubernetes.io/job-completion-index annotation causes the job controller to miscalculate pods needed to run",
+      "user": {
+        "login": "soltysh",
+        "id": 576341,
+        "node_id": "MDQ6VXNlcjU3NjM0MQ==",
+        "avatar_url": "https://avatars.githubusercontent.com/u/576341?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/soltysh",
+        "html_url": "https://github.com/soltysh",
+        "followers_url": "https://api.github.com/users/soltysh/followers",
+        "following_url": "https://api.github.com/users/soltysh/following{/other_user}",
+        "gists_url": "https://api.github.com/users/soltysh/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/soltysh/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/soltysh/subscriptions",
+        "organizations_url": "https://api.github.com/users/soltysh/orgs",
+        "repos_url": "https://api.github.com/users/soltysh/repos",
+        "events_url": "https://api.github.com/users/soltysh/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/soltysh/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "labels": [
+        {
+          "id": 105146071,
+          "node_id": "MDU6TGFiZWwxMDUxNDYwNzE=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/kind/bug",
+          "name": "kind/bug",
+          "color": "e11d21",
+          "default": false,
+          "description": "Categorizes issue or PR as related to a bug."
+        },
+        {
+          "id": 404091735,
+          "node_id": "MDU6TGFiZWw0MDQwOTE3MzU=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/apps",
+          "name": "sig/apps",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Apps."
+        },
+        {
+          "id": 496752236,
+          "node_id": "MDU6TGFiZWw0OTY3NTIyMzY=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/priority/important-longterm",
+          "name": "priority/important-longterm",
+          "color": "eb6420",
+          "default": false,
+          "description": "Important over the long term, but may not be staffed and/or may need multiple releases to complete."
+        },
+        {
+          "id": 2389856656,
+          "node_id": "MDU6TGFiZWwyMzg5ODU2NjU2",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/triage/accepted",
+          "name": "triage/accepted",
+          "color": "8fc951",
+          "default": false,
+          "description": "Indicates an issue or PR is ready to be actively worked on."
+        }
+      ],
+      "state": "open",
+      "locked": false,
+      "assignees": [
+        {
+          "login": "ajay-build",
+          "id": 182211529,
+          "node_id": "U_kgDOCtxTyQ",
+          "avatar_url": "https://avatars.githubusercontent.com/u/182211529?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/ajay-build",
+          "html_url": "https://github.com/ajay-build",
+          "followers_url": "https://api.github.com/users/ajay-build/followers",
+          "following_url": "https://api.github.com/users/ajay-build/following{/other_user}",
+          "gists_url": "https://api.github.com/users/ajay-build/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/ajay-build/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/ajay-build/subscriptions",
+          "organizations_url": "https://api.github.com/users/ajay-build/orgs",
+          "repos_url": "https://api.github.com/users/ajay-build/repos",
+          "events_url": "https://api.github.com/users/ajay-build/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/ajay-build/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        }
+      ],
+      "milestone": null,
+      "comments": 3,
+      "created_at": "2026-07-22T12:13:23Z",
+      "updated_at": "2026-07-25T19:15:37Z",
+      "closed_at": null,
+      "assignee": {
+        "login": "ajay-build",
+        "id": 182211529,
+        "node_id": "U_kgDOCtxTyQ",
+        "avatar_url": "https://avatars.githubusercontent.com/u/182211529?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/ajay-build",
+        "html_url": "https://github.com/ajay-build",
+        "followers_url": "https://api.github.com/users/ajay-build/followers",
+        "following_url": "https://api.github.com/users/ajay-build/following{/other_user}",
+        "gists_url": "https://api.github.com/users/ajay-build/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/ajay-build/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/ajay-build/subscriptions",
+        "organizations_url": "https://api.github.com/users/ajay-build/orgs",
+        "repos_url": "https://api.github.com/users/ajay-build/repos",
+        "events_url": "https://api.github.com/users/ajay-build/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/ajay-build/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "author_association": "CONTRIBUTOR",
+      "issue_field_values": [
+
+      ],
+      "type": null,
+      "active_lock_reason": null,
+      "sub_issues_summary": {
+        "total": 0,
+        "completed": 0,
+        "percent_completed": 0
+      },
+      "issue_dependencies_summary": {
+        "blocked_by": 0,
+        "total_blocked_by": 0,
+        "blocking": 0,
+        "total_blocking": 0
+      },
+      "body": "### What happened?\n\nThe simplest way to reproduce this problem is to follow these steps:\n1. Create an Indexed Job with completions: 2 and parallelism: 1, for example. The numbers don't matter here that much.\n2. When the first pod is running, modify the following annotation `batch.kubernetes.io/job-completion-index` from 0 to 1.\n3. Observe the job controller does its job by creating 0 index once more. \n\nThe final state is that the 0th index (as created by the controller) runs twice, whereas the supposedly created 1st index never run. \n\n\n### What did you expect to happen?\n\nModifying `batch.kubernetes.io/job-completion-index` should not affect which indexes are actually run by the system. \n\n### How can we reproduce it (as minimally and precisely as possible)?\n\nSee the steps above. \n\n### Anything else we need to know?\n\n_No response_\n\n### Kubernetes version\n\n<details>\n\n```console\n$ kubectl version\nClient Version: v1.36.1\nKustomize Version: v5.8.1\nServer Version: v1.36.1\n```\n\n</details>\n\n\n### Cloud provider\n\n`kind v0.32.0 go1.26.3 linux/amd64`\n\n\n### OS version\n\n_No response_\n\n### Install tools\n\n_No response_\n\n### Container runtime (CRI) and version (if applicable)\n\n_No response_\n\n### Related plugins (CNI, CSI, ...) and versions (if applicable)\n\n_No response_",
+      "reactions": {
+        "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140839/reactions",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "timeline_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140839/timeline",
+      "performed_via_github_app": null,
+      "state_reason": null,
+      "pinned_comment": null,
+      "score": 1.0
+    },
+    {
+      "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140112",
+      "repository_url": "https://api.github.com/repos/kubernetes/kubernetes",
+      "labels_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140112/labels{/name}",
+      "comments_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140112/comments",
+      "events_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140112/events",
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/140112",
+      "id": 4779627921,
+      "node_id": "I_kwDOAToIks8AAAABHONVkQ",
+      "number": 140112,
+      "title": "Job admission plugin checks gang-scheduling parallelism guard when only one of GenericWorkload/WorkloadWithJob is enabled",
+      "user": {
+        "login": "kannon92",
+        "id": 3780425,
+        "node_id": "MDQ6VXNlcjM3ODA0MjU=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/3780425?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/kannon92",
+        "html_url": "https://github.com/kannon92",
+        "followers_url": "https://api.github.com/users/kannon92/followers",
+        "following_url": "https://api.github.com/users/kannon92/following{/other_user}",
+        "gists_url": "https://api.github.com/users/kannon92/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/kannon92/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/kannon92/subscriptions",
+        "organizations_url": "https://api.github.com/users/kannon92/orgs",
+        "repos_url": "https://api.github.com/users/kannon92/repos",
+        "events_url": "https://api.github.com/users/kannon92/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/kannon92/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "labels": [
+        {
+          "id": 105146071,
+          "node_id": "MDU6TGFiZWwxMDUxNDYwNzE=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/kind/bug",
+          "name": "kind/bug",
+          "color": "e11d21",
+          "default": false,
+          "description": "Categorizes issue or PR as related to a bug."
+        },
+        {
+          "id": 125550211,
+          "node_id": "MDU6TGFiZWwxMjU1NTAyMTE=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/scheduling",
+          "name": "sig/scheduling",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Scheduling."
+        },
+        {
+          "id": 404091735,
+          "node_id": "MDU6TGFiZWw0MDQwOTE3MzU=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/apps",
+          "name": "sig/apps",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Apps."
+        },
+        {
+          "id": 2389815605,
+          "node_id": "MDU6TGFiZWwyMzg5ODE1NjA1",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/needs-triage",
+          "name": "needs-triage",
+          "color": "ededed",
+          "default": false,
+          "description": "Indicates an issue or PR lacks a `triage/foo` label and requires one."
+        },
+        {
+          "id": 11107935889,
+          "node_id": "LA_kwDOAToIks8AAAAClhWmkQ",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/wg/workload-aware-scheduling",
+          "name": "wg/workload-aware-scheduling",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes issue or PR as relevant to workload-aware scheduling WG."
+        }
+      ],
+      "state": "closed",
+      "locked": false,
+      "assignees": [
+
+      ],
+      "milestone": null,
+      "comments": 7,
+      "created_at": "2026-06-30T18:56:45Z",
+      "updated_at": "2026-07-10T16:15:36Z",
+      "closed_at": "2026-07-10T16:15:36Z",
+      "assignee": null,
+      "author_association": "CONTRIBUTOR",
+      "issue_field_values": [
+
+      ],
+      "type": null,
+      "active_lock_reason": null,
+      "sub_issues_summary": {
+        "total": 0,
+        "completed": 0,
+        "percent_completed": 0
+      },
+      "issue_dependencies_summary": {
+        "blocked_by": 0,
+        "total_blocked_by": 0,
+        "blocking": 0,
+        "total_blocking": 0
+      },
+      "body": "<!-- This issue was generated with AI assistance -->\n\n## What happened?\n\nThe `validateParallelismChange` admission check in `plugin/pkg/admission/job/admission.go` uses an AND condition to skip validation:\n\n```go\nif !p.genericWorkloadEnabled && !p.workloadWithJobEnabled {\n    return nil\n}\n```\n\nThis means the gang-scheduling parallelism guard is active when **either** feature gate is enabled. Disabling only `WorkloadWithJob` (or only `GenericWorkload`) is not sufficient to bypass the check — both must be disabled.\n\nIf a user disables `WorkloadWithJob` expecting to opt out of gang-scheduling admission behavior, the check still fires because `GenericWorkload` is enabled (or vice versa).\n\n## What did you expect to happen?\n\nDisabling the relevant feature gate for the code path being exercised should be sufficient to skip the validation. For example, the `SchedulingGroup`-based path (line 133) only makes sense with `GenericWorkload`, and the owner-reference scan path (line 148) only makes sense with `WorkloadWithJob`. Each branch should be gated independently on its corresponding feature gate, rather than both branches being gated on the OR of the two gates.\n\n## How can we reproduce it?\n\n1. Disable `WorkloadWithJob` feature gate, leave `GenericWorkload` enabled.\n2. Create a Job that has an owner-created PodGroup with gang scheduling.\n3. Attempt to update the Job's parallelism.\n4. Observe `is forbidden: cannot change parallelism for a Job referencing gang-scheduled PodGroup` even though `WorkloadWithJob` is disabled.\n\n## Relevant code\n\n`plugin/pkg/admission/job/admission.go`, `validateParallelismChange` function.\n\n/kind bug\n",
+      "reactions": {
+        "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140112/reactions",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "timeline_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140112/timeline",
+      "performed_via_github_app": null,
+      "state_reason": "completed",
+      "pinned_comment": null,
+      "score": 1.0
+    },
+    {
+      "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140025",
+      "repository_url": "https://api.github.com/repos/kubernetes/kubernetes",
+      "labels_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140025/labels{/name}",
+      "comments_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140025/comments",
+      "events_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140025/events",
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/140025",
+      "id": 4747220416,
+      "node_id": "I_kwDOAToIks8AAAABGvTVwA",
+      "number": 140025,
+      "title": "Top controller name should be directly added into pod level",
+      "user": {
+        "login": "CatherineF-dev",
+        "id": 78218824,
+        "node_id": "MDQ6VXNlcjc4MjE4ODI0",
+        "avatar_url": "https://avatars.githubusercontent.com/u/78218824?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/CatherineF-dev",
+        "html_url": "https://github.com/CatherineF-dev",
+        "followers_url": "https://api.github.com/users/CatherineF-dev/followers",
+        "following_url": "https://api.github.com/users/CatherineF-dev/following{/other_user}",
+        "gists_url": "https://api.github.com/users/CatherineF-dev/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/CatherineF-dev/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/CatherineF-dev/subscriptions",
+        "organizations_url": "https://api.github.com/users/CatherineF-dev/orgs",
+        "repos_url": "https://api.github.com/users/CatherineF-dev/repos",
+        "events_url": "https://api.github.com/users/CatherineF-dev/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/CatherineF-dev/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "labels": [
+        {
+          "id": 267761362,
+          "node_id": "MDU6TGFiZWwyNjc3NjEzNjI=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/kind/feature",
+          "name": "kind/feature",
+          "color": "c7def8",
+          "default": false,
+          "description": "Categorizes issue or PR as related to a new feature."
+        },
+        {
+          "id": 404091735,
+          "node_id": "MDU6TGFiZWw0MDQwOTE3MzU=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/apps",
+          "name": "sig/apps",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Apps."
+        },
+        {
+          "id": 2389815605,
+          "node_id": "MDU6TGFiZWwyMzg5ODE1NjA1",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/needs-triage",
+          "name": "needs-triage",
+          "color": "ededed",
+          "default": false,
+          "description": "Indicates an issue or PR lacks a `triage/foo` label and requires one."
+        }
+      ],
+      "state": "open",
+      "locked": false,
+      "assignees": [
+
+      ],
+      "milestone": null,
+      "comments": 9,
+      "created_at": "2026-06-25T20:36:22Z",
+      "updated_at": "2026-07-15T18:46:20Z",
+      "closed_at": null,
+      "assignee": null,
+      "author_association": "CONTRIBUTOR",
+      "issue_field_values": [
+
+      ],
+      "type": null,
+      "active_lock_reason": null,
+      "sub_issues_summary": {
+        "total": 0,
+        "completed": 0,
+        "percent_completed": 0
+      },
+      "issue_dependencies_summary": {
+        "blocked_by": 0,
+        "total_blocked_by": 0,
+        "blocking": 0,
+        "total_blocking": 0
+      },
+      "body": "### What happened?\n\nCurrently, it needs some graph mining to figure out the top-controller with OwnerReference. It brings toils for consumers in telemetry area. \n\nFor example, jobset controller directly applies the jobset name to its pods' annotation. \n\n\n### What did you expect to happen?\n\nIn the pod's annotation, a top-controller name field is added directly. It should support all k8s core resource types. Deployment, Daemonset eta.\n\n### How can we reproduce it (as minimally and precisely as possible)?\n\nn/a\n\n### Anything else we need to know?\n\nn/a\n\n### Kubernetes version\n\n<details>\n\n```console\n$ kubectl version\n# paste output here\n```\n\n</details>\n\n\n### Cloud provider\n\n<details>\n\n</details>\n\n\n### OS version\n\n<details>\n\n```console\n# On Linux:\n$ cat /etc/os-release\n# paste output here\n$ uname -a\n# paste output here\n\n# On Windows:\nC:\\> wmic os get Caption, Version, BuildNumber, OSArchitecture\n# paste output here\n```\n\n</details>\n\n\n### Install tools\n\n<details>\n\n</details>\n\n\n### Container runtime (CRI) and version (if applicable)\n\n<details>\n\n</details>\n\n\n### Related plugins (CNI, CSI, ...) and versions (if applicable)\n\n<details>\n\n</details>\n\n1. storage increase\n2. pod owner reference \n3. another way without api review\n4. kep for alpha, beta, GA\n",
+      "reactions": {
+        "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140025/reactions",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "timeline_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/140025/timeline",
+      "performed_via_github_app": null,
+      "state_reason": null,
+      "pinned_comment": null,
+      "score": 1.0
+    },
+    {
+      "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139917",
+      "repository_url": "https://api.github.com/repos/kubernetes/kubernetes",
+      "labels_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139917/labels{/name}",
+      "comments_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139917/comments",
+      "events_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139917/events",
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/139917",
+      "id": 4717179517,
+      "node_id": "I_kwDOAToIks8AAAABGSpyfQ",
+      "number": 139917,
+      "title": "CronJob controller: processNextWorkItem does not call queue.Forget on the  (nil, nil) sync path, leaving stale rate-limiter backoff count",
+      "user": {
+        "login": "somak2kai",
+        "id": 281532634,
+        "node_id": "U_kgDOEMfY2g",
+        "avatar_url": "https://avatars.githubusercontent.com/u/281532634?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/somak2kai",
+        "html_url": "https://github.com/somak2kai",
+        "followers_url": "https://api.github.com/users/somak2kai/followers",
+        "following_url": "https://api.github.com/users/somak2kai/following{/other_user}",
+        "gists_url": "https://api.github.com/users/somak2kai/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/somak2kai/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/somak2kai/subscriptions",
+        "organizations_url": "https://api.github.com/users/somak2kai/orgs",
+        "repos_url": "https://api.github.com/users/somak2kai/repos",
+        "events_url": "https://api.github.com/users/somak2kai/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/somak2kai/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "labels": [
+        {
+          "id": 404091735,
+          "node_id": "MDU6TGFiZWw0MDQwOTE3MzU=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/apps",
+          "name": "sig/apps",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Apps."
+        },
+        {
+          "id": 2389856656,
+          "node_id": "MDU6TGFiZWwyMzg5ODU2NjU2",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/triage/accepted",
+          "name": "triage/accepted",
+          "color": "8fc951",
+          "default": false,
+          "description": "Indicates an issue or PR is ready to be actively worked on."
+        }
+      ],
+      "state": "closed",
+      "locked": false,
+      "assignees": [
+
+      ],
+      "milestone": null,
+      "comments": 2,
+      "created_at": "2026-06-22T13:43:18Z",
+      "updated_at": "2026-06-25T14:54:23Z",
+      "closed_at": "2026-06-25T14:54:23Z",
+      "assignee": null,
+      "author_association": "CONTRIBUTOR",
+      "issue_field_values": [
+
+      ],
+      "type": null,
+      "active_lock_reason": null,
+      "sub_issues_summary": {
+        "total": 0,
+        "completed": 0,
+        "percent_completed": 0
+      },
+      "issue_dependencies_summary": {
+        "blocked_by": 0,
+        "total_blocked_by": 0,
+        "blocking": 0,
+        "total_blocking": 0
+      },
+      "body": "/sig apps\n\n**Description**\n\nIn `pkg/controller/cronjob/cronjob_controllerv2.go#processNextWorkItem` only resets the workqueue rate limiter (queue.Forget) inside the requeueAfter != nil branch. When sync() returns (nil, nil) — no error and no requeue — none of the switch branches run, so Forget is never called:\n\n```\nrequeueAfter, err := jm.sync(ctx, key)\nswitch {\ncase err != nil:\n    utilruntime.HandleError(...)\n    jm.queue.AddRateLimited(key)\ncase requeueAfter != nil:\n    jm.queue.Forget(key)\n    jm.queue.AddAfter(key, *requeueAfter)\n// err == nil && requeueAfter == nil: nothing runs, Forget is not called\n}\n\nreturn true\n\n```\n\nSome paths/conditions when nil, nil are returned are such as below:\n- CronJob not found / already deleted (returned directly by sync)\n- CronJob being deleted (DeletionTimestamp != nil)\n- CronJob suspended (spec.suspend == true)\n- invalid spec.timeZone\n- unparseable or invalid spec.schedule\n\n\n**Issue**\nI took one example flow and say : \nTake a suspended CronJob: on any given sync it may or may not need a status write, and that write may or may not succeed.( in `pkg/controller/cronjob/cronjob_controllerv2.go#syncCronJob` )\n- Status write fails → sync returns (nil, err) → processNextWorkItem takes the err != nil branch → AddRateLimited increments the failure count.\n- Status write succeeds → sync returns (nil, nil) → no branch runs → the count is left unchanged.\n\nSo the same path that can drive the counter up (when its status write errors) never brings it back down (when its status write succeeds).\n\n\n**What happens if this isn't fixed**\n\nI would be honest, i dont want to oversell this and the severity/impact might be on the lower side but there is definitely an impact.\n\nConsider a CronJob that accumulated some failures during an API incident and is then suspended . Because the suspended sync returns (nil, nil), the stale failure count is retained. When the CronJob is later resumed and its first reconcile hits a transient error, AddRateLimited computes the backoff from the stale count rather than from a clean baseline.\nAlso - since queue keys by namespace/name, a later CronJob recreated with the same name inherits the previous object's stale backoff.\n\n**Potential Fix**\nIts just a simple one liner.\nhttps://github.com/kubernetes/kubernetes/pull/139918\n\n**How was this uncovered**\n\nIn the sprit of full transparency :\n\nI found this while building my own open source case study [tool](https://github.com/somak2kai/beats) on golang structural fingerprints and potential outliers and I used Kubernetes (among many others oss repos) as test subjects.  \nprocessNextWorkItem in cronjob_controllerv2 was marked as a potential outlier compared to its cousins  such as the below ( and all of the below follow similar pattern of .forget on queue)\ncertificates/clustertrustbundlepublisher/publisher.go#processNextWorkItem\nprocessNextWorkItem\trootcacertpublisher\tcertificates/rootcacertpublisher/publisher.go#processNextWorkItem\ncontroller/bootstrap/tokencleaner.go#processNextWorkItem\ncontroller/certificates/certificate_controller.go#processNextWorkItem\n\nThe goal of the tool was not to find issues , but was to perform a case study. This particular issue stood out , hence raising it. No personal agenda behind this 🙏\n\n",
+      "reactions": {
+        "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139917/reactions",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "timeline_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139917/timeline",
+      "performed_via_github_app": null,
+      "state_reason": "completed",
+      "pinned_comment": null,
+      "score": 1.0
+    },
+    {
+      "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139582",
+      "repository_url": "https://api.github.com/repos/kubernetes/kubernetes",
+      "labels_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139582/labels{/name}",
+      "comments_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139582/comments",
+      "events_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139582/events",
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/139582",
+      "id": 4620204599,
+      "node_id": "I_kwDOAToIks8AAAABE2K6Nw",
+      "number": 139582,
+      "title": "PDB maxUnavailable cannot compute expectedPods when a pod's direct controller owner does not implement /scale but a scalable ancestor exists",
+      "user": {
+        "login": "ram2valar",
+        "id": 15018175,
+        "node_id": "MDQ6VXNlcjE1MDE4MTc1",
+        "avatar_url": "https://avatars.githubusercontent.com/u/15018175?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/ram2valar",
+        "html_url": "https://github.com/ram2valar",
+        "followers_url": "https://api.github.com/users/ram2valar/followers",
+        "following_url": "https://api.github.com/users/ram2valar/following{/other_user}",
+        "gists_url": "https://api.github.com/users/ram2valar/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/ram2valar/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/ram2valar/subscriptions",
+        "organizations_url": "https://api.github.com/users/ram2valar/orgs",
+        "repos_url": "https://api.github.com/users/ram2valar/repos",
+        "events_url": "https://api.github.com/users/ram2valar/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/ram2valar/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "labels": [
+        {
+          "id": 267761362,
+          "node_id": "MDU6TGFiZWwyNjc3NjEzNjI=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/kind/feature",
+          "name": "kind/feature",
+          "color": "c7def8",
+          "default": false,
+          "description": "Categorizes issue or PR as related to a new feature."
+        },
+        {
+          "id": 404091735,
+          "node_id": "MDU6TGFiZWw0MDQwOTE3MzU=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/apps",
+          "name": "sig/apps",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Apps."
+        },
+        {
+          "id": 2389815605,
+          "node_id": "MDU6TGFiZWwyMzg5ODE1NjA1",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/needs-triage",
+          "name": "needs-triage",
+          "color": "ededed",
+          "default": false,
+          "description": "Indicates an issue or PR lacks a `triage/foo` label and requires one."
+        }
+      ],
+      "state": "open",
+      "locked": false,
+      "assignees": [
+
+      ],
+      "milestone": null,
+      "comments": 8,
+      "created_at": "2026-06-09T08:17:24Z",
+      "updated_at": "2026-07-08T06:27:51Z",
+      "closed_at": null,
+      "assignee": null,
+      "author_association": "NONE",
+      "issue_field_values": [
+
+      ],
+      "type": null,
+      "active_lock_reason": null,
+      "sub_issues_summary": {
+        "total": 0,
+        "completed": 0,
+        "percent_completed": 0
+      },
+      "issue_dependencies_summary": {
+        "blocked_by": 0,
+        "total_blocked_by": 0,
+        "blocking": 0,
+        "total_blocking": 0
+      },
+      "body": "## What happened\n\nThe disruption controller computes `expectedPods` for a PDB using `maxUnavailable` by calling the `/scale` subresource on each matched pod's **direct** controller owner (`metav1.GetControllerOf(pod)` → scale lookup in `pkg/controller/disruption/disruption.go`, `getExpectedScale` / `getPodControllerFromScale`).\n\nWhen the direct owner does not implement `/scale`, the lookup errors and the PDB falls back to `expectedPods: 0` → `disruptionsAllowed: 0`, emitting:\n\n```\nWarning  CalculateExpectedPodCountFailed\n  Failed to calculate the number of expected pods:\n  <resource> does not implement the scale subresource\n```\n\nThis blocks **all** voluntary evictions for the protected pods, even when a *scalable* resource exists higher in the ownership chain.\n\n## Why this matters beyond one project\n\nThis is a general limitation for any operator/CRD pattern with multi-level ownership, where the immediately-owning object is a per-instance (non-scalable) resource but a higher-level controller is scalable. A concrete, widely-deployed example is KubeVirt:\n\n```\nvirt-launcher Pod  →  VirtualMachineInstance   (direct owner, NOT scalable)\n                   →  VirtualMachine\n                   →  VirtualMachinePool        (scalable — implements /scale)\n```\n\n`VirtualMachinePool` implements `/scale`, but the disruption controller never reaches it because it stops at the direct owner (`VirtualMachineInstance`). Result: `maxUnavailable` PDBs are unusable for these workloads and users must fall back to `minAvailable`. (See kubevirt/kubevirt#18063 for the downstream report.)\n\n## Current behavior\n\n`getExpectedScale` resolves only the direct `controllerRef` and attempts a single scale lookup against it. There is no traversal of the `ownerReferences` chain.\n\n## Proposed enhancement\n\nWhen the direct controller owner does not implement `/scale`, walk the `controllerRef` chain upward (`owner → owner-of-owner → …`) and use the **nearest ancestor that implements `/scale`** to compute `expectedPods`. Stop at the first scalable ancestor, or fall back to the current behavior if none exists.\n\nSemantically this is correct: when many pods resolve to the same scalable ancestor (deduplicated by controller UID, as the controller already does), `expectedPods` becomes that ancestor's `scale.spec.replicas` — i.e. the real desired count of the workload the PDB is protecting.\n\n### Open design questions (likely KEP material)\n\n1. **Object lookups for intermediate owners.** Traversal requires GET-ing each intermediate owner object to read its `ownerReferences`. The disruption controller today only has typed finders for built-in workload types plus the polymorphic scale client. Walking arbitrary CRD chains needs a dynamic/metadata client and correspondingly broad RBAC. What is the right scoping (e.g. bounded depth, only follow `controller: true` refs)?\n2. **Depth bound & cycle protection.** Cap traversal depth and guard against cyclic/malformed `ownerReferences`.\n3. **Ambiguity.** If multiple matched pods resolve to *different* scalable ancestors, sum per-ancestor scales (the existing dedup-by-UID logic already handles this once ancestors are correctly identified).\n4. **Backward compatibility.** Behavior only changes for pods whose direct owner is non-scalable today (currently a hard failure), so this is strictly an improvement — no regression for existing scalable-direct-owner cases.\n\n## Alternatives considered\n\n- **Implement `/scale` on the direct owner** (e.g. add it to the per-instance resource). Rejected as a general solution: it forces a `spec.replicas` field onto inherently-singleton resources and advertises horizontal scalability that does not exist, confusing HPA/`kubectl scale`/GitOps tooling.\n- **Use `minAvailable`.** Works today and needs no change, but does not give users the `maxUnavailable` semantics they ask for. Acceptable workaround, not a fix.\n\n## Environment\n\n- Kubernetes: behavior confirmed from `pkg/controller/disruption/disruption.go` (`getExpectedScale`).\n\n/sig apps\n/kind feature\n",
+      "reactions": {
+        "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139582/reactions",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "timeline_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139582/timeline",
+      "performed_via_github_app": null,
+      "state_reason": null,
+      "pinned_comment": null,
+      "score": 1.0
+    },
+    {
+      "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139428",
+      "repository_url": "https://api.github.com/repos/kubernetes/kubernetes",
+      "labels_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139428/labels{/name}",
+      "comments_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139428/comments",
+      "events_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139428/events",
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/139428",
+      "id": 4568553355,
+      "node_id": "I_kwDOAToIks8AAAABEE6Xiw",
+      "number": 139428,
+      "title": "Job controller manageJob() returns active=0 during backoff, causing \"cannot set more ready pods than active\" status update rejection",
+      "user": {
+        "login": "snarkychef",
+        "id": 52436067,
+        "node_id": "MDQ6VXNlcjUyNDM2MDY3",
+        "avatar_url": "https://avatars.githubusercontent.com/u/52436067?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/snarkychef",
+        "html_url": "https://github.com/snarkychef",
+        "followers_url": "https://api.github.com/users/snarkychef/followers",
+        "following_url": "https://api.github.com/users/snarkychef/following{/other_user}",
+        "gists_url": "https://api.github.com/users/snarkychef/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/snarkychef/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/snarkychef/subscriptions",
+        "organizations_url": "https://api.github.com/users/snarkychef/orgs",
+        "repos_url": "https://api.github.com/users/snarkychef/repos",
+        "events_url": "https://api.github.com/users/snarkychef/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/snarkychef/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "labels": [
+        {
+          "id": 105146071,
+          "node_id": "MDU6TGFiZWwxMDUxNDYwNzE=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/kind/bug",
+          "name": "kind/bug",
+          "color": "e11d21",
+          "default": false,
+          "description": "Categorizes issue or PR as related to a bug."
+        },
+        {
+          "id": 404091735,
+          "node_id": "MDU6TGFiZWw0MDQwOTE3MzU=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/apps",
+          "name": "sig/apps",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Apps."
+        },
+        {
+          "id": 496752236,
+          "node_id": "MDU6TGFiZWw0OTY3NTIyMzY=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/priority/important-longterm",
+          "name": "priority/important-longterm",
+          "color": "eb6420",
+          "default": false,
+          "description": "Important over the long term, but may not be staffed and/or may need multiple releases to complete."
+        },
+        {
+          "id": 2389856656,
+          "node_id": "MDU6TGFiZWwyMzg5ODU2NjU2",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/triage/accepted",
+          "name": "triage/accepted",
+          "color": "8fc951",
+          "default": false,
+          "description": "Indicates an issue or PR is ready to be actively worked on."
+        }
+      ],
+      "state": "closed",
+      "locked": false,
+      "assignees": [
+
+      ],
+      "milestone": null,
+      "comments": 2,
+      "created_at": "2026-06-02T04:58:01Z",
+      "updated_at": "2026-06-11T06:04:43Z",
+      "closed_at": "2026-06-11T06:04:42Z",
+      "assignee": null,
+      "author_association": "NONE",
+      "issue_field_values": [
+
+      ],
+      "type": null,
+      "active_lock_reason": null,
+      "sub_issues_summary": {
+        "total": 0,
+        "completed": 0,
+        "percent_completed": 0
+      },
+      "issue_dependencies_summary": {
+        "blocked_by": 0,
+        "total_blocked_by": 0,
+        "blocking": 0,
+        "total_blocking": 0
+      },
+      "body": "### What happened?\n\nWhen the Job controller's `manageJob()` function determines that replacement pods are needed but a backoff timer is active (due to recent pod failures), it returns `active=0` to the caller. The caller uses this value to set `job.Status.Active=0` in a status update, while `job.Status.Ready` retains the real informer-computed count. The apiserver validation `RejectMoreReadyThanActivePods` (GA in 1.33 via `JobManagedBy`) correctly rejects this inconsistent update with 422.\n\nBecause the status update fails, the controller cannot:\n- Flush `uncountedTerminatedPods`\n- Remove `batch.kubernetes.io/job-tracking` finalizers from terminated pods\n\nThis causes pods to appear stuck in Terminating state and job status to become stale.\n\n**Root cause:** Two locations in `manageJob()` return a hardcoded `0` instead of the real `active` count when backoff is active:\n\n```go\n// Location 1: global backoff\nif remainingTime > 0 {\n    jm.enqueueSyncJobWithDelay(logger, job, remainingTime)\n    return 0, metrics.JobSyncActionPodsCreated, nil  // BUG: should be `active`\n}\n\n// Location 2: per-index backoff\nif remainingTime > 0 {\n    jm.enqueueSyncJobWithDelay(logger, job, remainingTime)\n    return 0, metrics.JobSyncActionPodsCreated, nil  // BUG: should be `active`\n}\n```\n\nThe caller sets `job.Status.Active = active` (the returned 0), while `job.Status.Ready` stays at the informer count (e.g., 5). Result: `5 > 0` → 422.\n\nThe `0` was likely a \"don't care\" value from before `RejectMoreReadyThanActivePods` validation existed. Every other return path in `manageJob` returns the real active count.\n\n### What did you expect to happen?\n\nThe backoff early-return in `manageJob()` should return the real active pod count (unchanged, since no pods were created or deleted), not 0.\n\nProposed fix:\n```diff\n     if remainingTime > 0 {\n         jm.enqueueSyncJobWithDelay(logger, job, remainingTime)\n-        return 0, metrics.JobSyncActionPodsCreated, nil\n+        return active, metrics.JobSyncActionPodsCreated, nil\n     }\n```\n\nReturning `active` (initialized at top of `manageJob` as `int32(len(jobCtx.activePods))`) means \"I didn't create or delete any pods\" — the correct semantics for a backoff deferral.\n\n\n### How can we reproduce it (as minimally and precisely as possible)?\n\n```bash\n# 1. Create a Job\ncat <<'EOF' | kubectl apply -f -\napiVersion: batch/v1\nkind: Job\nmetadata:\n  name: repro-ready-active\n  namespace: default\nspec:\n  parallelism: 30\n  completions: 30\n  backoffLimit: 500\n  completionMode: Indexed\n  template:\n    spec:\n      restartPolicy: Never\n      containers:\n      - name: worker\n        image: registry.k8s.io/pause:3.9\n        resources:\n          requests:\n            cpu: \"10m\"\n            memory: \"16Mi\"\nEOF\n\n# 2. Wait for all pods to be Running+Ready\nkubectl wait --for=condition=Ready pods -l job-name=repro-ready-active --timeout=120s\n\n# 3. Force-delete 25 pods simultaneously\nkubectl get pods -l job-name=repro-ready-active -o name | head -25 | \\\n  xargs -P25 kubectl delete --force --grace-period=0\n\n# 4. Observe: job status is frozen, KCM logs show error\nkubectl get job repro-ready-active -o jsonpath='active={.status.active} ready={.status.ready} failed={.status.failed}'\n# Output: active=30 ready=30 failed=   (stale — doesn't reflect reality)\n\n# KCM logs show:\n# \"Unhandled Error\" err=\"syncing job: tracking status: adding uncounted pods to status:\n#   Job.batch \\\"repro-ready-active\\\" is invalid: status.ready: Invalid value: 5:\n#   cannot set more ready pods than active\"\n\n# 5. Bug self-resolves after ~10 min when backoff expires (if no new failures arrive)\n```\n\n### Anything else we need to know?\n\n- The bug fires on any multi-pod Job that experiences a pod failure while other pods are still Ready. For single failures (10s backoff), it produces a few 422 errors that self-resolve. For mass failures (spot reclamation, node failure → backoff capped at 10 min), it causes visible stuck pods and stale status for the full backoff duration.\n- No data loss occurs. The job eventually completes. The impact is operational: stuck Terminating pods, stale status, KCM error log spam.\n- The `metrics.JobSyncActionPodsCreated` label on the return is also incorrect (no pods were created), but that's cosmetic.\n\n\n### Kubernetes version\n\n<details>\n\nBug present from 1.31 (when `RejectMoreReadyThanActivePods` was introduced, beta default-on) through latest master. Unconditional from 1.33 (`JobManagedBy` GA).\n\nTested and reproduced on 1.35.\n\n\n</details>\n\n\n### Cloud provider\n\n<details>\nAWS (EKS), but not cloud-specific. Reproducible on any cluster.\n</details>\n\n\n### OS version\n\nN/A\n\n\n### Install tools\n\nN/A\n\n### Container runtime (CRI) and version (if applicable)\n\n_No response_\n\n### Related plugins (CNI, CSI, ...) and versions (if applicable)\n\n\n",
+      "reactions": {
+        "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139428/reactions",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "timeline_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139428/timeline",
+      "performed_via_github_app": null,
+      "state_reason": "completed",
+      "pinned_comment": null,
+      "score": 1.0
+    },
+    {
+      "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139368",
+      "repository_url": "https://api.github.com/repos/kubernetes/kubernetes",
+      "labels_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139368/labels{/name}",
+      "comments_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139368/comments",
+      "events_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139368/events",
+      "html_url": "https://github.com/kubernetes/kubernetes/issues/139368",
+      "id": 4546368989,
+      "node_id": "I_kwDOAToIks8AAAABDvwV3Q",
+      "number": 139368,
+      "title": "Terminate sidecar when `Job/CronJob` completes",
+      "user": {
+        "login": "khteh",
+        "id": 3871483,
+        "node_id": "MDQ6VXNlcjM4NzE0ODM=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/3871483?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/khteh",
+        "html_url": "https://github.com/khteh",
+        "followers_url": "https://api.github.com/users/khteh/followers",
+        "following_url": "https://api.github.com/users/khteh/following{/other_user}",
+        "gists_url": "https://api.github.com/users/khteh/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/khteh/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/khteh/subscriptions",
+        "organizations_url": "https://api.github.com/users/khteh/orgs",
+        "repos_url": "https://api.github.com/users/khteh/repos",
+        "events_url": "https://api.github.com/users/khteh/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/khteh/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "labels": [
+        {
+          "id": 404091735,
+          "node_id": "MDU6TGFiZWw0MDQwOTE3MzU=",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/sig/apps",
+          "name": "sig/apps",
+          "color": "d2b48c",
+          "default": false,
+          "description": "Categorizes an issue or PR as relevant to SIG Apps."
+        },
+        {
+          "id": 2389815605,
+          "node_id": "MDU6TGFiZWwyMzg5ODE1NjA1",
+          "url": "https://api.github.com/repos/kubernetes/kubernetes/labels/needs-triage",
+          "name": "needs-triage",
+          "color": "ededed",
+          "default": false,
+          "description": "Indicates an issue or PR lacks a `triage/foo` label and requires one."
+        }
+      ],
+      "state": "closed",
+      "locked": false,
+      "assignees": [
+
+      ],
+      "milestone": null,
+      "comments": 6,
+      "created_at": "2026-05-29T06:54:18Z",
+      "updated_at": "2026-05-31T09:00:36Z",
+      "closed_at": "2026-05-31T09:00:36Z",
+      "assignee": null,
+      "author_association": "NONE",
+      "issue_field_values": [
+
+      ],
+      "type": null,
+      "active_lock_reason": null,
+      "sub_issues_summary": {
+        "total": 0,
+        "completed": 0,
+        "percent_completed": 0
+      },
+      "issue_dependencies_summary": {
+        "blocked_by": 0,
+        "total_blocked_by": 0,
+        "blocking": 0,
+        "total_blocking": 0
+      },
+      "body": "Currently when a job/cronjob completes successfully, the main app terminates. However, the `fluentd` sidecar is still running idly. In addition, the ACTIVE count of jobs keep increasing which does not provide real status of the system since the main `Job` has terminated. This also potentially creates a problem of port contention/conflict of `forward` plugin, a TCP listener which accepts TCP packet for logging. Is there a way to achieve this? More details / context: https://github.com/fluent/fluentd/issues/5363",
+      "reactions": {
+        "url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139368/reactions",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "timeline_url": "https://api.github.com/repos/kubernetes/kubernetes/issues/139368/timeline",
+      "performed_via_github_app": null,
+      "state_reason": "completed",
+      "pinned_comment": null,
+      "score": 1.0
+    }
+  ],
+  "search_type": "lexical"
+}

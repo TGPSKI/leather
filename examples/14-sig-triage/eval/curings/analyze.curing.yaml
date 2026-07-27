@@ -1,0 +1,11 @@
+name: analyze
+description: Extract SIG-relevant signals from an issue (eval).
+agent: analyze
+queue: analyze-in
+hide_types:
+  - github.issues
+page_size_bytes: 6000
+max_attempts: 2
+timeout_seconds: 120
+output:
+  queue: match-in

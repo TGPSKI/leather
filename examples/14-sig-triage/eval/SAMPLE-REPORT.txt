@@ -1,0 +1,41 @@
+# SAMPLE analysis report — predictions here are a SEEDED SYNTHETIC stand-in
+# (no model in the build sandbox). Run eval/run-eval.sh against your 4B for real numbers.
+
+SIG-triage eval
+corpus=93  predicted=93  missing=0
+overall accuracy (accept-set, abstain-as-correct where allowed): 84.9% (79/93)
+accuracy on answered (excl. abstentions):                        92.9%
+abstention rate:                                                 8.6% (8/93)
+
+SIG                      support precision    recall        f1  abstain
+------------------------ ------- ---------    ------        --  -------
+sig-api-machinery             17       71%      100%       83%        0 *
+sig-apps                       9       91%      100%       95%        0 *
+sig-auth                      10      100%       60%       75%        1
+sig-autoscaling               10      100%       80%       89%        1
+sig-cli                        9      100%       78%       88%        0
+sig-instrumentation            4      100%       50%       67%        2
+sig-network                    8      100%       88%       93%        1 *
+sig-node                      12      100%       92%       96%        1 *
+sig-scheduling                 7      100%       86%       92%        1 *
+sig-storage                    7      100%       86%       92%        1 *
+macro avg                              96%       82%       87%
+weighted-f1 avg               93                         88%
+(* = core SIG held to the recall gate)
+
+top confusions (gold -> predicted):
+  sig-auth -> sig-api-machinery            x3
+  sig-cli -> sig-api-machinery             x2
+  sig-autoscaling -> sig-apps              x1
+
+gate:
+  [PASS] overall-accuracy             got 84.9% (threshold >=75%)
+  [PASS] abstention-rate              got 8.6% (threshold <=20%)
+  [PASS] core-recall:sig-api-machinery got 100% (threshold >=75%)
+  [PASS] core-recall:sig-apps         got 100% (threshold >=75%)
+  [PASS] core-recall:sig-network      got 88% (threshold >=75%)
+  [PASS] core-recall:sig-node         got 92% (threshold >=75%)
+  [PASS] core-recall:sig-scheduling   got 86% (threshold >=75%)
+  [PASS] core-recall:sig-storage      got 86% (threshold >=75%)
+
+GATE PASSED
