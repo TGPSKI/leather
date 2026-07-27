@@ -8,6 +8,9 @@
 	  LEATHER_MODEL="$(LEATHER_MODEL)" LEATHER_LLM_ENDPOINT="$(LEATHER_LLM_ENDPOINT)" \
 	  bash eval/run-eval.sh
 
+14-eval-lint:                            ## gold hygiene: content-free rows must permit abstention
+	@cd 14-sig-triage && bash eval/scripts/gold-sanity-lint.sh
+
 14-eval-test:                            ## verify the gate's own scoring logic
 	@go test ./14-sig-triage/eval/
 

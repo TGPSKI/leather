@@ -18,7 +18,8 @@ regression-guarded **improvement loop** that (1) **attributes** every failure to
 the layer that owns it, (2) applies the **cheapest correct fix at that layer** —
 exhausting free/deterministic layers before ever reaching for weights — and (3)
 **re-measures on a cheap hard slice, guards against per-item regression, and
-confirms on the full held corpus**. It turns a red gate from a verdict into a
+confirms on the full corpus with the dev/held-out split reported side by side**.
+It turns a red gate from a verdict into a
 prioritized, non-overfitting worklist. Same cost shape as 0006: the loop is
 harness work; the model is the only real cost, and most of the highest-value
 fixes touch no model at all.
@@ -82,8 +83,12 @@ Inherits all of LEP-0006's principles. Adds five that are load-bearing here:
   which can rise while quietly rotting a core class.
 - **Iterate cheap, accept honest.** Tune against a **hard slice** (failures +
   regression guards) so a round costs seconds, but **never accept on the slice** —
-  the slice is where you overfit. Acceptance is always a full-corpus, held-gold
-  confirmation, and the number of tuning rounds is **capped** and logged.
+  the slice is where you overfit. Acceptance is always a full-corpus confirmation
+  that reports the **dev slice and the held-out remainder separately**, and the
+  number of tuning rounds is **capped** and logged. The rails are what make the
+  number honest, not the word "held": a slice drawn from the same corpus is a
+  *tuning* set, and calling it held-out when it is not is the failure mode this
+  bullet exists to prevent.
 - **Gold is code.** The answer key is a maintained artifact with its own lints
   (leakage *and* sanity), not ground truth handed down. Correcting an obviously
   unclassifiable label is a *fix*, not cheating — but it must be a **general,
@@ -100,7 +105,8 @@ Inherits all of LEP-0006's principles. Adds five that are load-bearing here:
 | **Fix ladder** | The ordered layers a fix may live in, cheapest/most-deterministic first (§5). |
 | **Hard slice** | A small, failure-weighted subset of the corpus (last run's misses + a stratified set of correct "regression guards"), used for fast iteration. |
 | **Flip diff** | Per-item comparison of two runs: `fixed` (was wrong, now right), `regressed` (was right, now wrong), `unchanged`. The unit of iteration feedback. |
-| **Holdout discipline** | Tuning happens on the slice; acceptance happens on the full corpus with held gold. Rounds are capped to resist slice-overfitting. |
+| **Split manifest** | A committed `{number, tier}` file naming which rows tuning was allowed to see (`dev`) and which it was not (`holdout`). Membership is stable and auditable across re-fetches. |
+| **Anti-overfitting rails** | The three things that actually keep an iterated number honest: **principled-rules-only**, a **round cap**, and **per-item regression guards** — plus the dev/held-out split reported side by side. Named for what they are, not for a holdout the loop cannot enforce on a small corpus. |
 | **Gold-sanity guard** | A fail-closed corpus lint: an input with no recoverable signal must have gold `unknown` (or accept `unknown`), not a concrete label. |
 
 ---
@@ -115,7 +121,8 @@ Inherits all of LEP-0006's principles. Adds five that are load-bearing here:
         ▲                                                     │
         │                                                     ▼
    confirm on full  ◀── regression-guard ◀── re-run HARD SLICE ◀── apply fix
-   (held gold)          (flip diff)          (seconds, not full)     at that layer
+   (+ dev/held-out      (flip diff)          (seconds, not full)     at that layer
+    split reported)
         │
         ▼
    accept → promote baseline (LEP-0006 §8.3)
@@ -135,8 +142,11 @@ One turn of the loop:
    Seconds, because the slice is ~½ the size and `thinking: false`.
 6. **Regression-guard.** `leather eval diff` shows *fixed / regressed* per item.
    A net gain that regresses a core class is **rejected**, not shipped.
-7. **Confirm on full.** When the slice looks good, run the full held corpus. Cap:
-   ≤ K tuning rounds before a mandatory full confirmation (default K=3).
+7. **Confirm on full.** When the slice looks good, run the full corpus and read
+   the **3-way split** — full / dev-slice / held-out. Held-out tracking full is
+   the evidence the fix generalized; dev far above held-out means it memorized,
+   and the change is rejected. Cap: ≤ K tuning rounds before a mandatory full
+   confirmation (default K=3).
 8. **Accept.** Promote the report to baseline (LEP-0006 §8.3).
 
 The loop is *stateless across examples*: it reads only the report, the gold, and
@@ -196,14 +206,24 @@ at all?). Add a fail-closed **gold-sanity** lint:
 ### 5.4 Anti-overfitting rails
 
 Because iteration edits prompts/catalogs against observed failures, it can overfit
-the eval. Rails:
+the eval. The rails below are the whole defence — deliberately **not** called
+"holdout discipline," because on a small corpus a genuine holdout is too thin to
+carry a threshold and pretending otherwise is the dishonesty this section guards
+against. Rails:
 
 - **Principled fixes only.** A fix must be a general rule ("volumes → storage
   wherever they surface"), never "issue #139535 → storage." Reviewers reject
   id-specific catalog/prompt edits.
-- **Hard slice ≠ acceptance set.** Tune on the slice; accept on the full held
-  corpus. The slice carries **regression guards** (known-correct rows) so a fix
-  that trades them away is caught immediately.
+- **Hard slice ≠ acceptance set.** Tune on the slice; accept on the full corpus.
+  The slice carries **regression guards** (known-correct rows) so a fix that
+  trades them away is caught immediately.
+- **Report the split, always.** Acceptance prints full / dev-slice / held-out
+  from a **committed split manifest** (§6). The manifest is the auditable record
+  of what tuning was allowed to see; the held-out column is the generalization
+  check. This is a *reported* rail, not an enforced one: at N≈93 a held-out set
+  of ~49 rows has a ±5-point standard error on accuracy, enough to detect gross
+  memorization and not enough to gate on. Growing the corpus is what upgrades it
+  from evidence to gate.
 - **Round cap.** ≤ K prompt/catalog rounds per full confirmation (default 3),
   logged in the report. Chasing the last few points on a small corpus is a
   variance-mining smell (LEP-0006 §11 small-corpus variance).
@@ -227,6 +247,26 @@ with its rung and the affected classes — the operator's to-do list, cheapest r
 first. This is the natural extension of LEP-0006 §8.1's precision/recall reading
 guidance from *interpretation* to *action*.
 
+### 6.1 The 3-way split (required)
+
+Every acceptance report **must** carry the split, read from a committed
+`splits.jsonl` manifest of `{number, tier}` (`dev` = tuning was allowed to see
+it; anything else is held out):
+
+```
+split (dev = tuned on; held-out = never tuned on):
+  full:       87.1% (81/93)
+  dev-slice:  86.4% (38/44)
+  held-out:   87.8% (43/49)   <- generalization check
+```
+
+Reading it: **held-out ≈ full** means the rules generalized. **dev ≫ held-out**
+means they memorized the slice — reject the change regardless of what the
+aggregate did. The manifest is committed rather than derived at runtime so
+membership is stable across corpus re-fetches and a reviewer can check what was
+tuned on, and gold relabels ride in a sibling `gold.overrides.jsonl` overlay so
+the raw answer key stays re-fetchable (§9).
+
 ---
 
 ## 7. Commands (extending LEP-0006 §7.1)
@@ -237,7 +277,8 @@ guidance from *interpretation* to *action*.
 | `leather eval slice <group> [--from-last] [--guards N]` | materialize a hard slice from the last run's failures + N stratified regression guards |
 | `leather eval run <group> --slice` | run only the current hard slice (fast iteration) |
 | `leather eval diff <group> <runA> <runB>` | per-item flip diff: fixed / regressed / unchanged |
-| `leather eval gold-lint <group>` | leakage **and** sanity checks; relabels junk by rule; fails closed |
+| `leather eval gold-lint <group>` | leakage **and** sanity checks; emits the relabels to `gold.overrides.jsonl` by rule (never edits raw gold); fails closed |
+| `leather eval split <group>` | show/verify the committed `splits.jsonl` manifest and the per-tier row counts |
 
 All are harness-only except `run --slice` (which is a small model job). `attribute`,
 `slice`, `diff`, and `gold-lint` need **no model** — they operate on artifacts,
@@ -255,16 +296,23 @@ The session this LEP generalizes, on a single box serving Qwen3-35B via vLLM,
 | 0. Baseline | — | harness fixed, gate run | **64.5%**, GATE FAILED |
 | 1. Attribute | — | confusion table → ~⅓ of misses are `sig/x` vs `sig-x` | worklist: parse-artifact dominant |
 | 2. Deterministic | Scorer | fold `sig/x → sig-x`, trim/case | **64.5 → 79.6%**, +15 pts, zero model calls |
-| 3. Deterministic | Gold lint | relabel 5 content-free rows → `unknown` (body < 60) | api-machinery recall ceiling unblocked; correct abstention now scores correct |
+| 3. Deterministic | Gold lint | relabel 5 content-free rows → `unknown` (body < 60), as a `gold.overrides.jsonl` overlay over pristine gold | api-machinery recall ceiling unblocked; correct abstention now scores correct |
 | 4. Confusion-pair | Prompt/catalog | balanced ownership rules (storage-via-kubelet, auth-via-anywhere, HPA→autoscaling); `REASONING:` before `SIG:` under no-think | hard slice **25 → 33/44**; 11 fixed / 3 regressed |
-| 5. Confirm | — | full held corpus | **64.5% → 87.1%** (81/93); macro-F1 **87%**; storage recall **29% → 100%**, auth **50% → 90%** |
+| 5. Confirm | — | full corpus, 3-way split | **64.5% → 87.1%** (81/93); dev **86.4%**, held-out **87.8%** (rules generalize); macro-F1 **87%**; storage recall **29% → 100%**, auth **50% → 90%** |
 
 The pattern: **two free deterministic rungs did the heavy lifting** (+15 from the
 scorer, junk unblocked the ceiling); the model prompt closed the genuine
-confusions (+~7); no weights changed. The gate still fails only on the 90%
+confusions (+~7); no weights changed. The gate initially failed only on the 90%
 per-core-SIG recall floor (support 7–13; one miss = −8 to −14 pts) — a threshold
 *calibration* question (LEP-0006 §11), **not** a rung on the fix ladder, and
-explicitly out of scope for this loop (§9). The `REASONING:`-before-
+explicitly out of scope for this loop (§9). It was resolved as a calibration
+decision, not a rung: a **min-support guard** (no per-class recall floor below
+support 20, where the standard error on recall is ~11 points) plus a
+**macro-recall** gate as the primary per-class health check. Note the honest
+consequence at N=93 — *every* core class falls under the guard, so macro-recall
+alone carries per-class health until the corpus grows. That is the argument for
+growing it, and it is why the guard reports each skipped class and its support
+rather than hiding them. The `REASONING:`-before-
 `SIG:` ordering is a reusable `thinking: false` note — with no hidden trace, put
 the visible reasoning token *before* the committed answer field so the model
 decides before it commits (worth surfacing in LEP-0006 §7.2).
@@ -286,9 +334,13 @@ on the fix ladder).
   LEP-0006 §11's determinism caveats.
 - **Slice construction.** Failure-weighting risks a slice that is unrepresentative;
   guards mitigate but do not eliminate it. How many guards, stratified how?
-- **Gold-fix provenance.** Every automated gold relabel must be diffable and
-  reversible; should relabels live in a separate `gold.overrides.jsonl` rather
-  than mutating `gold.jsonl`, so the raw fetch stays pristine?
+- ~~**Gold-fix provenance.**~~ **Resolved: yes, an overlay.** Relabels live in a
+  separate `gold.overrides.jsonl` (`{number, sig?, accept?, reason}`, applied at
+  load, overrides win) so `gold.jsonl` stays byte-identical to the fetcher's
+  output and a re-fetch can never clobber or silently drift from them. The
+  overlay is *generated by the declared predicate* (§5.3), not hand-maintained,
+  so it is reproducible as well as diffable. Mutating the raw answer key in place
+  is now a review-rejectable defect.
 - **Round-cap enforcement.** Advisory (logged) vs hard (refuse to accept past K)?
 
 ---

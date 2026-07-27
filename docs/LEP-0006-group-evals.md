@@ -218,8 +218,12 @@ and `schemas/evalsuite-1.schema.yaml` are added and held to defs.go parity).
 # evals/sig-triage.group.yaml
 name: sig-triage
 description: SIG classification quality gate for the analyze->match pipeline.
-model: "{{env:LEATHER_MODEL}}"          # pinned per run; recorded in the report
-endpoint: "{{env:LEATHER_LLM_ENDPOINT}}"
+# model/endpoint are left unset here and taken from the run's effective config,
+# which the LEATHER_MODEL / LEATHER_LLM_ENDPOINT env overrides pin per run.
+# NOTE: {{env:VAR}} is scoped to webhook secrets and tool URL/header/body
+# templates (docs/TEMPLATES.md) — it is NOT expanded in general config
+# settings, so writing it here would record a literal, not a model name.
+# Whatever resolves is recorded in the report for provenance.
 seed: 42                                 # determinism for any synthetic step
 suites:
   - sig-triage-current
@@ -417,9 +421,30 @@ hosted leaderboard; not a statistical-significance engine for large corpora.
 - **Gold curation & human-in-the-loop.** New-class features and disputed labels
   need a human. Where does that sit relative to the automated gate? (Proposal:
   human at PR merge only.)
-- **Small-corpus variance.** At N≈100 per class counts are small; per-class
-  recall is noisy. Report confidence intervals? Require minimum support before a
-  per-class gate applies?
+- **Small-corpus variance.** ~~At N≈100 per class counts are small; per-class
+  recall is noisy.~~ **Partly resolved: require minimum support.** A per-class
+  recall floor is only meaningful where support can carry it — at n=10 and
+  p≈0.85 the standard error on recall is ~11 points, so a 90% floor gates on
+  sampling noise and one defensible confusion (−8 to −14 pts) flips the verdict.
+  The gate therefore takes two calibration parameters:
+
+  - `min_class_support` (**proposed default 20**) — below this support a class is
+    **reported but not gated** on its own recall floor. The skipped classes and
+    their supports are printed, so the gap is visible rather than silently
+    dropped.
+  - `min_macro_recall` (**proposed default 0.85**) — macro-averaged recall over
+    all gold classes becomes the *primary* per-class health check. It still
+    catches a class the model systematically ignores, without inheriting the
+    single-class noise.
+
+  Both defaults are a **calibration decision awaiting human sign-off**, not a
+  tuned number: they were chosen from the standard-error argument above, before
+  looking at which runs they would pass. Lowering a threshold to turn a specific
+  run green remains out of bounds (LEP-0007 §9). Note the honest cost at N≈93:
+  *every* core class falls below `min_class_support`, so macro-recall alone
+  carries per-class health until the corpus grows — which is the argument for
+  growing it, not for dropping the guard. Confidence intervals on per-class
+  recall remain open.
 - **Prompt-set drift.** If the corpus is rebuilt from a moving upstream, the gate
   compares across shifting inputs. Pin corpora by hash and re-baseline explicitly
   on rebuild.

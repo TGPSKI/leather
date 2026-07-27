@@ -3,7 +3,11 @@
 # Isolated in eval/.state-eval/ (own tannery + curings). No `label` stage, no side effects.
 #
 #   LEATHER_MODEL=qwen3.6-4b-instruct-2507-awq LEATHER_LLM_ENDPOINT=http://127.0.0.1:8000/v1 \
-#   MIN_ACCURACY=0.85 MAX_ABSTAIN=0.25 MIN_CORE_RECALL=0.90 bash eval/run-eval.sh
+#   MIN_ACCURACY=0.85 MAX_ABSTAIN=0.25 MIN_MACRO_RECALL=0.85 bash eval/run-eval.sh
+#
+# Scoring reads three committed artifacts: gold.jsonl (pristine fetch output),
+# gold.overrides.jsonl (rule-generated relabels, applied on load) and
+# splits.jsonl (which rows tuning was allowed to see).
 set -euo pipefail
 
 EX_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -61,5 +65,9 @@ echo
 
 ( cd "$ROOT_DIR" && go run ./examples/14-sig-triage/eval/sigeval.go \
     -gold "examples/14-sig-triage/${GOLD}" -pred "examples/14-sig-triage/${PRED}" \
+    -overrides "examples/14-sig-triage/${OVERRIDES:-eval/gold.overrides.jsonl}" \
+    -split "examples/14-sig-triage/${SPLIT:-eval/splits.jsonl}" \
     -min-accuracy "${MIN_ACCURACY:-0.80}" -max-abstain "${MAX_ABSTAIN:-0.30}" \
-    -min-core-recall "${MIN_CORE_RECALL:-0.90}" )
+    -min-macro-recall "${MIN_MACRO_RECALL:-0.85}" \
+    -min-core-recall "${MIN_CORE_RECALL:-0.90}" \
+    -min-class-support "${MIN_CLASS_SUPPORT:-20}" )

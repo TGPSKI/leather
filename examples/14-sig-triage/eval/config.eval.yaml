@@ -5,8 +5,16 @@ mcp_servers_file: mcp-servers.yaml
 log_level: debug
 
 # Override at runtime: LEATHER_MODEL=<your-model> make 14
+# (config `model` is a plain value -- {{env:}} is NOT expanded here; the
+#  LEATHER_MODEL env override is the mechanism. See docs/TEMPLATES.md.)
 model: llama3
 llm_timeout: 120s
+
+# Greedy decode. A gate must be reproducible: at the default 0.7 two runs of an
+# unchanged pipeline differ by a few items, which is the same magnitude as the
+# per-change flip-diffs this eval exists to measure. Temperature 0 makes a
+# regression attributable to the change rather than to sampling.
+temperature: 0
 max_tokens: 8192
 completion_reserve: 1024
 summarize_threshold: 0.85
