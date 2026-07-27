@@ -10,7 +10,8 @@
 #
 
 .PHONY: help all clean reset ensure-bin ensure-shell-mcp \
-	01 02 03 04 05 06 07 08 08-requeue 09 10 11 12 13 \
+	01 02 03 04 05 06 07 08 08-requeue 09 10 11 12 13 14 \
+	14-eval 14-eval-fetch 14-eval-test 14-taxonomy-check 14-live \
 	09-live 10-live 11-live 12-live \
 	rpi-01 rpi-02 rpi-03 \
 	validate-02 validate-rpi-01 validate-rpi-02 validate-rpi-03 summary view
@@ -264,3 +265,24 @@ clean: reset
 reset:
 	@find . -type d -name .state -exec rm -rf {} +
 	@echo "examples: runtime state reset"
+
+14: ensure-bin ensure-shell-mcp
+	@echo "==> 14-sig-triage (classify unsigged k8s issues -> SIG via read-the-catalog)  [dry mode]"
+	@LEATHER_DEMO_MODE=dry bash 14-sig-triage/scripts/run-demo.sh
+14-live: ensure-bin ensure-shell-mcp
+	@echo "==> 14-sig-triage  [LIVE mode -- uses gh CLI, posts real /sig comments or labels]"
+	@LEATHER_DEMO_MODE=live bash 14-sig-triage/scripts/run-demo.sh
+14-eval: ensure-bin ensure-shell-mcp
+	@echo "==> 14-sig-triage eval (blind corpus -> analyze->match -> classification gate)"
+	@cd 14-sig-triage && LEATHER="$(LEATHER)" SHELLMCP="$(SHELLMCP)" \
+	  LEATHER_LLM_ENDPOINT="$(LEATHER_LLM_ENDPOINT)" LEATHER_MODEL="$(LEATHER_MODEL)" \
+	  bash eval/run-eval.sh
+14-eval-fetch:
+	@echo "==> 14-sig-triage eval corpus fetch (GitHub search API -> cache -> blind/gold split)"
+	@cd 14-sig-triage && PER_SIG=15 bash eval/scripts/fetch-eval-corpus.sh
+14-eval-test:
+	@echo "==> 14-sig-triage eval scorer self-test"
+	@go test ./14-sig-triage/eval/
+14-taxonomy-check: ensure-bin
+	@echo "==> 14-sig-triage taxonomy currency (exit 10 = upstream SIG drift)"
+	@cd 14-sig-triage && bash scripts/check-taxonomy-currency.sh
