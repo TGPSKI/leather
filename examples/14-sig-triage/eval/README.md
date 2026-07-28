@@ -23,6 +23,29 @@ sigeval.go                 gold + overrides + splits + predictions
 Labels never touch the model: `run-eval.sh` reads only `corpus.jsonl`; scoring
 joins `predictions.jsonl` to `gold.jsonl` afterward.
 
+## The ablation campaign (2026-07-28)
+
+Beyond the single gate run, this harness ran a 22-arm ablation matrix on two
+model scales (46 archived cells). The moving parts:
+
+- `ablation/arms.json` — every arm: its parameters, the ONE variable it
+  isolates, the arm it is read against, and `allow_diff` for manifest keys the
+  variable legitimately changes.
+- `scripts/preflight.sh` — 26 checks on 5 issues before any GPU-hours.
+- `scripts/run-battery.sh <rig>` / `noise-battery.sh` / `overnight-battery.sh`
+  — cell runners: per-rig locks, skip-if-complete (>=225 answered rows, not
+  just 250 archived), verify-after-archive.
+- `scripts/paired-verdicts.py` — McNemar's exact test on the discordant issues
+  for every declared pair; manifests diffed per pair, confounds flagged instead
+  of narrated. The inference tool of record.
+- `scripts/table.py` / `watch-matrix.sh` — archive-derived leaderboard and live
+  battery status.
+- `results/quarantine/` — wrecked runs kept with post-mortems; do not resurrect.
+
+Headline: the same frozen 4B spans 62.8→81.6% across arms. Findings and their
+verdicts are summarized in the example README; per-cell evidence lives in each
+archive's manifest, sigeval report, and logprob record.
+
 ## 1. Build the corpus
 
 ```
@@ -224,9 +247,12 @@ A retrieved catalog has no such ceiling — the model pulls only what it needs, 
 adding the 30th SIG does not degrade the other 29. The tool-based design solves
 a problem the prompt-based one provably has.
 
-The honest caveat: this is an argument *for* the design, not a measurement *of*
-it — the fetch has never actually happened here. Proving it needs
-`tool_choice: required` plus the A/B/C ablation above.
+(2026-07-28: the ablation has since happened — see the campaign section above.
+Measured: fetched/retrieved delivery beats pasted rules-free delivery, full
+entries beat narrowed labels (+6.4 on the 4B), and the *catalog on top of the
+hand-written rules* is a null at both scales (H≈A) — the retrieval design's
+scaling argument stands, but rules remain the largest single lever at today's
+taxonomy size.)
 
 ## Uncertainty: do not route on the model's self-report
 
@@ -239,7 +265,11 @@ and this was measured rather than assumed. Over 250 issues:
 | `sig_margin` (logprob) | **0.66–0.71** | 12.0% / 11.0% / 9.1% |
 | `commit_margin` (logprob) | **0.64–0.73** | 11.6% / 10.0% / 9.1% |
 
-(ranges are two runs; baseline error 13–16%.)
+(ranges are two runs; baseline error 13–16%. 2026-07-28 update from six repeat
+draws of one identical config: sig-margin AUROC wobbles 0.55–0.68, mean ≈0.62 —
+budget routing decisions at 0.62 ± 0.05, not the upper tail. The margin-vs-
+self-report gap survives; the margin's absolute strength was overstated by
+single-draw estimates.)
 
 AUROC 0.5 is a coin flip, so the self-report carries **no** signal — escalating on
 it can make things *worse*. This held even after an explicit calibration protocol

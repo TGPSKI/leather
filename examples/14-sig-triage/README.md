@@ -10,8 +10,9 @@ On this task, the answer is measured, not asserted. The same frozen 4B model
 gold corpus depending only on what the runtime puts around it — the weights
 never change, the hardware never changes. Nearly twenty points of accuracy live
 in the runtime design. The eval under `eval/` is the instrument that measured
-it: 46 archived cells across two model scales, paired per-issue verdicts, a
-measured noise floor, and two quarantined wrecks with post-mortems.
+it — 46 archived cells across two model scales, paired per-issue verdicts, a
+measured noise floor, and two quarantined wrecks with post-mortems. Start at
+[eval/README.md](eval/README.md).
 
 ## What the small model actually needs
 
@@ -47,7 +48,7 @@ and by carrying too little. The engineering problem is **minimum sufficient
 state** — drop irrelevant history, keep the semantic evidence, keep the path
 short — not maximal boundedness.
 
-The 32B rig is the reference instrument, not the point: the same workflows at
+The 35B rig is the reference instrument, not the point: the same workflows at
 the larger scale show which failures are 4B-specific (order sensitivity,
 forced-tool fragility) and which transfer (turn accumulation hurts both).
 
@@ -95,6 +96,10 @@ make 14-live            # LEATHER_DEMO_MODE=live (needs gh auth + a repo you own
 SIG_ACTION=label make 14
 ```
 
+Working inside this directory instead? `make help` lists the local targets —
+`demo`, `live`, `eval`, `preflight`, `battery RIG=<35b|4b>`, `table`,
+`verdicts`, `watch` — same surface, no `cd ..` required.
+
 Or directly:
 
 ```
@@ -123,8 +128,12 @@ own or a mirror. On upstream kubernetes/kubernetes use `SIG_ACTION=comment`; the
 ## The eval
 
 Everything in "what the small model actually needs" is reproducible from
-`eval/`: `run-eval.sh` runs one cell, `scripts/run-battery.sh <rig>` runs the
-remaining matrix, `scripts/preflight.sh` proves the harness works on 5 issues
-before you spend GPU-hours on it, and `scripts/paired-verdicts.py` prints every
+[eval/](eval/): [`run-eval.sh`](eval/run-eval.sh) runs one cell,
+[`scripts/run-battery.sh`](eval/scripts/run-battery.sh) runs the remaining
+matrix, [`scripts/preflight.sh`](eval/scripts/preflight.sh) proves the harness
+works on 5 issues before you spend GPU-hours on it, and
+[`scripts/paired-verdicts.py`](eval/scripts/paired-verdicts.py) prints every
 declared comparison with its verdict — RESOLVED, unresolved, or CONFOUND — from
-archives and manifests, never from runner logs. Start with `eval/README.md`.
+archives and manifests, never from runner logs. The arm registry
+([`eval/ablation/arms.json`](eval/ablation/arms.json)) documents every variant
+and the one variable it isolates. Start with [eval/README.md](eval/README.md).

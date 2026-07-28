@@ -19,6 +19,7 @@ isolation from a fresh clone with **a single `make` target**.
 | [11](11-high-volume-ci/) | `11-high-volume-ci` | yes | **Advanced** — high-volume burst of CI webhooks using `queue_pattern` single-use queues |
 | [12](12-spa-maintenance/) | `12-spa-maintenance` | yes | **Advanced** — scheduled SPA health-check agent with artifact persistence |
 | [13](13-git-workflow-commit/) | `13-git-workflow-commit` | yes | **Advanced** — `leather workflow run`: concurrent fan-out; planner enqueues per-file GPG commits picked up immediately by executor workers |
+| [14](14-sig-triage/) | `14-sig-triage` | yes | **Advanced** — classify unsigged k8s issues → SIG on a small local model; ships the full eval harness (250-issue gold corpus, ablation matrix, paired verdicts) that measured a 62.8→81.6% range on one frozen 4B |
 
 ### RPi/Hailo examples
 
@@ -36,8 +37,10 @@ Basic (`01`–`06`): Go 1.22+, `bash`, `curl`.
 
 Webhook examples (`04`–`08`, `10`–`12`): also `openssl` (for HMAC signing).
 
-Advanced (`09`–`13`): also `jq`.  Examples 09 and 10 optionally use the `gh`
-CLI and a Telegram bot token; both degrade gracefully if absent.
+Advanced (`09`–`14`): also `jq`.  Examples 09 and 10 optionally use the `gh`
+CLI and a Telegram bot token; both degrade gracefully if absent. Example 14's
+live mode uses `gh`; its eval targets (`14-eval*`) want an OpenAI-compatible
+endpoint (vLLM, Ollama, ...) and `python3`.
 Example 13 also requires `gpg` and a signing key on the keyring.
 
 RPi/Hailo (`rpi-01`–`rpi-03`): require a Raspberry Pi 5 with AI HAT+ 2,
