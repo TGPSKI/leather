@@ -40,7 +40,7 @@ case "$RIG" in
   35b) export LEATHER_LLM_ENDPOINT=http://127.0.0.1:8000
        export LEATHER_MODEL=qwen36-35b-a3b-nvfp4
        export CONCURRENCY=8; export LP_PORT=8011
-       CELLS="T2 T3 G P1 P2 F" ;;
+       CELLS="T3 G2" ;;
   4b)  export LEATHER_LLM_ENDPOINT=http://10.0.0.64:8000
        export LEATHER_MODEL=/home/tyler/llm/models/Qwen3-4B-Instruct-2507-AWQ
        export CONCURRENCY=4; export LP_PORT=8021
@@ -78,8 +78,18 @@ PY
 
 run_cell() {
   local v="$1" tag="${RIG}-$1"
-  if [ "$(grep -c . "eval/results/runs/$tag/predictions.jsonl" 2>/dev/null || echo 0)" = 250 ]; then
-    echo "  $tag already complete — skipping"; return 0
+  # Row count is NOT completion: run-eval writes a row per corpus issue whether or not
+  # the model answered, so a run that failed on every issue still archives 250 rows. A
+  # stale-proxy failure produced exactly that, and the skip let the wreckage stand as a
+  # finished cell. Require that most rows actually carry an answer.
+  if [ -f "eval/results/runs/$tag/predictions.jsonl" ]; then
+    live=$(python3 -c "
+import json,sys
+rows=[json.loads(l) for l in open('eval/results/runs/$tag/predictions.jsonl') if l.strip()]
+ok=sum(1 for r in rows if not (r.get('predicted')=='unknown' and r.get('confidence')=='no-output'))
+print(1 if len(rows)==250 and ok >= 225 else 0)" 2>/dev/null)
+    if [ "$live" = 1 ]; then echo "  $tag already complete — skipping"; return 0; fi
+    echo "  $tag archive exists but is incomplete — re-running"
   fi
   local file force idx cache curings
   force=0; idx=""; cache="$CACHE"; curings=""
@@ -91,6 +101,7 @@ run_cell() {
     T2)     file=eval/ablation/match.T2.agent.md ;;
     T3)     file=eval/ablation/match.T3.agent.md ;;
     G)      file=eval/ablation/match.G.agent.md;  force=1; idx=sigs.index.seeded.tsv ;;
+    G2)     file=eval/ablation/match.G2.agent.md; force=1; idx=sigs.index.seeded.tsv ;;
     P1|P2)  file=eval/ablation/match.B.agent.md;  cache="$(build_pcache "$v" | tail -1)"
             curings=curings-nopage ;;
     # F is the ONLY cell that removes a stage: no analyze, raw issue straight into a

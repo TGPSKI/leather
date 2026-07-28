@@ -61,6 +61,22 @@
       ],
       "timeout_seconds": 5,
       "output_cap_bytes": 8000
+    },
+    {
+      "name": "lookup_sig_v3",
+      "description": "Given the issue's components and keywords as a comma-separated list, return the full catalog entries for the candidate SIGs \u2014 with SIGs ruled out by learned boundaries already removed. The filtering is done for you; every entry returned is a legitimate candidate.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "idx=\"${SIG_INDEX:-sigs.index.tsv}\"; cat=\"${SIG_REFERENCE:-sigs.reference.yaml}\"; q=\"$1\"; IFS=\",\" read -ra TS <<< \"$q\"; hits=\"\"; for t in \"${TS[@]}\"; do   t=\"$(printf \"%s\" \"$t\" | sed -e \"s/^[[:space:]]*//\" -e \"s/[[:space:]]*$//\")\";   [ \"${#t}\" -ge 3 ] || continue;   h=\"$(grep -iF -- \"$t\" \"$idx\" || true)\"; [ -n \"$h\" ] && hits=\"$hits$h\n\"; done; hits=\"$(printf \"%b\" \"$hits\" | grep . | sort -u || true)\"; if [ -z \"$hits\" ]; then echo \"NO INDEX MATCH - returning the full catalog:\"; cat \"$cat\"; exit 0; fi; cands=\"$(printf \"%s\\n\" \"$hits\" | awk -F\"\\t\" \"\\$2==\\\"MATCH\\\"{print \\$3}\" | sort | uniq -c | sort -rn | head -5 | awk \"{print \\$2}\")\"; excl=\"$(printf \"%s\\n\" \"$hits\" | awk -F\"\\t\" \"\\$2==\\\"NOT_MATCH\\\"{print \\$3}\" | sort -u)\"; kept=\"\"; pruned=\"\"; for c in $cands; do   if printf \"%s\\n\" \"$excl\" | grep -qx \"$c\"; then pruned=\"$pruned $c\"; else kept=\"$kept $c\"; fi; done; if [ -z \"$(printf \"%s\" \"$kept\" | tr -d \"[:space:]\")\" ]; then   echo \"NOTE: every candidate was excluded; returning them unfiltered rather than nothing.\";   kept=\"$cands\"; pruned=\"\"; fi; echo \"CANDIDATE SIGS (already filtered - excluded ones are NOT shown):\"; echo; for s in $kept; do awk -v s=\"$s\" \"/^  - name: /{p=(\\$0 ~ s\\\"\\$\\\")} p\" \"$cat\"; done; if [ -n \"$(printf \"%s\" \"$pruned\" | tr -d \"[:space:]\")\" ]; then   echo; echo \"PRUNED by learned boundaries (do not reconsider these):$pruned\"; fi",
+        "--",
+        "{{terms}}"
+      ],
+      "required": [
+        "terms"
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 8000
     }
   ]
 }
