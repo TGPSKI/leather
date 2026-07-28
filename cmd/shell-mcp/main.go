@@ -192,13 +192,23 @@ func (s *server) toolList() []map[string]any {
 				props[k] = map[string]any{"type": "string", "pattern": pat}
 			}
 		}
+		// JSON Schema requires `required` to be an ARRAY. A tool that declares no
+		// required arguments leaves t.Required nil, which marshals to `null` --
+		// accepted silently under tool_choice:auto (nothing validates the schema)
+		// and fatal the moment a server builds a grammar from it:
+		//   400 Grammar error: Expected array for 'required', got null
+		// Emit an empty array so a zero-argument tool is still a valid schema.
+		required := t.Required
+		if required == nil {
+			required = []string{}
+		}
 		out = append(out, map[string]any{
 			"name":        t.Name,
 			"description": t.Description,
 			"inputSchema": map[string]any{
 				"type":       "object",
 				"properties": props,
-				"required":   t.Required,
+				"required":   required,
 			},
 		})
 	}

@@ -21,9 +21,12 @@ cd "$EX_DIR"
 # and the reader (this script) pointed at the same place on any machine and from
 # any cwd, rewrite those three keys to absolute paths at runtime and hand the
 # resolved copy to workflow run. Nothing machine-specific is committed.
-STATE_DIR="${EVAL_DIR}/.state-eval"
+# STATE_SUFFIX namespaces every mutable path so two rigs can run at once (one
+# eval per model server, in parallel). Empty by default -- the single-run paths
+# are unchanged, so nothing that referenced .state-eval/ has to move.
+STATE_DIR="${EVAL_DIR}/.state-eval${STATE_SUFFIX:-}"
 ARTIFACT_DIR="${STATE_DIR}/artifacts"
-RESOLVED_TANNERY="${EVAL_DIR}/.tannery.resolved.yaml"
+RESOLVED_TANNERY="${EVAL_DIR}/.tannery.resolved${STATE_SUFFIX:-}.yaml"
 trap 'rm -f "$RESOLVED_TANNERY"' EXIT
 
 awk -v hide="${STATE_DIR}/hides" -v art="${ARTIFACT_DIR}" -v cur="${EVAL_DIR}/curings" '
@@ -37,7 +40,7 @@ export GITHUB_WEBHOOK_SECRET="${GITHUB_WEBHOOK_SECRET:-eval-secret}"
 export LEATHER_DEMO_MODE="dry"
 CORPUS="${CORPUS:-eval/corpus.jsonl}"       # blind input shown to the model (gold stripped)
 GOLD="${GOLD:-eval/gold.jsonl}"             # answer key sigeval scores against
-PRED="eval/predictions.jsonl"; : > "$PRED"
+PRED="eval/predictions${STATE_SUFFIX:-}.jsonl"; : > "$PRED"
 rm -rf "$STATE_DIR"
 
 RUNLOG="${STATE_DIR}/run.log"; mkdir -p "$STATE_DIR"; : > "$RUNLOG"
@@ -167,7 +170,18 @@ for line in open(lp_p):
     except Exception: continue
     if r.get("stage") != "match" or r.get("issue") is None:
         continue
-    lp[r["issue"]] = r          # last match call for the issue wins
+    # The LAST match round carries the answer (margins, predicted SIG), but a tool
+    # call happens on an EARLIER round -- calling a tool forces a second round, and
+    # that round's record has no tool_calls. Overwriting by issue therefore erases
+    # every call that was actually made and reports "called 0" for a run where the
+    # tool fired on every row. Keep the last record for the answer, but OR the tool
+    # evidence across all of the issue's rounds.
+    prev = lp.get(r["issue"])
+    if prev:
+        r = dict(r)
+        r["tool_calls_made"] = (prev.get("tool_calls_made") or []) + (r.get("tool_calls_made") or [])
+        r["rounds"] = (prev.get("rounds") or 1) + 1
+    lp[r["issue"]] = r
 rows = []
 for line in open(pred_p):
     if not line.strip(): continue
@@ -185,8 +199,12 @@ with open(pred_p, "w") as f:
 offered = sum(1 for p in rows if p.get("tools_offered"))
 called = sum(1 for p in rows if p.get("tool_called"))
 have = sum(1 for p in rows if p.get("sig_margin") is not None)
+# Rounds per issue is the independent check on the tool counter: a tool call
+# forces a second round, so 1.00 rounds/issue IS the evidence that none happened.
+rounds = sum(p.get("rounds", 1) for p in rows) / max(len(rows), 1)
 print(f"logprobs: {have}/{len(rows)} rows with a SIG margin; "
-      f"catalog tool offered on {offered}/{len(rows)}, actually called {called}")
+      f"catalog tool offered on {offered}/{len(rows)}, actually called {called}; "
+      f"mean match rounds/issue {rounds:.2f} (>1.00 means a tool call happened)")
 PY
 fi
 
