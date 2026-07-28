@@ -355,6 +355,21 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 	completedToolCalls := make(map[string]completedToolCall)
 
 	for i, userPrompt := range userPrompts {
+		// A turn declaring `clear: true` drops the conversation before its prompt is
+		// added. Reset preserves the system message, and turn variables live outside the
+		// session, so anything a skill extract: rule captured from a tool result survives
+		// as {{key}} while the raw result does not. Order matters: reset, then substitute,
+		// then add -- substituting first would put the distilled values into a message the
+		// reset is about to discard.
+		if len(a.TurnClear) > i && a.TurnClear[i] {
+			sess.Reset()
+			if r.Log != nil {
+				r.Log.Info("context cleared for turn", "agent", a.Name, "turn", i)
+			}
+			if r.ProgressFn != nil {
+				r.ProgressFn(ProgressEvent{Kind: "system", Prompt: "[context cleared]"})
+			}
+		}
 		// Apply turn-level vars (may include values extracted from previous tool calls).
 		userPrompt = applyVars(userPrompt, turnVars)
 

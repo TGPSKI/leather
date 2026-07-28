@@ -400,6 +400,17 @@ type Agent struct {
 	// TurnToolsets, when non-empty, declares named toolsets that become available on
 	// each user-prompt turn. Element i corresponds to UserPrompts[i].
 	TurnToolsets [][]string
+	// TurnClear, when element i is true, clears the conversation before that turn's
+	// prompt is added: the system message is preserved and every other message is
+	// dropped. Values captured by skill extract: patterns survive, because they live in
+	// turn variables rather than in the session, so a turn can distil a large tool
+	// result into {{key}} and then discard the raw blob.
+	//
+	// Without this, context only ever grows: a three-turn agent's final turn carries
+	// both earlier prompts, the tool result and its own intermediate speculation.
+	// Measured on the sig-triage eval: 1206 -> 1423 -> 2433 -> 2828 prompt tokens across
+	// turns, and the three-turn arm scored 7.2 points BELOW the two-turn one.
+	TurnClear []bool
 	// Parameters holds named template variables declared in the lifecycle file.
 	// Values are substituted for {{key}} placeholders in prompts before the first LLM call.
 	// An empty string value causes leather run to prompt the user interactively.
