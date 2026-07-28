@@ -45,6 +45,15 @@ rm -rf "$STATE_DIR"
 
 RUNLOG="${STATE_DIR}/run.log"; mkdir -p "$STATE_DIR"; : > "$RUNLOG"
 
+# QUEUES live in leather's state_dir, not in the tannery's hide/artifact dirs, so
+# STATE_SUFFIX alone does not isolate them. Two rigs sharing config.eval.yaml's
+# `state_dir: .state` drain ONE queue store: each supervisor dequeues items whose
+# hides live in the OTHER rig's hide_dir and DLQs every one of them
+# ("curing/process: hide missing"). Pinning it under STATE_DIR also means the
+# rm -rf above clears stale queue items, so a previous run's DLQ leftovers can no
+# longer be re-drained by the next run.
+export LEATHER_STATE_DIR="${STATE_DIR}/leather-state"
+
 # LOGPROB=1 routes the run through eval/scripts/logprob-proxy.py, which injects
 # `logprobs: true` (leather has no knob for it) and records the top-token margin
 # at the SIG decision, plus whether the catalog tool was actually OFFERED on each
