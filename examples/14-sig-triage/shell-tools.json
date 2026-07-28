@@ -77,6 +77,22 @@
       ],
       "timeout_seconds": 5,
       "output_cap_bytes": 8000
+    },
+    {
+      "name": "sig_entries",
+      "description": "Return the catalog entries for the named SIGs. Pass a comma-separated list of catalog names (e.g. sig-node,sig-storage). Returns only those entries.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "cat=\"${SIG_REFERENCE:-sigs.reference.yaml}\"; q=\"$1\"; IFS=\",\" read -ra SS <<< \"$q\"; n=0; for s in \"${SS[@]}\"; do   s=\"$(printf \"%s\" \"$s\" | tr -d \"[:space:]\")\";   case \"$s\" in sig-*) ;; *) continue ;; esac;   out=\"$(awk -v s=\"$s\" \"/^  - name: /{p=(\\$0 ~ s\\\"\\$\\\")} p\" \"$cat\")\";   [ -n \"$out\" ] && { printf \"%s\\n\" \"$out\"; n=$((n+1)); }; done; [ \"$n\" = 0 ] && echo \"no catalog entry matched: $q\" || true",
+        "--",
+        "{{sigs}}"
+      ],
+      "required": [
+        "sigs"
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 8000
     }
   ]
 }

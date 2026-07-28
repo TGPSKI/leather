@@ -40,7 +40,7 @@ case "$RIG" in
   35b) export LEATHER_LLM_ENDPOINT=http://127.0.0.1:8000
        export LEATHER_MODEL=qwen36-35b-a3b-nvfp4
        export CONCURRENCY=8; export LP_PORT=8011
-       CELLS="T3 G2" ;;
+       CELLS="F2 S1" ;;
   4b)  export LEATHER_LLM_ENDPOINT=http://10.0.0.64:8000
        export LEATHER_MODEL=/home/tyler/llm/models/Qwen3-4B-Instruct-2507-AWQ
        export CONCURRENCY=4; export LP_PORT=8021
@@ -107,6 +107,17 @@ print(1 if len(rows)==250 and ok >= 225 else 0)" 2>/dev/null)
     # F is the ONLY cell that removes a stage: no analyze, raw issue straight into a
     # single agent. So it runs the FULL pipeline (cache="") against a one-curing set.
     F)      file=eval/ablation/match.F.agent.md;  cache=""; curings=curings-oneshot ;;
+    # F2 is the FAIR one-stage arm: F pastes the catalog into the system prompt, which is
+    # the worst delivery measured (-3.6 vs a user turn, -7.6 vs a fetch), so F vs A
+    # handicapped the one-stage side. F2 uses the enforced v3 lookup instead, so F2 vs G2
+    # isolates the stage split with catalog handling held constant AND correct.
+    F2)     file=eval/ablation/match.F2.agent.md; cache=""; curings=curings-oneshot
+            force=1; idx=sigs.index.seeded.tsv ;;
+    # S1: bounded context via a STAGE boundary rather than a turn boundary. The shortlist
+    # curing narrows with no catalog; a FRESH SESSION then decides from the shortlist alone,
+    # fetching only its candidates' entries. Contrast with T3, where context grew 1206 ->
+    # 2828 tok across turns because Session.Reset is unwired.
+    S1)     file=eval/ablation/match.S1.agent.md; curings=curings-s1 ;;
     *) echo "unknown cell $v" >&2; return 1 ;;
   esac
   command cp -f "$file" "$AGENTS/match.agent.md"

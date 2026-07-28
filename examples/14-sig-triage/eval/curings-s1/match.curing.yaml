@@ -1,0 +1,12 @@
+name: match
+description: >
+  Arm S1 stage 2. A FRESH SESSION: sees only the shortlist artifact and fetches the
+  candidates' catalog entries. Never sees the analyze note or the whole catalog. Named
+  `match` so its artifacts land in artifacts/match and attribution is unchanged.
+  This is the contrast with T3, where context grew 1206 -> 2828 tokens across turns
+  because Session.Reset is unwired and every turn inherits everything.
+agent: match
+queue: adjudicate-in
+page_size_bytes: 32000
+max_attempts: 2
+timeout_seconds: 180

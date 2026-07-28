@@ -1,0 +1,183 @@
+{
+  "_comment": "Definition of every ablation arm: what it is, the parameters that make it that, the ONE variable it isolates, and the arm it should be read against. run-eval.sh embeds the matching entry into each run's manifest so an archive explains itself without reference to a runner script or a chat log.",
+  "A": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "offered (tool)",
+    "rules": true,
+    "variable": "baseline \u2014 the committed pipeline",
+    "compare_to": null,
+    "description": "Inline ownership rules, catalog tool offered. The 35B declines it 250/250; the 4B calls it 249/249, so this arm measures different things per rig."
+  },
+  "A0": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "absent",
+    "rules": true,
+    "variable": "cost of an offered-but-unused tool",
+    "compare_to": "A",
+    "description": "Arm A with the catalog skill removed. A minus A0 is what the catalog contributes when the model actually reads it (4B) or nothing (35B)."
+  },
+  "B": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "absent",
+    "rules": false,
+    "variable": "floor \u2014 model prior only",
+    "compare_to": null,
+    "description": "Bare label set, no rules, no catalog. The baseline every other arm is measured against."
+  },
+  "C": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "pasted into system prompt",
+    "rules": false,
+    "variable": "catalog content, delivered in the system prompt",
+    "compare_to": "B",
+    "description": "Whole catalog pasted into the system prompt. Establishes what the catalog's content is worth before delivery is varied."
+  },
+  "C2": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "index pasted into system prompt",
+    "rules": false,
+    "variable": "catalog FORMAT (prose vs term index), delivery held",
+    "compare_to": "C",
+    "description": "Term index pasted instead of prose catalog. Isolates format from delivery: both arrive in the system prompt."
+  },
+  "P1": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "pasted into USER turn, before the issue",
+    "rules": false,
+    "variable": "message ROLE (system vs user), order held",
+    "compare_to": "C",
+    "description": "Same bytes as C, moved from the system prompt into the user turn, still ahead of the issue. Requires curings-nopage: the 7215 B payload paginates under the 6000 default."
+  },
+  "P2": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "pasted into USER turn, after the issue",
+    "rules": false,
+    "variable": "ORDER (before vs after the issue), role held",
+    "compare_to": "P1",
+    "description": "As P1 but the catalog follows the issue, so the model reads the question before the reference material."
+  },
+  "D": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "fetched via forced tool_choice",
+    "rules": false,
+    "variable": "tool round + second forward pass, order held",
+    "compare_to": "P2",
+    "description": "Whole catalog returned as a tool result. Forcing is injected by the logprob proxy, since leather hardcodes tool_choice: auto \u2014 so this arm partly measures harness scaffolding."
+  },
+  "Dn": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "fetched, no fetch instruction",
+    "rules": false,
+    "variable": "instruction WORDING, mechanism held",
+    "compare_to": "D",
+    "description": "Identical to D but the prompt never mentions fetching. Isolates how much of D's result comes from telling the model to fetch versus the fetch happening."
+  },
+  "E": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "term index via forced lookup",
+    "rules": false,
+    "variable": "retrieval payload: narrowed labels vs whole catalog",
+    "compare_to": "D",
+    "description": "lookup_sig returns matching term rows only. Narrows to ~3.6 of 22 SIGs but returns labels, not descriptions."
+  },
+  "E2": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "seeded index via forced lookup",
+    "rules": false,
+    "variable": "hand-written NOT_MATCH boundaries",
+    "compare_to": "E",
+    "description": "As E against the seeded index (64 hand-authored boundaries). Boundaries are ADVISORY here \u2014 surfaced for the model to weigh."
+  },
+  "Eauto": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "index lookup OFFERED, not forced",
+    "rules": false,
+    "variable": "voluntary vs compelled tool use",
+    "compare_to": "E",
+    "description": "As E with no forcing. The 35B calls it 1/250, the 4B 249/249 \u2014 the sharpest behavioural split between the rigs."
+  },
+  "G": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "narrowed lookup returning full entries",
+    "rules": false,
+    "variable": "retrieval payload: entries vs labels",
+    "compare_to": "E2",
+    "description": "lookup_sig_v2 narrows by index then returns the candidates' FULL catalog entries, falling back to the whole catalog on a miss."
+  },
+  "G2": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "narrowed lookup, boundaries ENFORCED",
+    "rules": false,
+    "variable": "boundaries enforced in code vs offered as advice",
+    "compare_to": "G",
+    "description": "lookup_sig_v3 removes excluded SIGs before the model sees them. Motivated by measurement: under G the model was handed an exclusion on 57% of issues and cited one on 2%."
+  },
+  "H": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "fetched via forced tool_choice",
+    "rules": true,
+    "variable": "does the catalog ADD to the rules",
+    "compare_to": "A",
+    "description": "Arm A's exact prompt with the fetch forced. Tests whether catalog and rules are complementary or redundant."
+  },
+  "T2": {
+    "stages": 2,
+    "turns": 2,
+    "catalog": "fetched via per-turn tool scope",
+    "rules": false,
+    "variable": "turn decomposition (leather-native, no proxy)",
+    "compare_to": "D",
+    "description": "Turn 0 scoped to the catalog tool, turn 1 with tools: [] so the only legal move is the answer. Uses leather's own construct instead of injected tool_choice."
+  },
+  "T3": {
+    "stages": 2,
+    "turns": 3,
+    "catalog": "fetched via per-turn tool scope",
+    "rules": false,
+    "variable": "decomposition DEPTH (3 turns vs 2)",
+    "compare_to": "T2",
+    "description": "Survey the concern with no tools, retrieve against the discriminators it named, then decide with tools withheld."
+  },
+  "F": {
+    "stages": 1,
+    "turns": 1,
+    "catalog": "pasted into system prompt",
+    "rules": true,
+    "variable": "the analyze->match STAGE SPLIT",
+    "compare_to": "A",
+    "description": "One stage: raw issue in, answer out, no analyze step. The only cell that removes a stage. Handicapped by pasted delivery \u2014 see F2."
+  },
+  "F2": {
+    "stages": 1,
+    "turns": 1,
+    "catalog": "narrowed lookup, boundaries enforced",
+    "rules": true,
+    "variable": "the stage split, with catalog handling held CORRECT",
+    "compare_to": "G2",
+    "description": "One stage with the enforced v3 lookup instead of a pasted catalog, so the stage-split comparison is not confounded by the worst delivery mechanism measured."
+  },
+  "S1": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "candidate entries fetched by the decide stage",
+    "rules": false,
+    "variable": "bounded context via a STAGE boundary",
+    "compare_to": "T2",
+    "description": "Two curings: shortlist narrows to a concern plus 2-3 candidates with no catalog, then a FRESH SESSION decides from the shortlist alone, fetching only those candidates' entries. The decide stage never sees the analyze note or the whole catalog. Contrast with T3, where context grew 1206 -> 2828 tokens across turns because Session.Reset is unwired."
+  }
+}
