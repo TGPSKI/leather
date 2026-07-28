@@ -1,5 +1,11 @@
 # Lessons: leather
 
+> **Figures provisional.** Every number below predates the harness fixes of
+> `d5d8d23`/`eaf377a`/`5eeb03e` and is being re-baselined — see the status note in
+> [README.md](README.md). The findings and methodology stand; the specific
+> values will be replaced from verified runs.
+
+
 Carry-forward findings about the framework itself, from building and running the
 SIG-triage eval. Each is something that cost time to discover and would cost the
 same time again.

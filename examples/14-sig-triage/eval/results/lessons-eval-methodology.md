@@ -1,5 +1,11 @@
 # Lessons: eval harness, testing, and methodology
 
+> **Figures provisional.** Every number below predates the harness fixes of
+> `d5d8d23`/`eaf377a`/`5eeb03e` and is being re-baselined — see the status note in
+> [README.md](README.md). The findings and methodology stand; the specific
+> values will be replaced from verified runs.
+
+
 The part with the most carry-forward value, because almost none of it is specific
 to SIG triage. Several entries are corrections to decisions made earlier in this
 same project — those are marked, because the sequence is the lesson.

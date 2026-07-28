@@ -1,5 +1,28 @@
 # SIG-triage eval — results and lessons
 
+> ## ⚠ STATUS: figures in this package are being re-baselined
+>
+> Every number written here so far was produced **before** a set of harness fixes
+> (`d5d8d23`, `eaf377a`, `5eeb03e`, `6295cd7`), and is therefore **provisional —
+> do not publish, quote, or build an argument on it.**
+>
+> The disqualifying defect is that leather's queues lived in a shared `state_dir`
+> that was never cleared between runs. Several runs that night were killed
+> mid-flight, and a killed run leaves queue items behind for the *next* run's
+> supervisor to drain — writing artifacts into that run's directory, attributed
+> by issue number, invisibly. The amount of contamination cannot be bounded after
+> the fact, so the numbers are treated as unusable rather than as probably-fine.
+>
+> Narrower defects affecting specific arms: a tool schema emitting
+> `required: null` (broke every forced-tool arm, and put a malformed schema in
+> front of arms that offered a tool at all), and a proxy that misfiled match
+> calls under the wrong stage (voided tool telemetry, not accuracy).
+>
+> A full re-baseline is running on the fixed harness: every cell carries a
+> `run-manifest.json`, archives its evidence under `runs/<tag>/`, and is checked
+> by `verify-run.sh`. The **methodology** in these documents stands — it is what
+> caught the problem. The **figures** will be replaced.
+
 Everything measured while turning `examples/14-sig-triage` from a demo into a
 gated eval: the ablation matrix, the run artifacts behind it, and the findings
 worth carrying to the next example.

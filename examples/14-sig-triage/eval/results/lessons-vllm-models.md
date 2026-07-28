@@ -1,5 +1,11 @@
 # Lessons: vLLM, Qwen3-35B-A3B and Qwen3-4B-Instruct
 
+> **Figures provisional.** Every number below predates the harness fixes of
+> `d5d8d23`/`eaf377a`/`5eeb03e` and is being re-baselined — see the status note in
+> [README.md](README.md). The findings and methodology stand; the specific
+> values will be replaced from verified runs.
+
+
 Model- and server-level findings. Scope is stated on each one, because most were
 measured on a single rig and the failure mode of this whole exercise was
 generalizing too early.
