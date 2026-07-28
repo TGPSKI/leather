@@ -163,6 +163,51 @@ LEATHER_MODEL=... leather workflow run ... 2>&1 | grep 'agent config'
 This is a real drift in leather, not an eval quirk; the same trap applies to any
 agent wanting greedy decode. Until it is fixed, do not remove either setting.
 
+## Uncertainty: do not route on the model's self-report
+
+`CONFIDENCE: high|medium|low` is emitted but is **not a usable routing signal**,
+and this was measured rather than assumed. Over 250 issues:
+
+| signal | AUROC | error after escalating 10% / 20% / 30% |
+|---|---|---|
+| verbalized `CONFIDENCE` | **0.48–0.51** | 16.0% / 16.5% / 14.3% |
+| `sig_margin` (logprob) | **0.66–0.71** | 12.0% / 11.0% / 9.1% |
+| `commit_margin` (logprob) | **0.64–0.73** | 11.6% / 10.0% / 9.1% |
+
+(ranges are two runs; baseline error 13–16%.)
+
+AUROC 0.5 is a coin flip, so the self-report carries **no** signal — escalating on
+it can make things *worse*. This held even after an explicit calibration protocol
+(name a `RUNNER_UP`, justify `high` with a `WHY_NOT_RUNNER_UP` fact, hedge when the
+top two are close): the model still answered `high` on 97% of rows, and the handful
+of non-`high` rows were *more* accurate than the rest. That protocol cost ~2.4
+points of accuracy and bought nothing, so it was removed. **Prompting harder does
+not fix this**; the finding matches the cascade-routing literature, where verbalized
+confidence consistently underperforms token-level uncertainty.
+
+The logprob margin is read off the *same* forward pass at no extra cost, via
+`scripts/logprob-proxy.py` (leather exposes no `logprobs` knob, so the proxy
+injects it). Two margins are recorded, and the distinction matters:
+
+- `commit_margin` — at the first token after `SIG:`. Every catalog name starts
+  `sig-`, so this token is the shared prefix: it measures *commit vs abstain*.
+- `sig_margin` — at the first token that actually discriminates between names
+  (`-network` vs `-node`). This is label-level uncertainty.
+
+Reading the first as label confidence would report near-total confidence on every
+row. Reproduce with `LOGPROB=1 bash eval/run-eval.sh` then
+`python3 eval/scripts/compare-uncertainty.py`.
+
+**Runner-up recovery** is reported alongside: of the rows the top pick got wrong,
+50–71% had gold as the model's own `RUNNER_UP`. That is the ceiling for a top-2
+adjudication step, and the reason one is worth building.
+
+One measured trade-off, both sides inside the noise floor: the `WHY_NOT_RUNNER_UP`
+protocol *raised* runner-up recovery (71% vs 50%) while *lowering* base accuracy
+(84.4% vs 86.8%). Perfect-adjudicator ceilings land at 94.0% vs 93.2% — a 0.8-point
+gap that this corpus cannot resolve. Revisit only if an adjudicator turns out to be
+starved of good runner-ups.
+
 ## Gold provenance: the overrides overlay
 
 `gold.jsonl` is **byte-identical to the fetcher's output** and must stay that
