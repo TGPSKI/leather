@@ -8,6 +8,9 @@ queues/
 .env
 # 14-sig-triage eval runtime artifacts (regenerated each run)
 .state-eval/
+# suffixed per-rig state dirs (STATE_SUFFIX, parallel runs)
+.state-eval-*/
+.tannery.resolved*.yaml
 .tannery.resolved.yaml
 predictions.jsonl
 .dev-corpus.jsonl

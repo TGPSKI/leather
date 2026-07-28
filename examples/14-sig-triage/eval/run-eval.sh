@@ -45,6 +45,29 @@ rm -rf "$STATE_DIR"
 
 RUNLOG="${STATE_DIR}/run.log"; mkdir -p "$STATE_DIR"; : > "$RUNLOG"
 
+# Provenance, written BEFORE the run. Without it, "which prompt produced 77.2%?"
+# has no answer once the next cell overwrites this directory.
+sha() { [ -f "$1" ] && sha256sum "$1" 2>/dev/null | cut -c1-12 || echo none; }
+cat > "${STATE_DIR}/run-manifest.json" <<EOF
+{
+  "run_tag":    "${RUN_TAG:-unnamed}",
+  "started":    "$(date -Iseconds)",
+  "model":      "${LEATHER_MODEL:-unset}",
+  "endpoint":   "${LEATHER_LLM_ENDPOINT:-unset}",
+  "agent_dir":  "${LEATHER_AGENT_DIR:-agents}",
+  "agent_sha":  "$(sha "${LEATHER_AGENT_DIR:-agents}/match.agent.md")",
+  "index":      "${SIG_INDEX:-sigs.index.tsv}",
+  "index_sha":  "$(sha "${SIG_INDEX:-sigs.index.tsv}")",
+  "corpus":     "${CORPUS}",
+  "corpus_sha": "$(sha "${CORPUS}")",
+  "git_commit": "$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || echo none)",
+  "force_tool": "${FORCE_TOOL:-0}",
+  "concurrency": "${CONCURRENCY:-8}",
+  "logprob":    "${LOGPROB:-0}"
+}
+EOF
+
+
 # QUEUES live in leather's state_dir, not in the tannery's hide/artifact dirs, so
 # STATE_SUFFIX alone does not isolate them. Two rigs sharing config.eval.yaml's
 # `state_dir: .state` drain ONE queue store: each supervisor dequeues items whose
@@ -109,6 +132,37 @@ total=$(grep -c . "$CORPUS"); mismatch=0; empty=0
 # from the artifact rather than inferred from timing.
 CONCURRENCY="${CONCURRENCY:-8}"
 sed -i -E "s/^( +concurrency:) [0-9]+/\1 ${CONCURRENCY}/" "$RESOLVED_TANNERY"
+# ANALYZE_CACHE replays frozen analyze notes directly into match-in, skipping the
+# analyze stage. The ablation varies only the match agent, so re-running analyze
+# per cell buys nothing and actively harms the comparison: it injects
+# analyze-stage variance into a measurement meant to isolate the match prompt.
+# With the cache, every arm sees byte-identical input.
+if [ -n "${ANALYZE_CACHE:-}" ]; then
+  [ -s "$ANALYZE_CACHE" ] || { echo "ANALYZE_CACHE $ANALYZE_CACHE is missing or empty" >&2; exit 2; }
+  cached=$(grep -c . "$ANALYZE_CACHE")
+  [ "$cached" = "$total" ] || { echo "ANALYZE_CACHE has $cached notes but the corpus has $total -- refusing to score a partial run" >&2; exit 2; }
+  echo "replaying ${cached} cached analyze notes into match-in (analyze stage skipped)..."
+  mapfile -t NOTES < <(python3 -c "
+import json,sys
+for l in open('$ANALYZE_CACHE'):
+    if l.strip(): print(json.dumps(json.loads(l)['note']))
+")
+  last_idx=$(( ${#NOTES[@]} - 1 ))
+  for idx in "${!NOTES[@]}"; do
+    [ "$idx" -eq "$last_idx" ] && continue
+    python3 -c "import json,sys;sys.stdout.write(json.loads(sys.argv[1]))" "${NOTES[$idx]}" \
+      | "$LEATHER" ingest --config eval/config.eval.yaml --tannery "$RESOLVED_TANNERY" \
+          --curing match --queue match-in --kind analyze --source cli \
+          >/dev/null 2>>"$RUNLOG" || true
+    printf '\r  queued %d/%d' "$((idx+1))" "$cached"
+  done
+  echo
+  echo "draining match-in at concurrency ${CONCURRENCY} (${cached} notes)..."
+  python3 -c "import json,sys;sys.stdout.write(json.loads(sys.argv[1]))" "${NOTES[$last_idx]}" \
+    | "$LEATHER" workflow run --config eval/config.eval.yaml --tannery "$RESOLVED_TANNERY" \
+        --curing match --queue match-in --kind analyze --source cli --settle 5s \
+        >/dev/null 2>>"$RUNLOG" || true
+else
 echo "ingesting ${total} issues into analyze-in..."
 mapfile -t ROWS < <(grep . "$CORPUS")
 last_idx=$(( ${#ROWS[@]} - 1 ))
@@ -128,6 +182,7 @@ jq -c '{number,repo,title,body}' <<<"${ROWS[$last_idx]}" | "$LEATHER" workflow r
     --config eval/config.eval.yaml --tannery "$RESOLVED_TANNERY" \
     --curing analyze --queue analyze-in \
     --kind github.issues --source cli --settle 5s >/dev/null 2>>"$RUNLOG" || true
+fi
 
 # Attribute every match artifact by its own ISSUE line.
 python3 - "$ARTIFACT_DIR/match" "$CORPUS" "$PRED" <<'PY'
@@ -221,6 +276,42 @@ retries=$(grep -c "process failed" "$RUNLOG" 2>/dev/null || true)
 toolfail=$(grep -ciE "tool.*(error|failed)|get_sig_reference.*(error|fail)" "$RUNLOG" 2>/dev/null || true)
 echo "run integrity: ${empty}/${total} rows with no usable match artifact, ${mismatch} of those saw only another issue's artifact"
 echo "               ${retries:-0} stage retries, ${toolfail:-0} tool errors  (full log: ${RUNLOG})"
+
+
+# Archive the evidence before the next run wipes this directory. Derived facts,
+# not bulk: the analyze notes are what exposure analysis needs, and they are ~5%
+# of the raw artifacts' size. Set RUN_TAG to name the cell.
+if [ -n "${RUN_TAG:-}" ]; then
+  ARCH="${EVAL_DIR}/results/runs/${RUN_TAG}"
+  mkdir -p "$ARCH"
+  cp "${STATE_DIR}/run-manifest.json" "$ARCH/" 2>/dev/null
+  cp "$PRED" "$ARCH/predictions.jsonl" 2>/dev/null
+  [ -s "$LOGPROB_OUT" ] && gzip -c "$LOGPROB_OUT" > "$ARCH/logprobs.jsonl.gz"
+  # The log lines that carry evidence: tool executions, failures, and the agent
+  # responses that show whether a boundary was cited.
+  grep -E 'executing tool|process failed|hide missing|agent response content' \
+    "$RUNLOG" 2>/dev/null | gzip -c > "$ARCH/run-evidence.log.gz"
+  python3 - "$ARTIFACT_DIR/analyze" "$ARCH/analyze-notes.jsonl" <<'PYARCH'
+import glob, json, os, re, sys
+src, out = sys.argv[1], sys.argv[2]
+rows = []
+for f in glob.glob(os.path.join(src, "*.json")):
+    try: c = json.load(open(f)).get("content") or ""
+    except Exception: continue
+    m = re.search(r"^ISSUE:\s*(\d+)", c, re.M)
+    if not m: continue
+    def fld(n):
+        h = re.search(rf"^{n}:\s*(.+)$", c, re.M)
+        return h.group(1).strip() if h else ""
+    rows.append({"number": int(m.group(1)), "note": c.strip(),
+                 "components": fld("COMPONENTS"), "keywords": fld("KEYWORDS")})
+rows.sort(key=lambda r: r["number"])
+with open(out, "w") as fh:
+    for r in rows: fh.write(json.dumps(r) + "\n")
+print(f"archived {len(rows)} analyze notes", file=sys.stderr)
+PYARCH
+  echo "evidence archived to ${ARCH}"
+fi
 
 ( cd "$ROOT_DIR" && go run ./examples/14-sig-triage/eval/sigeval.go \
     -gold "examples/14-sig-triage/${GOLD}" -pred "examples/14-sig-triage/${PRED}" \

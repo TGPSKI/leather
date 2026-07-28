@@ -196,14 +196,28 @@ class Handler(BaseHTTPRequestHandler):
         (cmar, ctok, calts), (dmar, dtok, dalts) = _sig_margins(toks)
         sysmsg = next((m.get("content", "") for m in msgs if m.get("role") == "system"), "")
         # Which stage produced this call, inferred from the system prompt.
-        # adjudicate is checked FIRST: it also carries get_sig_reference, so the
-        # match test would swallow it and both stages would land in one bucket.
-        stage = "adjudicate" if "CANDIDATE_1" in sysmsg else (
-            "match" if "get_sig_reference" in sysmsg else (
-                "analyze" if "COMPONENTS:" in sysmsg else "other"))
+        # Stage is inferred from the system prompt, and the order of these tests is
+        # load-bearing. adjudicate goes first because it also carries
+        # get_sig_reference. match must be recognised by EITHER catalog tool --
+        # ablation arm E swaps get_sig_reference for lookup_sig, and since its
+        # prompt mentions COMPONENTS (the terms it queries with), the analyze test
+        # silently swallowed every one of its match calls.
+        # A match response is the one that emits a SIG: line; that is the check of
+        # last resort, so a future prompt rewrite degrades to "other" rather than
+        # to a wrong bucket.
+        stage = ("adjudicate" if "CANDIDATE_1" in sysmsg
+                 else "match" if ("get_sig_reference" in sysmsg or "lookup_sig" in sysmsg)
+                 else "match" if re.search(r"^SIG:", content, re.M)
+                 else "analyze" if "COMPONENTS:" in sysmsg
+                 else "other")
         _record({
             "issue": _issue_of(msgs),
             "stage": stage,
+            # What the request actually carried, not what the config claimed.
+            # verify-run.sh asserts on these; an agent whose frontmatter says
+            # temperature 0 while the runtime sends 0.7 is otherwise invisible.
+            "temperature": req.get("temperature"),
+            "model": req.get("model"),
             # Provenance: was the catalog tool actually OFFERED on this request?
             "tools_offered": [t.get("function", {}).get("name")
                               for t in (req.get("tools") or [])],
