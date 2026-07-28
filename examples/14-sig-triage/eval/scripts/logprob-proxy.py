@@ -37,6 +37,8 @@ UPSTREAM = os.environ.get("UPSTREAM", "http://127.0.0.1:8000").rstrip("/")
 PORT = int(os.environ.get("PORT", "8010"))
 OUT = os.environ.get("LOGPROB_OUT", "logprobs.jsonl")
 TOP_N = int(os.environ.get("TOP_LOGPROBS", "5"))
+FORCE_TOOL = os.environ.get("FORCE_TOOL", "0") == "1"
+FORCE_TOOL_CAP = int(os.environ.get("FORCE_TOOL_CAP", "128"))
 
 _lock = threading.Lock()
 
@@ -129,6 +131,28 @@ class Handler(BaseHTTPRequestHandler):
                 # Ask for logprobs. Harmless for any request; only read for match.
                 req["logprobs"] = True
                 req["top_logprobs"] = TOP_N
+                # FORCE_TOOL=1 is ablation arm D: make the catalog fetch actually
+                # happen. leather has no tool_choice knob, but the decision is a
+                # per-request field, so the proxy can set it without touching core.
+                #
+                # Only on the FIRST round: `required` compels a tool call on every
+                # request it is set on, so leaving it on would trap the model in a
+                # loop that can never emit its answer. A round that already carries
+                # a tool result is left alone.
+                if FORCE_TOOL and req.get("tools"):
+                    already = any(m.get("role") == "tool"
+                                  for m in (req.get("messages") or []))
+                    if not already:
+                        req["tool_choice"] = "required"
+                        # ...and cap the round. Under `required` this model never
+                        # emits a stop token: it produces the tool call within the
+                        # first few tokens and then generates filler to the limit.
+                        # Measured: 8192 tokens / 41s per call, versus 64 tokens /
+                        # 0.7s with the SAME parsed tool call. Uncapped, every
+                        # round-1 request breaches llm_timeout under concurrency and
+                        # the whole run abstains. The cap costs nothing because the
+                        # only thing wanted from this round is the call itself.
+                        req["max_tokens"] = FORCE_TOOL_CAP
                 body = json.dumps(req).encode()
             except Exception:
                 req = None  # fail open: forward the original bytes

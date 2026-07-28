@@ -63,7 +63,8 @@ if [ "${LOGPROB:-0}" = "1" ]; then
   fi
   : > "$LOGPROB_OUT"
   UPSTREAM="${LEATHER_LLM_ENDPOINT:-http://127.0.0.1:8000}" PORT="$LP_PORT" \
-    LOGPROB_OUT="$LOGPROB_OUT" python3 "${EVAL_DIR}/scripts/logprob-proxy.py" \
+    LOGPROB_OUT="$LOGPROB_OUT" FORCE_TOOL="${FORCE_TOOL:-0}" \
+    python3 "${EVAL_DIR}/scripts/logprob-proxy.py" \
       >>"$RUNLOG" 2>&1 &
   LP_PID=$!
   trap 'kill "$LP_PID" 2>/dev/null; rm -f "$RESOLVED_TANNERY"' EXIT

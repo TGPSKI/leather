@@ -29,6 +29,22 @@
         "sig"
       ],
       "timeout_seconds": 20
+    },
+    {
+      "name": "lookup_sig",
+      "description": "Look up which SIGs own the given components/keywords. Pass the issue's COMPONENTS and KEYWORDS as one comma-separated list. Returns only the candidate SIGs for those terms with a tally, plus NOT_MATCH exclusions.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "idx=\"${SIG_INDEX:-sigs.index.tsv}\"; q=\"$1\"; IFS=\",\" read -ra TS <<< \"$q\"; hits=\"\"; for t in \"${TS[@]}\"; do   t=\"$(printf \"%s\" \"$t\" | sed -e \"s/^[[:space:]]*//\" -e \"s/[[:space:]]*$//\")\";   [ \"${#t}\" -ge 3 ] || continue;   h=\"$(grep -iF -- \"$t\" \"$idx\" || true)\";   [ -n \"$h\" ] && hits=\"$hits$h\n\"; done; hits=\"$(printf \"%b\" \"$hits\" | grep . | sort -u | head -40 || true)\"; if [ -z \"$hits\" ]; then echo \"no associations found for: $q\"; exit 0; fi; echo \"ASSOCIATIONS (term -> verdict -> sig):\"; printf \"%s\\n\" \"$hits\"; echo; echo \"TALLY (MATCH count per sig):\"; printf '%s\\n' \"$hits\" | awk -F'\\t' '$2==\"MATCH\"{c[$3]++} END{for(s in c) print c[s]\"  \"s}' | sort -rn; echo; echo \"EXCLUSIONS (NOT_MATCH rules the sig out for that term):\"; printf '%s\\n' \"$hits\" | awk -F'\\t' '$2==\"NOT_MATCH\"{print $1\"  ->  NOT \"$3}' | sort -u",
+        "--",
+        "{{terms}}"
+      ],
+      "required": [
+        "terms"
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 8000
     }
   ]
 }

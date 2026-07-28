@@ -1,0 +1,21 @@
+name: sig-lookup
+system_prompt_append: |
+  You have one tool:
+    lookup_sig(terms) → given a comma-separated list of components and keywords,
+    returns ONLY the SIGs associated with those terms: the matching associations,
+    a MATCH tally per SIG, and any NOT_MATCH exclusions that rule a SIG out for a
+    term. It does not return the whole catalog; ask it for what the issue names.
+  Call it once with the issue's COMPONENTS and KEYWORDS joined by commas.
+  A NOT_MATCH line is a boundary that was learned from measured errors: when it
+  names a SIG for a term the issue has, that SIG is wrong however plausible it
+  looks. Prefer the tally, then break ties on which subsystem OWNS the concern.
+  If the tool fails or returns nothing, fall back to your own knowledge and still
+  produce your structured output — a tool failure does not block the pipeline.
+
+tools:
+  - name: lookup_sig
+    description: Return the SIGs associated with the given components/keywords.
+    type: mcp
+    mcp:
+      server: shell
+      tool: lookup_sig
