@@ -190,6 +190,44 @@ Testing the actual fetch loop (rather than the catalog's information content)
 needs `tool_choice: required`, which leather does not expose — `http_client.go`
 hardcodes `"auto"`.
 
+### The inline-rules approach hits a prompt-dilution wall
+
+This is the strongest practical argument for read-the-catalog, and it arrived
+from the data rather than from the design doc.
+
+Because the model will not fetch the catalog, **every ownership rule has to live
+in the one `match` prompt**, and they compete for a finite budget. Stage 2
+measured the ceiling directly. Round 1 added a single boundary rule and improved
+things. Round 2 added four more — and classes the new rules **never mention**
+collapsed:
+
+| | round 1 | round 2 (4 more rules) |
+|---|---|---|
+| `sig-storage` recall | 88% | **50%** — not mentioned by any new rule |
+| `sig-api-machinery` precision | 74% | **54%** — round 1's gain, reverted |
+| overall | 88.4% | 80.8% (net −19 rows) |
+
+**On that 88.4%:** it is the best of four draws of the *same* config, not the
+config's value. Replicated 4×, round 1 scores 84.8 / 86.0 / 87.6 / 88.4 —
+**mean ~86.7, spread 3.6 points**. Quote the mean. Round 2's −19 rows is far
+outside that spread and is the real finding here; the headline number is not.
+
+A rule cannot break a class it does not mention, or undo a rule whose text it
+does not touch. Roughly doubling the instruction block degraded adherence
+*across the board*. The rules were not wrong — the instrumentation rule in the
+same bundle produced its predicted effect (`sig-network` 75% → 83%,
+reproducibly) — the delivery mechanism was saturated.
+
+That is a **scaling limit on the inline-rules approach**, not a tuning problem:
+each new rule makes the existing ones less reliable, so the taxonomy cannot grow.
+A retrieved catalog has no such ceiling — the model pulls only what it needs, and
+adding the 30th SIG does not degrade the other 29. The tool-based design solves
+a problem the prompt-based one provably has.
+
+The honest caveat: this is an argument *for* the design, not a measurement *of*
+it — the fetch has never actually happened here. Proving it needs
+`tool_choice: required` plus the A/B/C ablation above.
+
 ## Uncertainty: do not route on the model's self-report
 
 `CONFIDENCE: high|medium|low` is emitted but is **not a usable routing signal**,
@@ -234,6 +272,44 @@ protocol *raised* runner-up recovery (71% vs 50%) while *lowering* base accuracy
 (84.4% vs 86.8%). Perfect-adjudicator ceilings land at 94.0% vs 93.2% — a 0.8-point
 gap that this corpus cannot resolve. Revisit only if an adjudicator turns out to be
 starved of good runner-ups.
+
+## Two-pass adjudication (experimental, harness-only)
+
+**This is an experiment in the eval harness, not a leather feature, and not a
+pattern to copy into a production tannery.** leather has no content-conditional
+routing: a curing's `output.queue` is a static name that fires on every success,
+and the tannery router matches on source/event type/hide kind — envelope
+metadata, never artifact content. So the "send the uncertain ones to a
+tie-breaker" decision is made *by the harness*, which reads pass-1 predictions
+off disk and ingests the selected minority into `adjudicate-in` itself.
+
+```
+LOGPROB=1 bash eval/run-eval.sh                    # pass 1 (margins required)
+COVERAGE=20 bash eval/scripts/adjudicate-pass.sh   # pass 2 over the lowest-margin 20%
+```
+
+Escalation is by `sig_margin`, **not** by `CONFIDENCE` — routing on the
+self-report would be routing on AUROC 0.48. That constraint is the interesting
+part: a conditional-routing feature inside leather could only see artifact
+*text*, so it could only route on the signal measured above as worthless. Getting
+this right requires the uncertainty connector as much as the router, which is why
+[LEP-0008](../../../docs/LEP-0008-conditional-routing.md) carries both.
+
+Two design details that exist to keep the measurement honest:
+
+- **Candidate order is set by issue-number parity**, not by which SIG pass 1
+  preferred. Always showing the top pick first would let the adjudicator score
+  well by agreeing with position 1, and the result would look like reasoning.
+  Parity is deterministic across re-runs and balanced across positions.
+- **The merge is fail-safe.** A tie-break that is missing, self-inconsistent
+  (`VERDICT` and `SIG` disagree), off-ballot, or explicitly `neither` leaves
+  pass 1's answer standing. The second opinion can improve the score or decline;
+  it cannot destroy it. Each outcome is counted, because a pass that "helps"
+  while silently declining 40% of its cases is not a result.
+
+The adjudicator runs with `thinking: true` — it is deliberately the expensive
+arm, since the entire premise of escalation is spending more compute only where
+it pays. Its cost is reported as a compute multiplier (coverage 20% ≈ 1.2×).
 
 ## Gold provenance: the overrides overlay
 

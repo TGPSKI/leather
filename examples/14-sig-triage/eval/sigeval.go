@@ -88,6 +88,13 @@ func readJSONL[T any](path string) ([]T, error) {
 	return out, sc.Err()
 }
 
+func abs(f float64) float64 {
+	if f < 0 {
+		return -f
+	}
+	return f
+}
+
 func acceptable(g gold) map[string]bool {
 	s := map[string]bool{g.SIG: true}
 	for _, a := range g.Accept {
@@ -129,6 +136,7 @@ func main() {
 	catalogPath := flag.String("catalog", "sigs.reference.yaml", "SIG catalog, for the closed-vocabulary check (optional)")
 	predPath := flag.String("pred", "eval/predictions.jsonl", "predictions JSONL")
 	flipVs := flag.String("flip-vs", "", "prior predictions JSONL: report the per-item flip diff (fixed / regressed / unchanged) against it")
+	nullBand := flag.Int("null-band", 6, "flip-diff verdict: |net rows| at or below this is UNRESOLVED. MEASURED, not guessed: two repeat runs of an unchanged config gave net 0 and net -6 on this corpus, so anything within +-6 rows is indistinguishable from doing nothing")
 	minAcc := flag.Float64("min-accuracy", 0.80, "gate: minimum overall accuracy (excl. abstentions on ambiguous rows)")
 	maxAbstain := flag.Float64("max-abstain", 0.30, "gate: maximum abstention rate")
 	minMacroRecall := flag.Float64("min-macro-recall", 0.85, "gate: minimum macro-averaged recall across gold classes (primary per-class health check)")
@@ -584,13 +592,30 @@ func main() {
 			fmt.Println("  - " + s)
 		}
 
-		// Per-class recall delta, and the accept rule that matters: a change may
-		// trade DOWN a class that is already failing its floor (that is often the
-		// point -- an over-predicting class gives rows back and its own recall
-		// dips), but it must not push a PASSING class below the floor. The
-		// aggregate hides exactly that trade, so name it here.
-		fmt.Println("\n  per-class recall delta (support >= min-class-support):")
-		var broke []string
+		// VERDICT is on the AGGREGATE, against the measured null band.
+		//
+		// Per-class PASS/FAIL was tried as the accept rule and is not sound at this
+		// support. Re-running an UNCHANGED prompt produced net -6 rows with
+		// sig-node crossing the 90% floor (92% -> 83%) -- the identical signal that
+		// had been used to reject a real change. At n=24 one row is 4 points and
+		// two rows cross the floor, so a class flips PASS->FAIL on nothing at all.
+		// A reject rule that fires on identical inputs is not a rule.
+		//
+		// So: judge the aggregate against the null band measured from repeat runs
+		// of the same configuration, and keep per-class strictly as a DIAGNOSTIC
+		// for reading the mechanism (which classes gave rows to which).
+		net := len(fixed) - len(regressed)
+		switch {
+		case net > *nullBand:
+			fmt.Printf("  VERDICT: improvement (net %+d, outside the null band of +-%d rows)\n", net, *nullBand)
+		case net < -*nullBand:
+			fmt.Printf("  VERDICT: regression (net %+d, outside the null band of +-%d rows)\n", net, *nullBand)
+		default:
+			fmt.Printf("  VERDICT: UNRESOLVED (net %+d is inside the +-%d-row null band; "+
+				"repeat runs of one config vary this much)\n", net, *nullBand)
+		}
+
+		fmt.Println("\n  per-class recall delta — DIAGNOSTIC ONLY, not a verdict:")
 		for _, s := range sigs {
 			sup := recallTot[s]
 			if sup < *minClassSupport {
@@ -605,22 +630,17 @@ func main() {
 			}
 			wasR := float64(wasHit) / float64(sup)
 			d := 100 * (nowR - wasR)
-			flag := ""
-			// PASS -> FAIL on a gated class is the reject signal.
-			if core[s] && wasR >= *minCore && nowR < *minCore {
-				flag = "  <- REGRESSED A PASSING CLASS (reject signal)"
-				broke = append(broke, s)
-			} else if core[s] && nowR < *minCore && d < 0 {
-				flag = "  (was already failing; trade-down allowed)"
+			if d == 0 {
+				continue
 			}
-			if d != 0 || flag != "" {
-				fmt.Printf("    %-24s %3.0f%% -> %3.0f%%  (%+.0f pts)%s\n", s, 100*wasR, 100*nowR, d, flag)
+			// One row is worth this many points here -- the scale that makes a
+			// per-class swing look dramatic when it is a single item.
+			perRow := 100.0 / float64(sup)
+			note := ""
+			if abs(d) <= 2*perRow+0.01 {
+				note = fmt.Sprintf("  (<=2 rows at n=%d; inside noise)", sup)
 			}
-		}
-		if len(broke) > 0 {
-			fmt.Printf("  VERDICT: reject — %s crossed the recall floor downward.\n", strings.Join(broke, ", "))
-		} else {
-			fmt.Println("    (no passing core class was pushed below the floor)")
+			fmt.Printf("    %-24s %3.0f%% -> %3.0f%%  (%+.0f pts)%s\n", s, 100*wasR, 100*nowR, d, note)
 		}
 	}
 

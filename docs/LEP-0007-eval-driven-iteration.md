@@ -229,23 +229,44 @@ against. Rails:
   variance-mining smell (LEP-0006 §11 small-corpus variance).
 - **Baseline regression bound.** LEP-0006 §8.3's `max_core_regression` is the
   final backstop: no accepted change may regress a core class beyond the delta.
-- **Trade down failing classes, never passing ones.** "Reject any change that
-  regresses a core class" is too blunt, and following it literally would reject
-  the *best* fixes. An over-predicting class has low precision, and its false
-  positives are other classes' false negatives; correcting its boundary hands
-  those rows back, which means its own recall *dips* while several other classes
-  rise. That is the mechanism working, not a regression to block. The usable
-  rule: a change may trade down a class that is **already below its floor**, but
-  may never push a **passing** class below it. The scorer prints the per-class
-  recall delta with the crossing flagged, so the verdict is mechanical rather
-  than a judgment call made after seeing the number.
+- **Measure the null before trusting any verdict.** Before a comparison can
+  reject anything, run the *unchanged* configuration twice and diff it against
+  itself. Whatever that moves is the floor: any smaller effect is unresolvable,
+  whatever the report says. Skipping this is how a loop starts optimising noise.
+- **Do not gate on per-class PASS/FAIL at small support.** This was tried and it
+  is unsound. Two natural formulations both fail:
+  - *"Reject any change that regresses a core class"* rejects the **best** class
+    of fix. An over-predicting class's false positives ARE other classes' false
+    negatives, so correcting its boundary hands rows back and its own recall
+    necessarily dips while several others rise.
+  - *"Trade down failing classes, never passing ones"* survives that objection
+    and still fails, because a class crossing its floor is not a reliable event
+    at this support. Measured on 14-sig-triage: re-running an **unchanged**
+    prompt moved net −6 rows and pushed `sig-node` 92% → 83%, across the 90%
+    floor — the identical signal that had just been used to reject a real change.
+    At n=24 one row is 4 points; two rows cross a floor. **A reject rule that
+    fires on identical inputs is not a rule.**
+
+  So: **judge on the aggregate + macro-recall against the measured null**, and
+  keep per-class strictly as a *diagnostic* for reading the mechanism. The
+  per-class story is what makes an accepted change explicable — it is evidence,
+  not a verdict.
 
   Worked instance (14-sig-triage, 250 rows): tightening `sig-api-machinery`'s
-  ownership boundary moved its precision 58% → 74% and its recall 86% → 76%,
-  while `sig-node` went 75% → 92%, `sig-apps` and `sig-auth` 84% → 92%. Net
-  +4 rows, two per-class gates flipped to PASS, and api-machinery was failing its
-  floor both before and after — accept. Had `sig-apps` instead fallen from 92% to
-  85%, the same aggregate would have been a reject.
+  ownership boundary moved its precision 58% → 74%, with `sig-node` 75% → 92%
+  and `sig-apps`/`sig-auth` 84% → 92%, and 8 of 11 fixes were api-machinery
+  handing a row back to its true owner. Net was only +4 rows — *inside* the ±6
+  null band — so the aggregate alone does not carry it. The change is defensible
+  because the precision shift is large and the per-row mechanism is the
+  hypothesised one, and because replication (below) put the mean above baseline.
+
+- **Replicate what you publish, not what you iterate.** Single runs are fine for
+  deciding whether to keep exploring a direction; they are not fine for a number
+  that ships. Any figure quoted as a result — a headline accuracy, a comparison
+  table, an ablation — is run **3×** and reported as mean ± spread. Reporting the
+  best of several draws as "the" result is the same error as letting a singleton
+  class inflate a macro average, and it is easy to commit accidentally when the
+  runs happen days apart.
 
 ---
 

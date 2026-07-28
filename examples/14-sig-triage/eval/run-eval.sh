@@ -81,59 +81,76 @@ if [ "${LOGPROB:-0}" = "1" ]; then
   export LEATHER_LLM_ENDPOINT="http://127.0.0.1:${LP_PORT}"
   echo "logprob proxy on :${LP_PORT} -> recording ${LOGPROB_OUT}"
 fi
-total=$(grep -c . "$CORPUS"); i=0; mismatch=0; empty=0
-echo "running analyze->match over ${total} issues..."
-while IFS= read -r row; do
-  [ -z "$row" ] && continue
-  num=$(jq -r '.number' <<<"$row")
-  hide=$(jq -c '{number,repo,title,body}' <<<"$row")     # gold sig/accept stripped from what the model sees
-  rm -rf "${ARTIFACT_DIR}/match"
-  # Keep the per-issue log. Discarding stderr hides the two things that silently
-  # corrupt a run -- LLM retries and failed `get_sig_reference` calls (the skill
-  # tells the agent to answer from memory when the catalog tool fails, which
-  # quietly turns a read-the-catalog eval into a closed-book one).
-  printf '%s' "$hide" | "$LEATHER" workflow run \
+total=$(grep -c . "$CORPUS"); mismatch=0; empty=0
+
+# Pipe the whole corpus into the queue, then drain ONCE with the queue's own
+# concurrency. The previous design ran one `workflow run` per issue and waited,
+# so the tannery's `concurrency:` was dead -- the queue never held more than one
+# item and the run was strictly serial regardless of how much parallelism the
+# model server had. Batch-ingest + a single drain is leather's actual concurrency
+# model and lets vLLM batch the requests.
+#
+# This also retires the per-issue artifact race outright: instead of clearing the
+# artifact dir and hoping the right file appears, every match artifact is kept and
+# attributed by the `ISSUE:` line the agent copies verbatim. Provenance is read
+# from the artifact rather than inferred from timing.
+CONCURRENCY="${CONCURRENCY:-8}"
+sed -i -E "s/^( +concurrency:) [0-9]+/\1 ${CONCURRENCY}/" "$RESOLVED_TANNERY"
+echo "ingesting ${total} issues into analyze-in..."
+mapfile -t ROWS < <(grep . "$CORPUS")
+last_idx=$(( ${#ROWS[@]} - 1 ))
+for idx in "${!ROWS[@]}"; do
+  [ "$idx" -eq "$last_idx" ] && continue      # the last one goes in via `workflow run`
+  jq -c '{number,repo,title,body}' <<<"${ROWS[$idx]}" | "$LEATHER" ingest \
       --config eval/config.eval.yaml --tannery "$RESOLVED_TANNERY" \
       --curing analyze --queue analyze-in \
-      --kind github.issues --source cli --settle 800ms >/dev/null 2>>"$RUNLOG" || true
-  # Wait for THIS issue's match artifact, verifying provenance.
-  #
-  # `--settle` is a quiet-period heuristic, not a completion signal: under model
-  # contention it can return before the match stage has written, leaving either
-  # no artifact (-> a spurious `unknown`) or, worse, the PREVIOUS issue's artifact
-  # still on disk, which would be silently scored as this issue's answer. The
-  # agent copies `ISSUE:` verbatim, so the artifact carries the provenance needed
-  # to tell those apart -- poll until an artifact whose ISSUE matches the row we
-  # submitted appears, and count anything else rather than trusting it.
-  out=""; stale=""
-  for _ in $(seq 1 24); do
-    cand=$(cat "${ARTIFACT_DIR}"/match/*.json 2>/dev/null | jq -r '.content // empty' || true)
-    if [ -n "$cand" ]; then
-      art=$(grep -m1 '^ISSUE:' <<<"$cand" | awk '{print $2}' || true)
-      if [ "$art" = "$num" ]; then out="$cand"; break; fi
-      stale="$art"          # an artifact, but not for this issue -- keep waiting
-    fi
-    sleep 0.25
-  done
-  if [ -z "$out" ] && [ -n "$stale" ]; then
-    mismatch=$((mismatch+1))
-    echo "  WARN #${num}: only saw artifact for ISSUE ${stale}; recording unknown" >&2
-  fi
-  sig=$(grep -m1 '^SIG:' <<<"$out" | awk '{print $2}' || true); [ -z "$sig" ] && sig="unknown"
-  # A missing CONFIDENCE means we got no usable completion (timeout / empty), not
-  # that the model expressed low confidence. Tag it distinctly so it lands in the
-  # report's `(other)` bucket instead of poisoning the low-confidence stats that
-  # confidence routing is calibrated against.
-  conf=$(grep -m1 '^CONFIDENCE:' <<<"$out" | awk '{print tolower($2)}' || true); [ -z "$conf" ] && conf="no-output"
-  # RUNNER_UP is the model's second choice; the scorer uses it to report how much
-  # headroom a top-2 adjudicator stage would have. Absent (older prompt) -> none.
-  ru=$(grep -m1 '^RUNNER_UP:' <<<"$out" | awk '{print tolower($2)}' || true); [ -z "$ru" ] && ru="none"
-  jq -nc --argjson n "$num" --arg p "$sig" --arg r "$ru" --arg c "$conf" \
-     '{number:$n,predicted:$p,runner_up:$r,confidence:$c}' >> "$PRED"
-  [ -z "$out" ] && empty=$((empty+1))
-  i=$((i+1)); printf '\r  %d/%d' "$i" "$total"
-done < "$CORPUS"
+      --kind github.issues --source cli >/dev/null 2>>"$RUNLOG" || true
+  printf '\r  ingested %d/%d' "$((idx+1))" "$total"
+done
 echo
+echo "draining queues at concurrency ${CONCURRENCY} (analyze->match over ${total} issues)..."
+# The final hide is submitted by `workflow run`, which then runs the supervisor
+# until every queue is quiescent -- draining the ones ingested above with it.
+jq -c '{number,repo,title,body}' <<<"${ROWS[$last_idx]}" | "$LEATHER" workflow run \
+    --config eval/config.eval.yaml --tannery "$RESOLVED_TANNERY" \
+    --curing analyze --queue analyze-in \
+    --kind github.issues --source cli --settle 5s >/dev/null 2>>"$RUNLOG" || true
+
+# Attribute every match artifact by its own ISSUE line.
+python3 - "$ARTIFACT_DIR/match" "$CORPUS" "$PRED" <<'PY'
+import glob, json, os, re, sys
+art_dir, corpus_p, pred_p = sys.argv[1], sys.argv[2], sys.argv[3]
+want = [json.loads(l)["number"] for l in open(corpus_p) if l.strip()]
+got = {}
+for f in glob.glob(os.path.join(art_dir, "*.json")):
+    try:
+        c = json.load(open(f)).get("content") or ""
+    except Exception:
+        continue
+    m = re.search(r"^ISSUE:\s*(\d+)", c, re.M)
+    if not m:
+        continue
+    got[int(m.group(1))] = c
+def field(c, name, default):
+    m = re.search(rf"^{name}:\s*(\S+)", c or "", re.M)
+    return m.group(1).lower() if m else default
+with open(pred_p, "w") as f:
+    for n in want:
+        c = got.get(n)
+        f.write(json.dumps({
+            "number": n,
+            "predicted": field(c, "SIG", "unknown"),
+            "runner_up": field(c, "RUNNER_UP", "none"),
+            # Absent CONFIDENCE means no usable completion, not a hedge.
+            "confidence": field(c, "CONFIDENCE", "no-output"),
+        }) + "\n")
+missing = [n for n in want if n not in got]
+print(f"attributed {len(got)}/{len(want)} match artifacts by ISSUE line", file=sys.stderr)
+if missing:
+    print(f"MISSING {len(missing)}: {missing[:10]}", file=sys.stderr)
+sys.exit(0)
+PY
+empty=$(jq -r 'select(.predicted=="unknown" and .confidence=="no-output")|.number' "$PRED" | grep -c . || true)
 # Run-integrity line. These two counters are the difference between "the model
 # was wrong" and "the harness lost the answer" -- a run with a nonzero count is
 # measuring the harness, so surface it next to the score instead of burying it.
