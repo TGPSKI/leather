@@ -5,7 +5,13 @@
 - **Depends on:** [LEP-0006 — Group Evals](LEP-0006-group-evals.md) (the gate primitive)
 - **Anchors:** the 14-sig-triage 35B validation loop (64.5% → gated) — a real
   session where a failing gate was walked to a shippable one *without touching
-  model weights*, using only scorer, gold-hygiene, catalog, and prompt fixes.
+  model weights*, using only scorer, gold-hygiene, catalog, and prompt fixes —
+  and, since 2026-07-28, the full ablation campaign, which is this LEP's loop
+  run by hand at scale: gold adjudication (accept-set overrides, one suspect
+  deliberately left standing), a comparator error caught and re-registered, a
+  runtime defect attributed and fixed, and a 20-point range on one frozen 4B
+  demonstrating that the layers this LEP exhausts before touching weights are
+  where nearly all of the value lives.
 
 ---
 

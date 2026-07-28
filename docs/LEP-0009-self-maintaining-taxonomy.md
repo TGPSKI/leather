@@ -1,7 +1,7 @@
 # LEP-0009 — The Self-Maintaining Taxonomy
 
-- **Status:** Proposed
-- **Target:** leather v0.7.0
+- **Status:** Deferred — measured 2026-07-28; see the post-campaign verdict below
+- **Target:** none (was v0.7.0); reactivation trigger defined below
 - **Depends on:** LEP-0006 (the eval gate), LEP-0007 (attribution + the anti-overfitting rails)
 - **Anchors:** the measured collapse of "read the catalog" as currently built —
   the catalog is offered on 250/250 match requests and called 0 times, and when
@@ -32,6 +32,43 @@ evidence rather than from an author's memory.
 The danger is stated up front: a loop that edits a lookup table using its own
 eval failures is gradient descent on the answer key. §5 is the set of rails that
 make it honest, and they are load-bearing, not advisory.
+
+---
+
+## Post-campaign verdict (2026-07-28) — why this LEP is Deferred
+
+The ablation campaign built and measured this LEP's first two parts. The
+results, paired per-issue on 250 items at two model scales:
+
+- **The queryable index: vindicated, with a correction.** Narrowed retrieval
+  works — but only when it returns the candidates' FULL entries, not bare
+  labels (arm G vs E2: **+6.4 resolved** on the 4B). Label-only narrowing, this
+  LEP's original sketch, was one of the worst delivery mechanisms measured. The
+  index shipped (lookup_sig v2/v3) and earns its place through payload
+  richness, not through compression.
+- **The NOT_MATCH boundary store: null.** Advisory boundaries were offered on
+  57% of issues and cited on 2% (uptake, not coverage, is the constraint).
+  Enforcing them in code (v3 pruning) so a boundary *cannot* be ignored: **−0.8
+  / +1.2 vs the unenforced lookup, −0.8 / −3.6 as rules+narrowed vs
+  rules+bulk — unresolved nulls at both scales.** Boundary knowledge in the
+  FILE adds no measurable accuracy while the same knowledge in the PROMPT
+  (the hand-written rules) remains the largest single lever (+12.4).
+- **Therefore the maintenance loop is unfunded.** A loop that mutates a store
+  whose accuracy contribution is measured at zero cannot pay for its own
+  complexity or its overfitting risk, however good the rails.
+
+What survives is the motivation, not the mechanism: the inline-rules saturation
+ceiling is real and separately measured (adding four rules degraded classes the
+new rules never mentioned; ~doubling the instruction block hurt adherence
+across the board). The prompt cannot grow forever.
+
+**Reactivation trigger:** the day the rules block needs to grow past what
+saturation allows — a new confusion class the current rules cannot absorb, or a
+taxonomy meaningfully larger than 22 classes — re-open this LEP, and start from
+the measured facts above: full-entry retrieval as the delivery mechanism,
+boundaries as *content in the retrieved entries* rather than a parallel
+exclusion table, and the mutation loop only after a single hand-authored
+boundary change demonstrates a paired, resolved gain.
 
 ---
 

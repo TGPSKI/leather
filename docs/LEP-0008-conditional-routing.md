@@ -31,8 +31,16 @@ artifact *text* can only route on what the model *says* about its own confidence
 and on the one corpus where this has been measured carefully, verbalized
 confidence separates right from wrong at **AUROC 0.483** — indistinguishable from
 a coin flip — while the logprob margin from the same forward pass scores
-**0.71–0.73**. Shipping the router alone would hand users a well-built mechanism
-aimed at a signal that does not work.
+meaningfully better. (2026-07-28 correction, from six repeat draws of one
+identical config: the margin's AUROC wobbles 0.55–0.68 across draws, mean
+**≈0.62 ± 0.05** — the 0.71–0.73 in earlier drafts was a single-draw upper
+tail. The margin-vs-self-report gap survives decisively; the absolute payoff
+estimates in this LEP should be re-derived at 0.62 before implementation, and
+the strongest new argument for the two-pass shape is independent of AUROC:
+across cells, ~50–63% of misses carry gold as the artifact's RUNNER_UP — a
+large recoverable pool reachable only by a second look.) Shipping the router
+alone would still hand users a well-built mechanism aimed at a signal that does
+not work.
 
 ---
 
@@ -71,7 +79,8 @@ chance, and the agent prompt now carries a standing warning not to route on it.
 Prompting harder for calibration was tried and did not fix it.
 
 The token-level margin at the deciding token, read off the *same* forward pass at
-no extra inference cost, scores **AUROC 0.71–0.73** on the same rows. That signal
+no extra inference cost, scores **AUROC ≈0.62 ± 0.05** on the same rows
+(repeat-corrected 2026-07-28; single draws ranged to 0.73). That signal
 does not currently exist anywhere in leather: it is captured today by a sidecar
 HTTP proxy that sits between leather and vLLM injecting `logprobs: true`, because
 leather has no knob for it and no place to put the answer.

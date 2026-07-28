@@ -3,7 +3,36 @@
 - **Status:** Proposed
 - **Target:** leather v0.6.0
 - **Supersedes:** ad-hoc per-example eval scripts (e.g. `examples/14-sig-triage/eval/`)
-- **Anchors:** the 100-issue SIG eval harness (blind/gold split, scrubbing, accept-sets, deterministic gate) and the example-11 "measured at scale" profile (orchestration ~free, GPU-bound, 6 GB card)
+- **Anchors:** the 250-issue SIG eval harness (blind/gold split, scrubbing, accept-sets, deterministic gate) and the example-11 "measured at scale" profile (orchestration ~free, GPU-bound, 6 GB card)
+
+---
+
+## Post-campaign status (2026-07-28)
+
+The 2026-07-28 ablation campaign (46 archived cells, two model scales; see
+`examples/14-sig-triage/README.md`) is now this LEP's strongest evidence — the
+harness it proposes to generalize refuted the project's own framing thesis in a
+day, which is exactly the property a gate primitive must have. The campaign also
+hardened the requirements list. Anything v0.6.0 ships must include, because each
+of these earned its place by catching a real error:
+
+- **Paired per-item verdicts** (McNemar on discordant items), not marginal
+  accuracy deltas — the only inference that worked at hobby scale.
+- **Repeat-run support** as a first-class suite mode: the noise floor is an
+  empirical number (measured ≈0.8–0.9pp there), not an assumption.
+- **Run manifests** (model, endpoint, corpus/cache/agent shas) diffed per
+  comparison, with declared `allow_diff` exemptions — the confound gate that
+  caught two false comparisons and one comparator error.
+- **Completion ≠ row count** (answered-row threshold): a fully failed run still
+  archives N rows.
+- **A quarantine convention**: wrecked runs preserved with post-mortems, never
+  silently overwritten.
+
+One framing correction carried through this document: where earlier drafts said
+"bounded-context pipelines," read **minimum-sufficient-state pipelines** — the
+campaign measured aggressive context removal as a resolved loss (−11 to −15)
+and rich-evidence/short-path delivery as the winning shape. The gate machinery
+is unaffected; the slogan it serves changed.
 
 ---
 
@@ -16,7 +45,7 @@ closed**. It generalizes the SIG-triage harness and inherits example-11's cost
 shape: the orchestration costs a few percent of one host's CPU, the run is
 GPU-bound end to end, and it fits a 6 GB laptop card. The point is not a
 benchmark leaderboard; it is to make quality **continuously demonstrable and
-gate-able** so that bounded-context, small-model pipelines can update themselves,
+gate-able** so that small-model pipelines built on minimum sufficient state can update themselves,
 run unattended, and be trusted on a number instead of a vibe.
 
 ---
@@ -56,8 +85,8 @@ Group evals are a direct expression of leather's design language. Each principle
 below is load-bearing in the API that follows.
 
 - **Constraints enable.** 6 GB of VRAM, a ~4B model, and no API budget are not
-  limits worked around — they force the architecture (bounded per-stage contexts,
-  one model call per stage, read-don't-know, cheap local eval) that makes the
+  limits worked around — they force the architecture (single-purpose stages,
+  short execution paths, read-don't-know, cheap local eval) that makes the
   system portable and legible. Group evals assume this envelope and are cheap
   *because* the pipelines they measure are.
 - **Orchestration is free; the model is the cost.** From example-11: wall time
@@ -78,10 +107,12 @@ below is load-bearing in the API that follows.
 - **Abstention is a first-class answer.** The correct response to irreducible
   ambiguity is `unknown` / low confidence, not confabulation. The scorer rewards
   well-placed abstention instead of punishing it.
-- **Orthogonal to context stuffing.** Group evals are how you *demonstrate* that
-  bounded beats broad for a given task — and how you decide, per stage, whether
-  widening a bound is *measured* to help. They turn "bounded vs long context"
-  from a slogan into a per-suite number.
+- **Orthogonal to context stuffing.** Group evals are how you decide, per
+  stage, what the minimum sufficient state actually is — and the 2026-07-28
+  campaign is the cautionary proof: the same instrument this LEP generalizes
+  measured "bounded beats broad" and found it FALSE as implemented (widening
+  won). They turn "bounded vs long context" from a slogan into a per-suite
+  number, in whichever direction the number goes.
 
 ---
 
