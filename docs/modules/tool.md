@@ -49,6 +49,51 @@ started server in `mcp.Registry` and calls the named remote tool.
 When a tool definition sets `OutputFile`, successful execution writes the raw
 result to disk best-effort without failing the tool call if the write fails.
 
+## Tool choice is always `auto`
+
+`internal/session/http_client.go` sends `tool_choice: "auto"` on every request
+that carries tools. There is no agent or config knob for it, and that is a
+deliberate constraint rather than a gap: the model decides whether a tool is
+warranted, and a model that declines is reporting something about the prompt.
+
+Two measured consequences, for anyone considering adding the knob.
+
+**`auto` batches; forcing serializes.** Given a directive prompt over five
+zero-argument tools, `auto` returned three parallel calls in a single 44-token
+turn (`make-auto`, `plan-info`, `read_state`); the same request with
+`tool_choice: "required"` returned exactly one. A pipeline with a `tool_rounds`
+budget therefore gets *less* done under forcing, not more.
+
+**Forcing a call the prompt does not motivate can fail to terminate.** Measured
+on Qwen3-35B-A3B (NVFP4) under vLLM 0.23.1rc1 with `--tool-call-parser
+qwen3_xml`: a classification prompt, forced via `tool_choice: "required"` to
+call a tool taking no parameters, at `temperature: 0`, opens the call and then
+emits tab characters until `max_tokens`:
+
+```
+'<tool_call>\n<function=get_sig_reference>\n\t\t\t\t\t\t\t\t… (to the cap)'
+```
+
+The tool call itself is complete and parseable within ~17 tokens; everything
+after is filler the grammar permits and greedy decoding never leaves. At an
+8192-token budget that is 41s per call, which breaches `llm_timeout` under
+concurrency and abstains the whole run.
+
+All three conditions are required, and removing any one terminates it:
+
+| condition | removing it |
+|---|---|
+| the forced call is unmotivated by the prompt | a prompt that names the tool imperatively is clean, forced or not |
+| the tool declares no parameters | one required parameter → clean, `finish=tool_calls` |
+| `temperature: 0` | `temperature: 0.7` → clean |
+
+This is an upstream structured-output defect (the grammar for an empty argument
+object admits unbounded whitespace), not a leather bug, and it is recorded here
+only because a `tool_choice` knob would expose it. If that knob is ever added,
+it needs a token cap on forced rounds — a generic guard against any
+non-terminating grammar, not just this one. Scope: one model, one server, one
+vLLM build; not known to generalize.
+
 ## Dependencies
 
 | Package | Why |
