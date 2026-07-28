@@ -229,5 +229,14 @@
     "variable": "per-turn context clearing (bounded decide, no queue hop)",
     "compare_to": "T2",
     "description": "Arm T2 with `clear: true` on the decide turn: the conversation is reset before the decide prompt, so the raw catalog blob and the note are dropped and the decide turn sees only the system prompt plus the shortlist the model recorded via record_shortlist (carried across the boundary by a skill extract into {{shortlist}}). Varies clearing AND the recording tool call vs T2 \u2014 the recording is the mechanism's cost of carriage, not a separate treatment. Read against T2 (cost of dropping raw context) and against S1's decide stage at 85.4% given gold survived (bounded decide without S1's lossy funnel)."
+  },
+  "T2cr": {
+    "stages": 2,
+    "turns": 2,
+    "catalog": "fetched via per-turn tool scope; shortlist recorded, context KEPT",
+    "rules": false,
+    "variable": "the record/extract carrier alone (clearing held OFF)",
+    "compare_to": "T2",
+    "description": "T2c's full carrier machinery \u2014 record_shortlist call, extract into {{shortlist}}, re-injection in the decide prompt \u2014 with clear: true removed, so the decide turn keeps the raw context AND receives the carried shortlist. T2cr vs T2 prices the carrier overhead; T2c vs T2cr isolates the clearing itself (modulo one preamble sentence that would otherwise state a falsehood). Designed 2026-07-28 as the review-requested control for the bundled T2c result."
   }
 }
