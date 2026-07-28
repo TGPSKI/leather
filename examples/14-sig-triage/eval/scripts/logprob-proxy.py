@@ -206,7 +206,8 @@ class Handler(BaseHTTPRequestHandler):
         # last resort, so a future prompt rewrite degrades to "other" rather than
         # to a wrong bucket.
         stage = ("adjudicate" if "CANDIDATE_1" in sysmsg
-                 else "match" if ("get_sig_reference" in sysmsg or "lookup_sig" in sysmsg)
+                 else "match" if ("get_sig_reference" in sysmsg or "lookup_sig" in sysmsg
+                                  or "sig_entries" in sysmsg or "record_shortlist" in sysmsg)
                  else "match" if re.search(r"^SIG:", content, re.M)
                  else "analyze" if "COMPONENTS:" in sysmsg
                  else "other")

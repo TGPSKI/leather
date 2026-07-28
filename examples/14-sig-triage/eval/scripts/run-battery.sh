@@ -47,6 +47,7 @@ case "$RIG" in
        CELLS="A0 D Dn H T2 T3 G P1 P2 F" ;;
   *)   echo "unknown rig $RIG" >&2; exit 2 ;;
 esac
+CELLS="${CELLS_OVERRIDE:-$CELLS}"
 export LEATHER=../../leather SHELLMCP=../../shell-mcp
 export STATE_SUFFIX="-$RIG" LOGPROB=1
 
@@ -102,6 +103,9 @@ print(1 if len(rows)==250 and ok >= 225 else 0)" 2>/dev/null)
     T3)     file=eval/ablation/match.T3.agent.md ;;
     G)      file=eval/ablation/match.G.agent.md;  force=1; idx=sigs.index.seeded.tsv ;;
     G2)     file=eval/ablation/match.G2.agent.md; force=1; idx=sigs.index.seeded.tsv ;;
+    # H2 is arm A's prompt (rules kept) with the enforced v3 lookup instead of a bulk
+    # fetch — rules + narrowed retrieval, the one rules+catalog combination untested.
+    H2)     file=eval/ablation/match.H2.agent.md; force=1; idx=sigs.index.seeded.tsv ;;
     P1|P2)  file=eval/ablation/match.B.agent.md;  cache="$(build_pcache "$v" | tail -1)"
             curings=curings-nopage ;;
     # F is the ONLY cell that removes a stage: no analyze, raw issue straight into a
