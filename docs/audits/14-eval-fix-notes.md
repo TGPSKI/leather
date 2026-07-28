@@ -56,7 +56,7 @@ doc drift (expected); `leather validate` clean.
 ## 3. Improvement loop (64.5% → 87.1%, no weights changed)
 
 Full 93-issue runs on the 35B. This is the loop generalized in
-[LEP-0007](../LEP-0007-eval-driven-iteration.md).
+[Eval-Driven Iteration](../eval-iteration-method.md).
 
 | Step | Layer | Change | Overall accuracy |
 |---|---|---|---|
@@ -83,7 +83,7 @@ Each core SIG has 7–13 support, so a single miss is −8 to −14 points — t
 small-corpus-variance problem flagged in LEP-0006 §11, not a systematic model
 error (every remaining confusion is a singleton, x1). **Thresholds were left
 untouched on purpose:** lowering a gate to force a pass is gaming, not a fix
-(LEP-0007 §9). Whether 90% recall is the right floor at N≈10 is a human
+(eval-iteration-method.md §9). Whether 90% recall is the right floor at N≈10 is a human
 calibration decision.
 
 ## 5. Open items for the human
@@ -95,7 +95,7 @@ calibration decision.
 - **Core-recall threshold at small N.** Reconsider a 90% per-class recall floor
   when support is 7–13, or gate on macro-recall / require a minimum support
   (LEP-0006 §11).
-- **LEP-0007 review.** New draft generalizing this loop; the gold-sanity guard and
+- **eval-iteration-method review.** New draft generalizing this loop; the gold-sanity guard and
   per-error attribution may fold into LEP-0006 §5/§8.
 - **Existing doc-audit bundle.** `docs/audits/2026-07-doc-consistency.md` and the
   doclint drift it tracks remain for a human pass; `create-issues.sh` (if present)

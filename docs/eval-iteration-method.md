@@ -1,8 +1,11 @@
-# LEP-0007 — Eval-Driven Iteration
+# Eval-Driven Iteration (methodology companion to LEP-0006)
 
-- **Status:** Draft
-- **Target:** leather v0.6.0 (with LEP-0006) / v0.6.x
-- **Depends on:** [LEP-0006 — Group Evals](LEP-0006-group-evals.md) (the gate primitive)
+- **Status:** Methodology document — formerly LEP-0007, retired as a numbered
+  proposal 2026-07-28. Nothing here is an API: it is the procedure for reading a
+  red gate, proven by hand twice (the 35B validation loop below, and the
+  2026-07-28 ablation campaign at full scale). Section numbers are preserved
+  because code and audit notes cite them (e.g. sigeval.go §5.4/§4.6).
+- **Companion to:** [LEP-0006 — Group Evals](LEP-0006-group-evals.md) (the gate primitive)
 - **Anchors:** the 14-sig-triage 35B validation loop (64.5% → gated) — a real
   session where a failing gate was walked to a shippable one *without touching
   model weights*, using only scorer, gold-hygiene, catalog, and prompt fixes —
@@ -56,7 +59,7 @@ session, of the 35.5-point accuracy gap:
 - the remainder were **genuine confusions** fixable in the **catalog and prompt**
   (storage-vs-node, auth-surfacing-through-kubelet) — the layer you own.
 
-Not one point required a different model. LEP-0007 is the discipline that makes
+Not one point required a different model. This method is the discipline that makes
 that the *default* path, and makes the cheap deterministic fixes come *first*.
 
 **Why now.** LEP-0006 promotes eval to a first-class gate wired into CI and the

@@ -1,6 +1,6 @@
 # LEP-0008 — Conditional Routing and the Uncertainty Connector
 
-- **Status:** Proposed
+- **Status:** Proposed — re-scoped 2026-07-28 (see the re-scope block below)
 - **Target:** leather v0.7.0
 - **Depends on:** nothing (runtime-only; LEP-0006/0007 are the eval subsystem and
   are independent)
@@ -43,6 +43,28 @@ alone would still hand users a well-built mechanism aimed at a signal that does
 not work.
 
 ---
+
+## 0b. Re-scope (2026-07-28)
+
+Two campaign findings shrink this proposal to its measured core:
+
+1. **The routing signal is weaker than drafted** (margin AUROC 0.62 ± 0.05 on
+   repeat draws, not 0.71–0.73), so the payoff funds a mechanism, not a
+   language. The declarative predicate system sketched in Part B is OUT OF
+   SCOPE until a use case a threshold cannot express arrives with its own
+   evidence. What ships is: route on **one numeric artifact-metadata field
+   against one threshold**, plus the closed-allow-list agent-selected mode.
+2. **The plumbing gap that actually blocked an experiment was correlation, not
+   predicates**: `/intake` builds QueueItems with no CorrelationID, so fan-out
+   branches arrive uncorrelated and `collect_by` has nothing to group on — the
+   S2 per-candidate fan-out arm could not be built. Threading it is small
+   (the field exists; `dispatchQueue` already propagates it) and is promoted
+   INTO scope as Part C, arguably ahead of routing in build order.
+
+Revised shape: **Part A** margin connector (unchanged, priced at 0.62) →
+**Part C** CorrelationID threading through `/intake` → **Part B-minimal**
+single-field threshold routing + agent-selected closed list. The sections below
+predate this re-scope; read them through it.
 
 ## 1. Motivation
 

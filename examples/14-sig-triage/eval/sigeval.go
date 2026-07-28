@@ -52,7 +52,7 @@ type override struct {
 
 // split assigns a row to a tier. "dev" rows are the ones tuning was allowed to
 // look at; every other row is held out. Reporting the two separately is the
-// real anti-overfitting evidence (LEP-0007 §5.4).
+// real anti-overfitting evidence (eval-iteration-method.md §5.4).
 type split struct {
 	Number int    `json:"number"`
 	Tier   string `json:"tier"`
@@ -330,7 +330,7 @@ func main() {
 	fmt.Printf("accuracy on answered (excl. abstentions):                        %.1f%%\n", 100*accOnAnswered)
 	fmt.Printf("abstention rate:                                                 %.1f%% (%d/%d)\n", 100*abstainRate, abstain, total)
 
-	// ---- split report (LEP-0007 §5.4) ----
+	// ---- split report (eval-iteration-method.md §5.4) ----
 	// Tuning is allowed to look at the dev slice only. Reporting dev and held-out
 	// side by side is what shows the rules generalize rather than memorize: if
 	// held-out tracks full, the fixes are principled; if dev >> held-out, they
@@ -585,7 +585,7 @@ func main() {
 	}
 
 	// ---- flip diff ----
-	// The unit of iteration feedback (LEP-0007 §4.6): a change that nets positive
+	// The unit of iteration feedback (eval-iteration-method.md §4.6): a change that nets positive
 	// while regressing rows it used to get right is rejected, not shipped. The
 	// aggregate alone hides that trade.
 	if *flipVs != "" {

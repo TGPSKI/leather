@@ -10,7 +10,7 @@
 #   H   rules + forced fetch                        4B only (35B done: 86.0)
 #   T2  fetch turn -> decide turn                   BOTH — leather's per-turn tool scope
 #   T3  survey -> retrieve -> decide                BOTH
-#   G   narrowed lookup returning catalog entries   BOTH — the LEP-0009 fix
+#   G   narrowed lookup returning catalog entries   BOTH — full-entry narrowed lookup
 #   P1  catalog in user turn, BEFORE the issue      BOTH — non-paginating curing
 #   P2  catalog in user turn, AFTER the issue       BOTH — non-paginating curing
 #   F   ONE stage, everything stuffed                BOTH — the only cell that removes a

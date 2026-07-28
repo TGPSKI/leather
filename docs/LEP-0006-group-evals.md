@@ -2,6 +2,10 @@
 
 - **Status:** Proposed
 - **Target:** leather v0.6.0
+- **Methodology companion:** [eval-iteration-method.md](eval-iteration-method.md)
+  (formerly LEP-0007, retired as a numbered proposal — it is procedure, not API;
+  its attribution ladder and anti-overfitting rails are the intended way to read
+  this LEP's red gates)
 - **Supersedes:** ad-hoc per-example eval scripts (e.g. `examples/14-sig-triage/eval/`)
 - **Anchors:** the 250-issue SIG eval harness (blind/gold split, scrubbing, accept-sets, deterministic gate) and the example-11 "measured at scale" profile (orchestration ~free, GPU-bound, 6 GB card)
 
@@ -471,7 +475,7 @@ hosted leaderboard; not a statistical-significance engine for large corpora.
   Both defaults are a **calibration decision awaiting human sign-off**, not a
   tuned number: they were chosen from the standard-error argument above, before
   looking at which runs they would pass. Lowering a threshold to turn a specific
-  run green remains out of bounds (LEP-0007 §9). Note the honest cost at N≈93:
+  run green remains out of bounds (eval-iteration-method.md §9). Note the honest cost at N≈93:
   *every* core class falls below `min_class_support`, so macro-recall alone
   carries per-class health until the corpus grows — which is the argument for
   growing it, not for dropping the guard. Confidence intervals on per-class

@@ -196,3 +196,31 @@ consecutive runs which failed in under a second each — and prevented a repeat 
 the earlier incident where a stale proxy served an entire eval while recording to
 the wrong file, leaving a silently empty column. **Fail-closed on setup, fail-open
 during measurement.**
+
+
+## The self-maintaining taxonomy: measured, then retired (was LEP-0009)
+
+The proposal — queryable index, NOT_MATCH boundary store, eval-gated mutation
+loop — was built far enough to measure, and the measurement retired it
+(2026-07-28, paired per-issue, both scales):
+
+- **Index/retrieval: vindicated with a correction.** Narrowed retrieval wins
+  only when it returns the candidates' FULL entries (G vs E2: +6.4 resolved on
+  the 4B). Label-only narrowing — the original sketch — was among the worst
+  delivery mechanisms measured. Compression was the bug, not the feature.
+- **Boundary store: null.** Advisory NOT_MATCH rows were offered on 57% of
+  issues and cited on 2%. Enforcing them in code so they cannot be ignored
+  (v3 pruning): −0.8/+1.2 vs unenforced, −0.8/−3.6 as rules+narrowed vs
+  rules+bulk — unresolved nulls at both scales. Boundary knowledge in a FILE
+  adds nothing measurable while the same knowledge in the PROMPT (hand-written
+  rules) remains the largest lever (+12.4).
+- **Therefore the mutation loop is unfunded**: it would maintain a store whose
+  accuracy contribution is measured at zero, while carrying real overfitting
+  risk (gradient descent on the answer key).
+
+What survives is the motivation: the inline-rules saturation ceiling (adding
+four rules degraded classes they never mentioned). If the taxonomy ever
+outgrows the prompt, restart from: full-entry retrieval as the delivery
+mechanism, boundaries as content INSIDE retrieved entries rather than a
+parallel exclusion table, and no loop until one hand-authored boundary change
+shows a paired, resolved gain.

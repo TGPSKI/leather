@@ -13,7 +13,7 @@
 #   term <TAB> MATCH|NOT_MATCH <TAB> sig-name <TAB> provenance
 #
 # TSV rather than YAML deliberately. This file is written by a generator, read
-# by grep, and MUTATED BY AN AGENT (LEP-0009): one association per line makes an
+# by grep, and legible to a future maintenance loop (measured null as an accuracy lever — see eval/results/lessons-eval-methodology.md): one association per line makes an
 # edit a one-line diff that a human can review and the eval gate can bisect.
 #
 # MATCH rows are generated from the catalog and are safe to regenerate.
