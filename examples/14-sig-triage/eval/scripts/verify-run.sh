@@ -147,10 +147,13 @@ fi
 #     preamble, tools stripped per turn, N+1 alternating turns), so an arm that
 #     believes it is single-turn silently measures a different mechanism.
 pages=$(grep -cE 'tool=hide_(next|jump)' "$RUNLOG" 2>/dev/null); pages=${pages:-0}
-if [ "$pages" -gt 0 ]; then
-  fail "PAGINATED: $pages hide-navigation calls — this ran in reflection mode"
+reflect=$(grep -c 'You will receive the content in multiple pages' "$RUNLOG" 2>/dev/null); reflect=${reflect:-0}
+if [ "$reflect" -gt 0 ]; then
+  fail "REFLECTION MODE: hide paginated ($pages nav calls) — not the single-turn arm this claims to be"
+elif [ "$pages" -gt 0 ]; then
+  pass "no pagination; $pages spurious hide-nav call(s) on a single-page hide (leather appends hide tools to every turn scope, so tools: [] cannot withhold them — wasted rounds, not a changed mechanism)"
 else
-  pass "no pagination (single-page hide delivery)"
+  pass "no pagination, no hide-nav calls"
 fi
 
 # 5c. Attribution sanity. Artifacts are attributed by an ISSUE: line the model

@@ -1,7 +1,7 @@
 ---
 name: match
 skills: [sig-catalog]
-tool_rounds: 2
+tool_rounds: 8
 thinking: false
 temperature: 0
 ---
