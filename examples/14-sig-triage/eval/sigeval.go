@@ -61,6 +61,7 @@ type split struct {
 type pred struct {
 	Number     int    `json:"number"`
 	Predicted  string `json:"predicted"`
+	RunnerUp   string `json:"runner_up"`
 	Confidence string `json:"confidence"`
 }
 
@@ -95,6 +96,19 @@ func acceptable(g gold) map[string]bool {
 	return s
 }
 
+// correctness reduces a prediction set to a per-row verdict under the same
+// accept-set rules the main report uses (an allowed `unknown` is correct because
+// acceptable() contains it). Shared by the split report and the flip diff so
+// those two can never disagree with the headline number.
+func correctness(golds []gold, byNum map[int]pred) map[int]bool {
+	out := make(map[int]bool, len(golds))
+	for _, g := range golds {
+		p, ok := byNum[g.Number]
+		out[g.Number] = ok && acceptable(g)[p.Predicted]
+	}
+	return out
+}
+
 // normSIG canonicalizes a SIG token: trims, lowercases, and folds the GitHub
 // label form "sig/foo" into the catalog form "sig-foo". The match agent is
 // asked for the catalog name (sig-foo) but smaller models sometimes emit the
@@ -113,6 +127,7 @@ func main() {
 	ovrPath := flag.String("overrides", "eval/gold.overrides.jsonl", "gold overrides overlay JSONL {number,sig?,accept?,reason} (optional)")
 	splitPath := flag.String("split", "eval/splits.jsonl", "split manifest JSONL {number,tier} (optional; enables the dev/held-out report)")
 	predPath := flag.String("pred", "eval/predictions.jsonl", "predictions JSONL")
+	flipVs := flag.String("flip-vs", "", "prior predictions JSONL: report the per-item flip diff (fixed / regressed / unchanged) against it")
 	minAcc := flag.Float64("min-accuracy", 0.80, "gate: minimum overall accuracy (excl. abstentions on ambiguous rows)")
 	maxAbstain := flag.Float64("max-abstain", 0.30, "gate: maximum abstention rate")
 	minMacroRecall := flag.Float64("min-macro-recall", 0.85, "gate: minimum macro-averaged recall across gold classes (primary per-class health check)")
@@ -384,6 +399,126 @@ func main() {
 				break
 			}
 			fmt.Printf("  %-40s x%d\n", c.k, c.v)
+		}
+	}
+
+	// ---- confidence calibration ----
+	// Confidence is only useful if it SEPARATES. A model that stamps `high` on
+	// every row gives a confidence router nothing to route on, and voting over it
+	// just repeats confident errors. What we want to see: `high` accuracy above
+	// the overall number, and the misses concentrated in `medium`/`low`.
+	confOrder := []string{"high", "medium", "low"}
+	type cstat struct{ n, ok int }
+	byConf := map[string]*cstat{}
+	for _, c := range confOrder {
+		byConf[c] = &cstat{}
+	}
+	other := &cstat{}
+	for _, g := range golds {
+		p, ok := pByNum[g.Number]
+		if !ok {
+			continue
+		}
+		c := strings.ToLower(strings.TrimSpace(p.Confidence))
+		b, known := byConf[c]
+		if !known {
+			b = other
+		}
+		b.n++
+		if correctByNum[g.Number] {
+			b.ok++
+		}
+	}
+	fmt.Println("\nconfidence calibration (accuracy per emitted bucket):")
+	fmt.Printf("  %-10s %7s %9s %9s\n", "bucket", "n", "share", "accuracy")
+	emit := func(name string, b *cstat) {
+		if b.n == 0 {
+			return
+		}
+		fmt.Printf("  %-10s %7d %8.0f%% %8.0f%%\n", name, b.n,
+			100*float64(b.n)/float64(total), 100*float64(b.ok)/float64(b.n))
+	}
+	for _, c := range confOrder {
+		emit(c, byConf[c])
+	}
+	emit("(other)", other)
+	if byConf["high"].n == total {
+		fmt.Println("  WARNING: confidence is degenerate (100% `high`) — nothing to route on.")
+	}
+
+	// Runner-up recovery: of the rows the top pick got wrong, how often was the
+	// gold answer the model's own second choice? This is the exact headroom a
+	// top-2 adjudicator stage has to work with — if it is near zero, adjudicating
+	// between SIG and RUNNER_UP cannot help and the miss is a deeper failure.
+	ruTotal, ruRecover, ruMissWithRU := 0, 0, 0
+	for _, g := range golds {
+		p, ok := pByNum[g.Number]
+		if !ok {
+			continue
+		}
+		ru := normSIG(p.RunnerUp)
+		if ru != "" && ru != "none" {
+			ruTotal++
+		}
+		if correctByNum[g.Number] {
+			continue
+		}
+		if ru != "" && ru != "none" {
+			ruMissWithRU++
+			if acceptable(g)[ru] {
+				ruRecover++
+			}
+		}
+	}
+	if ruTotal > 0 {
+		fmt.Printf("  runner-up populated on %d/%d rows\n", ruTotal, total)
+		pct := 0.0
+		if ruMissWithRU > 0 {
+			pct = 100 * float64(ruRecover) / float64(ruMissWithRU)
+		}
+		fmt.Printf("  runner-up recovery: %d/%d misses (%.0f%%) had gold as the RUNNER_UP"+
+			"  <- top-2 adjudicator headroom\n", ruRecover, ruMissWithRU, pct)
+	}
+
+	// ---- flip diff ----
+	// The unit of iteration feedback (LEP-0007 §4.6): a change that nets positive
+	// while regressing rows it used to get right is rejected, not shipped. The
+	// aggregate alone hides that trade.
+	if *flipVs != "" {
+		priors, err := readJSONL[pred](*flipVs)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "flip-vs:", err)
+			os.Exit(2)
+		}
+		priorByNum := map[int]pred{}
+		for _, p := range priors {
+			p.Predicted = normSIG(p.Predicted)
+			priorByNum[p.Number] = p
+		}
+		was := correctness(golds, priorByNum)
+		var fixed, regressed []string
+		unchanged := 0
+		for _, g := range golds {
+			b, now := was[g.Number], correctByNum[g.Number]
+			switch {
+			case !b && now:
+				fixed = append(fixed, fmt.Sprintf("#%d %s -> %s (gold %s)",
+					g.Number, priorByNum[g.Number].Predicted, pByNum[g.Number].Predicted, g.SIG))
+			case b && !now:
+				regressed = append(regressed, fmt.Sprintf("#%d %s -> %s (gold %s)",
+					g.Number, priorByNum[g.Number].Predicted, pByNum[g.Number].Predicted, g.SIG))
+			default:
+				unchanged++
+			}
+		}
+		fmt.Printf("\nflip diff vs %s:\n", *flipVs)
+		fmt.Printf("  fixed %d / regressed %d / unchanged %d   (net %+d)\n",
+			len(fixed), len(regressed), unchanged, len(fixed)-len(regressed))
+		for _, s := range fixed {
+			fmt.Println("  + " + s)
+		}
+		for _, s := range regressed {
+			fmt.Println("  - " + s)
 		}
 	}
 

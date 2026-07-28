@@ -102,6 +102,34 @@ Two normalizations keep the score measuring *classification*, not *formatting*:
   length threshold (junk clusters at <= 19 chars; the next real issue is 427), not
   a hardcoded issue list.
 
+## Reproducibility: `temperature: 0` must be set TWICE
+
+A gate has to be reproducible or a flip diff measures dice. Greedy decode is set
+in **both** `eval/config.eval.yaml` and every `agents/*.agent.md`. That is not
+belt-and-braces — **neither one works alone**, for two interacting reasons:
+
+- `agent/parseFrontMatter` defaults an agent's temperature to **0.7**, not to a
+  sentinel. `resolveAgent` (`internal/cli/cmd_serve.go`) only falls back to the
+  config value when the agent's is exactly `0`. So for an agent that never
+  mentions temperature, the 0.7 frontmatter default **always shadows
+  `config.yaml`**, and the documented priority (*lifecycle > config.yaml >
+  built-in default*) does not hold. Setting it only in the config does nothing.
+- `temperature: 0` in an agent is indistinguishable from *unset*, because `0` is
+  the zero-value sentinel `resolveAgent` tests against. So setting it only in the
+  agent sends you to `cfg.Temperature`, which is `0.7` unless the config says
+  otherwise.
+
+Setting both is the only combination that reaches the wire. Verify rather than
+assume — the failure is silent:
+
+```
+LEATHER_MODEL=... leather workflow run ... 2>&1 | grep 'agent config'
+#  ... temperature=0 ...     <- what you want
+```
+
+This is a real drift in leather, not an eval quirk; the same trap applies to any
+agent wanting greedy decode. Until it is fixed, do not remove either setting.
+
 ## Gold provenance: the overrides overlay
 
 `gold.jsonl` is **byte-identical to the fetcher's output** and must stay that

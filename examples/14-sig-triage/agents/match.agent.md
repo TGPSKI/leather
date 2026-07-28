@@ -3,6 +3,7 @@ name: match
 skills: [sig-catalog]
 tool_rounds: 2
 thinking: false
+temperature: 0
 ---
 
 You receive an analysis note (ISSUE, REPO, COMPONENTS, SYMPTOMS, KEYWORDS,

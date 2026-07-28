@@ -181,6 +181,94 @@ func TestSplitReport(t *testing.T) {
 	}
 }
 
+// The flip diff is the unit of iteration feedback: a change that nets positive
+// while regressing rows it used to get right must be visible, not averaged away.
+func TestFlipDiff(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		p := dir + "/" + name
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	corpus := write("c.jsonl", strings.Join([]string{
+		`{"number":1,"sig":"sig-network"}`,
+		`{"number":2,"sig":"sig-node"}`,
+		`{"number":3,"sig":"sig-storage"}`,
+	}, "\n"))
+	before := write("before.jsonl", strings.Join([]string{
+		`{"number":1,"predicted":"sig-node"}`,    // wrong
+		`{"number":2,"predicted":"sig-node"}`,    // right
+		`{"number":3,"predicted":"sig-storage"}`, // right
+	}, "\n"))
+	after := write("after.jsonl", strings.Join([]string{
+		`{"number":1,"predicted":"sig-network"}`, // fixed
+		`{"number":2,"predicted":"sig-network"}`, // regressed
+		`{"number":3,"predicted":"sig-storage"}`, // unchanged
+	}, "\n"))
+	out, _ := run(t, corpus, after, "-flip-vs", before, "-min-macro-recall", "0", "-min-accuracy", "0")
+	for _, want := range []string{
+		"fixed 1 / regressed 1 / unchanged 1   (net +0)",
+		"+ #1 sig-node -> sig-network (gold sig-network)",
+		"- #2 sig-node -> sig-network (gold sig-node)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("flip diff missing %q\n%s", want, out)
+		}
+	}
+}
+
+// Stage 1's success criterion is separation, not accuracy: `high` must sit above
+// the overall number with the misses concentrated in medium/low, and a
+// degenerate all-`high` run must be called out as unroutable.
+func TestConfidenceBucketsAndRunnerUp(t *testing.T) {
+	corpus := writeTmp(t, "c.jsonl", strings.Join([]string{
+		`{"number":1,"sig":"sig-network"}`,
+		`{"number":2,"sig":"sig-node"}`,
+		`{"number":3,"sig":"sig-storage"}`,
+		`{"number":4,"sig":"sig-apps"}`,
+	}, "\n"))
+	pred := writeTmp(t, "p.jsonl", strings.Join([]string{
+		`{"number":1,"predicted":"sig-network","runner_up":"sig-node","confidence":"high"}`,
+		`{"number":2,"predicted":"sig-node","runner_up":"none","confidence":"high"}`,
+		// wrong, and gold IS the runner-up -> recoverable by a top-2 adjudicator
+		`{"number":3,"predicted":"sig-node","runner_up":"sig-storage","confidence":"medium"}`,
+		// wrong, and gold is NOT the runner-up -> a deeper failure
+		`{"number":4,"predicted":"sig-node","runner_up":"sig-cli","confidence":"low"}`,
+	}, "\n"))
+	out, _ := run(t, corpus, pred, "-min-macro-recall", "0", "-min-accuracy", "0")
+	for _, want := range []string{
+		"confidence calibration",
+		"high             2", // both high rows correct
+		"medium           1", // the medium row is a miss
+		"runner-up populated on 3/4 rows",
+		"runner-up recovery: 1/2 misses (50%)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("calibration report missing %q\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "degenerate") {
+		t.Errorf("buckets are not degenerate here\n%s", out)
+	}
+}
+
+func TestDegenerateConfidenceWarns(t *testing.T) {
+	corpus := writeTmp(t, "c.jsonl", strings.Join([]string{
+		`{"number":1,"sig":"sig-network"}`,
+		`{"number":2,"sig":"sig-node"}`,
+	}, "\n"))
+	pred := writeTmp(t, "p.jsonl", strings.Join([]string{
+		`{"number":1,"predicted":"sig-network","confidence":"high"}`,
+		`{"number":2,"predicted":"sig-node","confidence":"high"}`,
+	}, "\n"))
+	out, _ := run(t, corpus, pred, "-min-macro-recall", "0")
+	if !strings.Contains(out, "degenerate") {
+		t.Errorf("100%% high must be flagged as unroutable\n%s", out)
+	}
+}
+
 // Below -min-class-support a per-class recall floor gates on sampling noise
 // (SE ~11 points at n=10), so the class is reported but excluded from the gate;
 // macro-recall carries per-class health instead.

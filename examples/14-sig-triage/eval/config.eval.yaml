@@ -10,10 +10,9 @@ log_level: debug
 model: llama3
 llm_timeout: 120s
 
-# Greedy decode. A gate must be reproducible: at the default 0.7 two runs of an
-# unchanged pipeline differ by a few items, which is the same magnitude as the
-# per-change flip-diffs this eval exists to measure. Temperature 0 makes a
-# regression attributable to the change rather than to sampling.
+# Greedy decode, for a reproducible gate. This MUST be set in BOTH places: here
+# AND as `temperature: 0` in every agents/*.agent.md. Neither alone works -- see
+# the "Reproducibility" note in eval/README.md. Do not drop either one.
 temperature: 0
 max_tokens: 8192
 completion_reserve: 1024
