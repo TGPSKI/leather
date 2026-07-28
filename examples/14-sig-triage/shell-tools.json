@@ -93,6 +93,22 @@
       ],
       "timeout_seconds": 5,
       "output_cap_bytes": 8000
+    },
+    {
+      "name": "record_shortlist",
+      "description": "Record your shortlist before the context is cleared. Pass the complete shortlist text (ISSUE, REPO, CANDIDATES, EVIDENCE lines). Returns it verbatim; only recorded text survives the clear.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "printf \"%s\\n\" \"$1\"",
+        "--",
+        "{{text}}"
+      ],
+      "required": [
+        "text"
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 8000
     }
   ]
 }

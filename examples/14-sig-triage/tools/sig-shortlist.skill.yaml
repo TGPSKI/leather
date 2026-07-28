@@ -1,0 +1,20 @@
+name: sig-shortlist
+description: Record a shortlist so it survives a per-turn context clear.
+system_prompt_append: |
+  You have a tool:
+    record_shortlist → records your shortlist so it survives the context
+    boundary between turns. Pass the full shortlist text as `text`. It returns
+    the text verbatim. What you do not record does not survive.
+
+extract:
+  - tool: record_shortlist
+    pattern: "(?s)(ISSUE:.*)"
+    store: shortlist
+
+tools:
+  - name: record_shortlist
+    description: Record the shortlist text so it survives the context clear. Pass the complete shortlist, starting with the ISSUE line.
+    type: mcp
+    mcp:
+      server: shell
+      tool: record_shortlist
