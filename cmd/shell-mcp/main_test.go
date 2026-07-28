@@ -292,6 +292,121 @@ func TestExecutePatternValidation(t *testing.T) {
 	}
 }
 
+// --- execute: per-tool output_cap_bytes override ---
+
+// TestExecuteOutputCapBytesOverride verifies a tool with output_cap_bytes set
+// uses its own cap instead of the server default, and a tool without the
+// field still falls back to the server default (4000 bytes).
+func TestExecuteOutputCapBytesOverride(t *testing.T) {
+	// A 4200-byte output line (well past the 4000-byte server default) so
+	// we can distinguish "capped at 4000" from "not capped".
+	big := strings.Repeat("x", 4200)
+
+	withOverride := &toolDef{
+		Name:           "big_output_override",
+		Command:        "echo",
+		Args:           []string{"-n", big},
+		OutputCapBytes: 8000,
+	}
+	withoutOverride := &toolDef{
+		Name:    "big_output_default",
+		Command: "echo",
+		Args:    []string{"-n", big},
+	}
+	s := newTestServer(nil, 0)
+
+	out, err := s.execute(withOverride, map[string]any{})
+	if err != nil {
+		t.Fatalf("execute withOverride: %v", err)
+	}
+	if strings.Contains(out, "[output capped]") {
+		t.Errorf("output_cap_bytes=8000 tool was truncated at %d bytes, want untruncated: %q", len(out), out)
+	}
+	if len(out) != len(big) {
+		t.Errorf("withOverride output len = %d, want %d (untruncated)", len(out), len(big))
+	}
+
+	out2, err := s.execute(withoutOverride, map[string]any{})
+	if err != nil {
+		t.Fatalf("execute withoutOverride: %v", err)
+	}
+	if !strings.Contains(out2, "[output capped]") {
+		t.Errorf("tool without output_cap_bytes should still cap at server default, got: %q", out2)
+	}
+}
+
+// --- execute: required argument enforcement ---
+
+// TestExecuteRequiredArgMissing verifies a call omitting a required argument
+// is rejected before the command runs — regression coverage for required
+// keys being advertised in the schema but never enforced, which let a call
+// through with a literal "{{placeholder}}" substituted into the command.
+func TestExecuteRequiredArgMissing(t *testing.T) {
+	dir := t.TempDir()
+	sentinel := filepath.Join(dir, "ran")
+	def := &toolDef{
+		Name:     "touch_sentinel",
+		Command:  "sh",
+		Args:     []string{"-c", "touch " + sentinel + "; echo {{who}}"},
+		Required: []string{"who"},
+	}
+	s := newTestServer(nil, 0)
+
+	out, err := s.execute(def, map[string]any{})
+	if err == nil {
+		t.Fatalf("expected error for missing required arg, got output: %q", out)
+	}
+	if !strings.Contains(err.Error(), "who") {
+		t.Errorf("error = %q, want it to name the missing key %q", err.Error(), "who")
+	}
+	if _, statErr := os.Stat(sentinel); statErr == nil {
+		t.Error("command executed despite missing required argument (sentinel file was created)")
+	}
+
+	// Supplying the required arg lets it run.
+	out2, err := s.execute(def, map[string]any{"who": "world"})
+	if err != nil {
+		t.Fatalf("execute with required arg supplied: %v", err)
+	}
+	if !strings.Contains(out2, "world") {
+		t.Errorf("output = %q, want it to contain %q", out2, "world")
+	}
+	if _, statErr := os.Stat(sentinel); statErr != nil {
+		t.Error("command did not execute despite required argument being supplied")
+	}
+}
+
+// TestHandleCallRequiredArgMissingIsError verifies the missing-required-arg
+// rejection surfaces through tools/call with the same isError:true shape
+// used for other execution failures.
+func TestHandleCallRequiredArgMissingIsError(t *testing.T) {
+	tools := []toolDef{
+		{Name: "needs_arg", Command: "echo", Args: []string{"{{who}}"}, Required: []string{"who"}},
+	}
+	s := newTestServer(tools, 0)
+	id := int64(20)
+	resp := s.dispatch(rpcRequest{
+		JSONRPC: "2.0", ID: &id, Method: "tools/call",
+		Params: mustJSON(t, map[string]any{"name": "needs_arg", "arguments": map[string]any{}}),
+	})
+	if resp.Error != nil {
+		t.Fatalf("unexpected JSON-RPC error: %v", resp.Error.Message)
+	}
+	b, _ := json.Marshal(resp.Result)
+	var result map[string]any
+	if err := json.Unmarshal(b, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if isErr, ok := result["isError"].(bool); !ok || !isErr {
+		t.Fatalf("expected isError: true, got result: %s", b)
+	}
+	content := result["content"].([]any)
+	text := content[0].(map[string]any)["text"].(string)
+	if !strings.HasPrefix(text, "error: ") || !strings.Contains(text, "who") {
+		t.Errorf("text = %q, want error: prefix naming missing key %q", text, "who")
+	}
+}
+
 func TestToolListAdvertisesPatterns(t *testing.T) {
 	s := newTestServer([]toolDef{{
 		Name:     "post_pr_comment",

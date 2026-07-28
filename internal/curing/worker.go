@@ -977,6 +977,14 @@ func (w *Worker) process(ctx context.Context, item model.QueueItem) error {
 	// turns built in buildReflectionTurns. The page-content turn always ends in a
 	// text reflection; the next-page request happens on the following user turn.
 	if reflectionMode {
+		// Logged deliberately: this mode switch silently changes what an
+		// experiment measures (paging preamble, tools stripped per turn, N+1
+		// alternating turns), and the sig-triage eval once measured a "third
+		// delivery mechanism, badly" because nothing recorded that it fired.
+		// External monitors (verify-run.sh, watch-matrix.sh) key on this line —
+		// prompt content itself is never logged, so this is their only signal.
+		w.log.Info("hide paginated: reflection mode active",
+			"curing", w.def.Name, "hide", item.HideID)
 		const pagingPreamble = "IMPORTANT: You will receive the content in multiple pages. " +
 			"Follow a strict alternating protocol: when a turn contains page content, reply only with 3-5 key facts from that page and do not call hide_next, hide_jump, or produce final output. " +
 			"Wait for a later user turn to explicitly request the next page. " +

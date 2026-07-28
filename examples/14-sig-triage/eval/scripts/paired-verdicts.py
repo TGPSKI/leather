@@ -61,10 +61,14 @@ def rows_for(tag):
                 "-split", os.path.join(EX, "eval", "splits.jsonl"),
                 "-catalog", os.path.join(EX, "sigs.reference.yaml"),
                 "-emit-rows", os.path.abspath(rp)]
-        rep = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=120)
+        rep = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=300)
+        # Fail CLOSED: a failed scorer must never leave stale rows to be trusted
+        # or overwrite a good report with empty stdout. sigeval exits 1 on a red
+        # gate but still emits rows; treat "no fresh rows" as the failure signal.
+        if not os.path.exists(rp) or os.path.getmtime(rp) < key_mtime:
+            sys.exit(f"sigeval failed for {tag} (rc={rep.returncode}): "
+                     f"{rep.stderr.strip()[:300]}")
         open(os.path.join(d, "sigeval-report.txt"), "w").write(rep.stdout)
-        if not os.path.exists(rp):
-            sys.exit(f"sigeval produced no rows for {tag}: {rep.stderr.strip()[:200]}")
     return {r["number"]: r["correct"] for r in map(json.loads, open(rp)) if r}
 
 
@@ -131,6 +135,13 @@ def emit(x, y, variable, alpha, repeat=False, allow=frozenset()):
     ay = 100 * sum(b.values()) / len(b)
     n01, n10, p = mcnemar_exact(a, b)
     mx, my = manifest(x), manifest(y)
+    # A missing manifest must not make the confound check vacuously pass
+    # (None == None for every key would print RESOLVED on unreadable
+    # provenance — the exact inversion of "withhold the causal claim").
+    if not mx or not my:
+        missing = [t for t, m in ((x, mx), (y, my)) if not m]
+        print(f"{x:11s} vs {y:11s} {'':21s} NO-MANIFEST  provenance unreadable: {', '.join(missing)}")
+        return
     diffs = [(k, mx.get(k), my.get(k)) for k in SHOWN_KEYS if mx.get(k) != my.get(k)]
     confounds = [k for k, _, _ in diffs if k in CONFOUND_KEYS and k not in allow]
 

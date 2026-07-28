@@ -45,6 +45,7 @@ export LEATHER_DEMO_MODE="dry"
 CORPUS="${CORPUS:-eval/corpus.jsonl}"       # blind input shown to the model (gold stripped)
 GOLD="${GOLD:-eval/gold.jsonl}"             # answer key sigeval scores against
 PRED="eval/predictions${STATE_SUFFIX:-}.jsonl"; : > "$PRED"
+RUN_STARTED=0   # flipped just before the first leather invocation; gates archiving
 rm -rf "$STATE_DIR"
 
 RUNLOG="${STATE_DIR}/run.log"; mkdir -p "$STATE_DIR"; : > "$RUNLOG"
@@ -87,7 +88,23 @@ export LEATHER_STATE_DIR="${STATE_DIR}/leather-state"
 # not bulk: the analyze notes are what exposure analysis needs, and they are ~5%
 # of the raw artifacts' size. Set RUN_TAG to name the cell.
 archive_evidence() {
+  # This runs from the EXIT trap with the script's errexit/pipefail still in
+  # force — and an empty `grep | gzip` is a pipeline FAILURE under pipefail,
+  # which aborted the function mid-archive on early-killed runs: no
+  # analyze-notes.jsonl (the file batteries need as their cache) and a leaked
+  # resolved tannery. Archiving is best-effort by design; run it that way.
+  set +e +o pipefail
   [ -n "${RUN_TAG:-}" ] || return 0
+  # An exit BEFORE the run started (occupied port, cache mismatch, proxy
+  # failure) has no evidence to archive — and $PRED was truncated at script
+  # start, so archiving here would overwrite a real prior archive with an
+  # empty predictions file and a mixed-generation manifest.
+  if [ "${RUN_STARTED:-0}" != 1 ]; then
+    if [ -d "${EVAL_DIR}/results/runs/${RUN_TAG}" ]; then
+      echo "run never started; leaving existing archive ${RUN_TAG} untouched" >&2
+    fi
+    return 0
+  fi
   ARCH="${EVAL_DIR}/results/runs/${RUN_TAG}"
   mkdir -p "$ARCH"
   cp "${STATE_DIR}/run-manifest.json" "$ARCH/" 2>/dev/null
@@ -95,7 +112,7 @@ archive_evidence() {
   [ -s "$LOGPROB_OUT" ] && gzip -c "$LOGPROB_OUT" > "$ARCH/logprobs.jsonl.gz"
   # The log lines that carry evidence: tool executions, failures, and the agent
   # responses that show whether a boundary was cited.
-  grep -E 'executing tool|process failed|hide missing|agent response content' \
+  grep -E 'executing tool|reflection mode active|process failed|hide missing|agent response content' \
     "$RUNLOG" 2>/dev/null | gzip -c > "$ARCH/run-evidence.log.gz"
   python3 - "$ARTIFACT_DIR/analyze" "$ARCH/analyze-notes.jsonl" <<'PYARCH'
 import glob, json, os, re, sys
@@ -188,6 +205,7 @@ if [ -n "${ANALYZE_CACHE:-}" ]; then
   cached=$(grep -c . "$ANALYZE_CACHE")
   [ "$cached" = "$total" ] || { echo "ANALYZE_CACHE has $cached notes but the corpus has $total -- refusing to score a partial run" >&2; exit 2; }
   echo "replaying ${cached} cached analyze notes into match-in (analyze stage skipped)..."
+  RUN_STARTED=1
   mapfile -t NOTES < <(python3 -c "
 import json,sys
 for l in open('$ANALYZE_CACHE'):
@@ -210,6 +228,7 @@ for l in open('$ANALYZE_CACHE'):
         >/dev/null 2>>"$RUNLOG" || true
 else
 echo "ingesting ${total} issues into analyze-in..."
+RUN_STARTED=1
 mapfile -t ROWS < <(grep . "$CORPUS")
 last_idx=$(( ${#ROWS[@]} - 1 ))
 for idx in "${!ROWS[@]}"; do
@@ -290,6 +309,10 @@ for line in open(lp_p):
     if prev:
         r = dict(r)
         r["tool_calls_made"] = (prev.get("tool_calls_made") or []) + (r.get("tool_calls_made") or [])
+        # OR tools_offered across rounds too: per-turn-scope arms strip tools on
+        # the decide (last) turn, so last-round-only reporting said "offered on
+        # 0/N" for arms whose fetch turn offered the catalog on every issue.
+        r["tools_offered"] = (prev.get("tools_offered") or []) + (r.get("tools_offered") or [])
         r["rounds"] = (prev.get("rounds") or 1) + 1
     lp[r["issue"]] = r
 rows = []
@@ -300,8 +323,12 @@ for line in open(pred_p):
     if r:
         p["sig_margin"] = r.get("sig_margin")
         p["commit_margin"] = r.get("commit_margin")
-        p["tools_offered"] = bool(r.get("tools_offered"))
-        p["tool_called"] = bool(r.get("tool_calls_made"))
+        # Count only substantive tools: leather appends hide-nav tools to every
+        # turn scope, so a row whose only offering was hide_next is plumbing,
+        # not "catalog offered".
+        _subst = lambda names: [t for t in (names or []) if t and not str(t).startswith("hide_")]
+        p["tools_offered"] = bool(_subst(r.get("tools_offered")))
+        p["tool_called"] = bool(_subst(r.get("tool_calls_made")))
     rows.append(p)
 with open(pred_p, "w") as f:
     for p in rows:

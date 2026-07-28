@@ -52,6 +52,10 @@ type toolDef struct {
 	Defaults map[string]string `json:"defaults,omitempty"`
 	// Optional, when true, returns a graceful message if Command is not on PATH.
 	Optional bool `json:"optional,omitempty"`
+	// TimeoutSeconds overrides the default 30s execution timeout when > 0.
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+	// OutputCapBytes overrides the server's outputCap when > 0.
+	OutputCapBytes int `json:"output_cap_bytes,omitempty"`
 }
 
 // config is the root of the JSON config file.
@@ -252,6 +256,19 @@ func (s *server) execute(def *toolDef, callArgs map[string]any) (string, error) 
 		merged[k] = fmt.Sprintf("%v", v)
 	}
 
+	// Enforce required arguments before substitution. Without this, a call
+	// that omits a required key runs the command with a literal, unsubstituted
+	// {{placeholder}} in it instead of failing loudly.
+	var missing []string
+	for _, key := range def.Required {
+		if _, ok := merged[key]; !ok {
+			missing = append(missing, key)
+		}
+	}
+	if len(missing) > 0 {
+		return "", fmt.Errorf("missing required argument(s): %s", strings.Join(missing, ", "))
+	}
+
 	// Validate pattern-constrained arguments before substitution. A missing
 	// argument validates as "", so anchored patterns reject absent values too —
 	// this catches a model passing blanks or literal placeholders like
@@ -272,7 +289,11 @@ func (s *server) execute(def *toolDef, callArgs map[string]any) (string, error) 
 		args[i] = applyVars(tmpl, merged)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	timeout := 30 * time.Second
+	if def.TimeoutSeconds > 0 {
+		timeout = time.Duration(def.TimeoutSeconds) * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, def.Command, args...)
@@ -287,7 +308,11 @@ func (s *server) execute(def *toolDef, callArgs map[string]any) (string, error) 
 		return "", err
 	}
 
-	return capOutput(out, s.outputCap), nil
+	outputCap := s.outputCap
+	if def.OutputCapBytes > 0 {
+		outputCap = def.OutputCapBytes
+	}
+	return capOutput(out, outputCap), nil
 }
 
 // applyVars replaces {{key}} occurrences in s with values from vars.

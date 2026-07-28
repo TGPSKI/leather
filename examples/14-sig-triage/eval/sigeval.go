@@ -28,6 +28,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -149,6 +150,21 @@ func main() {
 	golds, err := readJSONL[gold](*goldPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gold:", err)
+		os.Exit(2)
+	}
+	// Duplicate gold numbers silently mis-join between the headline counters
+	// (which key off golds in order) and correctByNum/pByNum (which key off
+	// number). Fail closed rather than let a later row shadow an earlier one.
+	seenNum := map[int]bool{}
+	for _, g := range golds {
+		if seenNum[g.Number] {
+			fmt.Fprintln(os.Stderr, "gold: duplicate number", g.Number)
+			os.Exit(2)
+		}
+		seenNum[g.Number] = true
+	}
+	if len(golds) == 0 {
+		fmt.Fprintln(os.Stderr, "gold: no rows loaded from", *goldPath)
 		os.Exit(2)
 	}
 	// Apply the overrides overlay. Missing file is fine (not every corpus needs
@@ -279,13 +295,27 @@ func main() {
 	// ---- per-row verdict emission (-emit-rows) ----
 	// Written from correctByNum — the same map the split report and flip diff
 	// read — so an emitted row can never disagree with the headline number.
+	//
+	// Written to a temp file in the target's own directory, then renamed over the
+	// target: downstream tools trust a fresh mtime as "complete", so a mid-emit
+	// failure (disk full, encode error) must never leave a partial file behind at
+	// the real path. Same-directory temp file keeps the rename an atomic same-fs
+	// move rather than a cross-fs copy.
 	if *emitRows != "" {
-		f, err := os.Create(*emitRows)
+		dir := filepath.Dir(*emitRows)
+		tmp, err := os.CreateTemp(dir, ".sigeval-emit-rows-*.tmp")
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "emit-rows:", err)
 			os.Exit(2)
 		}
-		w := bufio.NewWriter(f)
+		tmpPath := tmp.Name()
+		failTmp := func(err error) {
+			fmt.Fprintln(os.Stderr, "emit-rows:", err)
+			tmp.Close()
+			os.Remove(tmpPath)
+			os.Exit(2)
+		}
+		w := bufio.NewWriter(tmp)
 		enc := json.NewEncoder(w)
 		for _, g := range golds { // gold order: stable across arms, diffable
 			p, ok := pByNum[g.Number]
@@ -297,27 +327,32 @@ func main() {
 				Abstained bool   `json:"abstained"`
 			}{g.Number, p.Predicted, g.SIG, correctByNum[g.Number], ok && p.Predicted == "unknown"}
 			if err := enc.Encode(row); err != nil {
-				fmt.Fprintln(os.Stderr, "emit-rows:", err)
-				os.Exit(2)
+				failTmp(err)
 			}
 		}
 		if err := w.Flush(); err != nil {
+			failTmp(err)
+		}
+		if err := tmp.Close(); err != nil {
+			failTmp(err)
+		}
+		if err := os.Rename(tmpPath, *emitRows); err != nil {
 			fmt.Fprintln(os.Stderr, "emit-rows:", err)
+			os.Remove(tmpPath)
 			os.Exit(2)
 		}
-		f.Close()
 	}
 
-	answered := total - abstain
+	answered := total - abstain - missing
 	accOnAnswered := 0.0
-	if answered > 0 {
-		// correct answers that were NOT abstentions / answered set
-		nonAbstainCorrect := correct
-		for _, g := range golds {
-			if p, ok := pByNum[g.Number]; ok && p.Predicted == "unknown" && acceptable(g)["unknown"] {
-				nonAbstainCorrect-- // remove abstain-as-correct from the answered accuracy
-			}
+	// correct answers that were NOT abstentions / answered set
+	nonAbstainCorrect := correct
+	for _, g := range golds {
+		if p, ok := pByNum[g.Number]; ok && p.Predicted == "unknown" && acceptable(g)["unknown"] {
+			nonAbstainCorrect-- // remove abstain-as-correct from the answered accuracy
 		}
+	}
+	if answered > 0 {
 		accOnAnswered = float64(nonAbstainCorrect) / float64(answered)
 	}
 	accOverall := float64(correct) / float64(total)
@@ -327,7 +362,7 @@ func main() {
 	fmt.Println("SIG-triage eval")
 	fmt.Printf("corpus=%d  predicted=%d  missing=%d  gold-overrides-applied=%d\n", total, len(preds), missing, nOverride)
 	fmt.Printf("overall accuracy (accept-set, abstain-as-correct where allowed): %.1f%% (%d/%d)\n", 100*accOverall, correct, total)
-	fmt.Printf("accuracy on answered (excl. abstentions):                        %.1f%%\n", 100*accOnAnswered)
+	fmt.Printf("accuracy on answered (excl. abstentions):                        %.1f%% (%d/%d)\n", 100*accOnAnswered, nonAbstainCorrect, answered)
 	fmt.Printf("abstention rate:                                                 %.1f%% (%d/%d)\n", 100*abstainRate, abstain, total)
 
 	// ---- split report (eval-iteration-method.md §5.4) ----
@@ -651,7 +686,9 @@ func main() {
 		fmt.Println("\n  per-class recall delta — DIAGNOSTIC ONLY, not a verdict:")
 		for _, s := range sigs {
 			sup := recallTot[s]
-			if sup < *minClassSupport {
+			// sup==0 means s never appears in gold (predicted-only class): recall
+			// is undefined there (0/0), not zero, so it must not be diffed.
+			if sup == 0 || sup < *minClassSupport {
 				continue
 			}
 			nowR := float64(recallHit[s]) / float64(sup)
@@ -702,7 +739,11 @@ func main() {
 	// would have masked a genuine 3-point per-class regression.
 	macroRecall, macroN := 0.0, 0
 	for _, s := range sigs {
-		if recallTot[s] < *minClassSupport {
+		// A class with recallTot[s]==0 never appears in gold (it is predicted-only,
+		// e.g. an off-vocabulary or mislabeled prediction landing in classSet via
+		// predTot). Its recall is undefined (0/0), not zero; skip it unconditionally
+		// so -min-class-support 0 cannot poison the macro sum to NaN.
+		if recallTot[s] == 0 || recallTot[s] < *minClassSupport {
 			continue
 		}
 		macroRecall += float64(recallHit[s]) / float64(recallTot[s])

@@ -40,15 +40,18 @@ def score(d, pred_path, rows):
                 "-catalog", os.path.join(EX, "sigs.reference.yaml"),
                 "-emit-rows", os.path.abspath(rp)]
         try:
-            rep = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=120)
-            open(os.path.join(d, "sigeval-report.txt"), "w").write(rep.stdout)
+            rep = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=300)
         except Exception as e:
             print(f"  !! sigeval failed for {d}: {e} — refusing to fall back to a second scorer",
                   file=sys.stderr)
             return None
-        if not os.path.exists(rp):
-            print(f"  !! sigeval produced no rows for {d}: {rep.stderr.strip()[:200]}", file=sys.stderr)
+        # Fail CLOSED: if no FRESH rows exist after the attempt (scorer crashed,
+        # emitted nothing), never fall back to stale rows or clobber the report.
+        if not os.path.exists(rp) or os.path.getmtime(rp) < key_mtime:
+            print(f"  !! sigeval produced no fresh rows for {d} (rc={rep.returncode}): "
+                  f"{rep.stderr.strip()[:200]}", file=sys.stderr)
             return None
+        open(os.path.join(d, "sigeval-report.txt"), "w").write(rep.stdout)
     verd = [json.loads(l) for l in open(rp) if l.strip()]
     if not verd: return None
     return 100 * sum(1 for v in verd if v["correct"]) / len(verd)

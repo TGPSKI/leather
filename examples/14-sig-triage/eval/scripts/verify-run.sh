@@ -147,7 +147,7 @@ fi
 #     preamble, tools stripped per turn, N+1 alternating turns), so an arm that
 #     believes it is single-turn silently measures a different mechanism.
 pages=$(grep -cE 'tool=hide_(next|jump)' "$RUNLOG" 2>/dev/null); pages=${pages:-0}
-reflect=$(grep -c 'You will receive the content in multiple pages' "$RUNLOG" 2>/dev/null); reflect=${reflect:-0}
+reflect=$(grep -c 'reflection mode active' "$RUNLOG" 2>/dev/null); reflect=${reflect:-0}
 if [ "$reflect" -gt 0 ]; then
   fail "REFLECTION MODE: hide paginated ($pages nav calls) — not the single-turn arm this claims to be"
 elif [ "$pages" -gt 0 ]; then

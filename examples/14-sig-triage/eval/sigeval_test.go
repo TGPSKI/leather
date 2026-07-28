@@ -277,6 +277,103 @@ func TestDegenerateConfidenceWarns(t *testing.T) {
 	}
 }
 
+// "accuracy on answered" must exclude MISSING rows (gold with no prediction
+// row) from its denominator, not just abstentions -- a missing row is neither
+// answered nor abstained, so counting it as answered understates the metric.
+func TestAccuracyOnAnsweredExcludesMissing(t *testing.T) {
+	corpus := writeTmp(t, "c.jsonl", strings.Join([]string{
+		`{"number":1,"sig":"sig-network"}`, // answered, correct
+		`{"number":2,"sig":"sig-node"}`,    // answered, wrong
+		`{"number":3,"sig":"sig-storage"}`, // no prediction row -> missing
+	}, "\n"))
+	pred := writeTmp(t, "p.jsonl", strings.Join([]string{
+		`{"number":1,"predicted":"sig-network"}`,
+		`{"number":2,"predicted":"sig-storage"}`,
+	}, "\n"))
+	out, _ := run(t, corpus, pred, "-min-macro-recall", "0", "-min-accuracy", "0")
+	// answered = total(3) - abstain(0) - missing(1) = 2; correct-of-answered = 1
+	// -> 50.0% (1/2), not 33.3% (1/3) if missing were left in the denominator.
+	if !strings.Contains(out, "accuracy on answered (excl. abstentions):                        50.0% (1/2)") {
+		t.Errorf("expected accuracy-on-answered to exclude the missing row from its denominator\n%s", out)
+	}
+}
+
+// A class that only ever appears as a PREDICTION (never in gold) has
+// recallTot==0: its recall is undefined (0/0), not zero. With
+// -min-class-support 0 the support floor no longer excludes it, so the
+// macro-recall gate loop must skip it unconditionally or the macro sum goes
+// NaN and the gate becomes unevaluable (NaN >= threshold is always false, but
+// silently and misleadingly so).
+func TestMacroRecallSkipsPredictedOnlyClassAtZeroSupport(t *testing.T) {
+	corpus := writeTmp(t, "c.jsonl", strings.Join([]string{
+		`{"number":1,"sig":"sig-network"}`,
+		`{"number":2,"sig":"sig-network"}`,
+	}, "\n"))
+	pred := writeTmp(t, "p.jsonl", strings.Join([]string{
+		`{"number":1,"predicted":"sig-network"}`,
+		// gold sig-network but the model predicted a class (sig-apps) that never
+		// appears in gold at all -> sig-apps has recallTot==0, predTot==1.
+		`{"number":2,"predicted":"sig-apps"}`,
+	}, "\n"))
+	out, code := run(t, corpus, pred, "-min-macro-recall", "0.5", "-min-class-support", "0",
+		"-min-accuracy", "0", "-min-core-recall", "0", "-core", "")
+	if strings.Contains(out, "NaN") {
+		t.Errorf("macro-recall must never be NaN\n%s", out)
+	}
+	// macro-recall is over gold classes only (sig-network: 1/2 = 50%), so with a
+	// 50% floor this must pass; NaN would fail (or silently corrupt) the gate.
+	if code != 0 {
+		t.Errorf("expected gate pass with macro-recall correctly computed as 50%%, got %d\n%s", code, out)
+	}
+	if !strings.Contains(out, "[PASS] macro-recall") {
+		t.Errorf("expected macro-recall to read 50%% and pass, not NaN\n%s", out)
+	}
+}
+
+// An empty gold file is bad input, not a zero-row eval: the program must fail
+// closed (exit 2) before reaching the NaN-prone gate math, instead of dividing
+// by a total of 0.
+func TestEmptyGoldExitsBadInput(t *testing.T) {
+	// Note: `go run` collapses any nonzero child exit code to 1 on its own exit
+	// status while still printing the child's real "exit status N" to stderr, so
+	// os.Exit(2) is verified via that stderr text rather than the process code.
+	corpus := writeTmp(t, "c.jsonl", "")
+	pred := writeTmp(t, "p.jsonl", "")
+	out, code := run(t, corpus, pred)
+	if code == 0 {
+		t.Errorf("expected a failing exit for empty gold, got 0\n%s", out)
+	}
+	if !strings.Contains(out, "exit status 2") {
+		t.Errorf("expected bad-input exit (2) for empty gold\n%s", out)
+	}
+	if strings.Contains(out, "NaN") || strings.Contains(out, "GATE") {
+		t.Errorf("must fail closed before any report/gate math\n%s", out)
+	}
+}
+
+// Duplicate gold `number` keys mis-join between the headline counters (which
+// walk golds in order) and correctByNum/pByNum (which key off number) --
+// silently and unpredictably. The loader must fail closed instead.
+func TestDuplicateGoldNumberExitsBadInput(t *testing.T) {
+	corpus := writeTmp(t, "c.jsonl", strings.Join([]string{
+		`{"number":1,"sig":"sig-network"}`,
+		`{"number":1,"sig":"sig-node"}`,
+	}, "\n"))
+	pred := writeTmp(t, "p.jsonl", strings.Join([]string{
+		`{"number":1,"predicted":"sig-network"}`,
+	}, "\n"))
+	out, code := run(t, corpus, pred)
+	if code == 0 {
+		t.Errorf("expected a failing exit for duplicate gold number, got 0\n%s", out)
+	}
+	if !strings.Contains(out, "exit status 2") {
+		t.Errorf("expected bad-input exit (2) for duplicate gold number\n%s", out)
+	}
+	if !strings.Contains(out, "duplicate") || !strings.Contains(out, "1") {
+		t.Errorf("expected the duplicate number to be named in the error\n%s", out)
+	}
+}
+
 // Below -min-class-support a per-class recall floor gates on sampling noise
 // (SE ~11 points at n=10), so the class is reported but excluded from the gate;
 // macro-recall carries per-class health instead.

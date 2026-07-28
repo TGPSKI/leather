@@ -41,17 +41,17 @@ type violation struct {
 // ---- ground truth scanned from *.go (non-test) ----
 
 var (
-	reFlag  = regexp.MustCompile(`fs\.(?:String|Bool|Int|Int64|Uint|Uint64|Duration|Float64|Var)\(\s*"([a-z0-9][a-z0-9-]*)"`)
-	reEnvFn = regexp.MustCompile(`\benv[A-Za-z0-9]*\(\s*"([A-Z0-9_]+)"`)
+	reFlag   = regexp.MustCompile(`fs\.(?:String|Bool|Int|Int64|Uint|Uint64|Duration|Float64|Var)\(\s*"([a-z0-9][a-z0-9-]*)"`)
+	reEnvFn  = regexp.MustCompile(`\benv[A-Za-z0-9]*\(\s*"([A-Z0-9_]+)"`)
 	reGetenv = regexp.MustCompile(`os\.Getenv\(\s*"([A-Z0-9_]+)"\)`)
-	reRoute = regexp.MustCompile(`\.Handle(?:Func)?\(\s*"(/[^"]*)"`)
+	reRoute  = regexp.MustCompile(`\.Handle(?:Func)?\(\s*"(/[^"]*)"`)
 )
 
 type truth struct {
-	flags     map[string]bool
-	envs      map[string]bool
-	exact     map[string]bool // registered routes, exact patterns
-	prefixes  []string        // registered routes ending in "/"
+	flags    map[string]bool
+	envs     map[string]bool
+	exact    map[string]bool // registered routes, exact patterns
+	prefixes []string        // registered routes ending in "/"
 }
 
 func scanTruth(srcRoots []string) (truth, error) {
@@ -234,13 +234,13 @@ func loadAllow(path string) map[string]bool {
 	return allow
 }
 
-func collectMarkdown(roots []string) []string {
+func collectMarkdown(roots []string) ([]string, error) {
 	var files []string
 	seen := map[string]bool{}
 	for _, r := range roots {
 		fi, err := os.Stat(r)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("docs root %q: %w", r, err)
 		}
 		if fi.IsDir() {
 			filepath.Walk(r, func(p string, f os.FileInfo, err error) error {
@@ -256,7 +256,7 @@ func collectMarkdown(roots []string) []string {
 		}
 	}
 	sort.Strings(files)
-	return files
+	return files, nil
 }
 
 func main() {
@@ -273,8 +273,14 @@ func main() {
 	}
 	allow := loadAllow(*allowPath)
 
+	mdFiles, err := collectMarkdown(strings.Split(*docs, ","))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "docs error:", err)
+		os.Exit(2)
+	}
+
 	var vs []violation
-	for _, file := range collectMarkdown(strings.Split(*docs, ",")) {
+	for _, file := range mdFiles {
 		b, err := os.ReadFile(file)
 		if err != nil {
 			continue
@@ -321,7 +327,7 @@ func main() {
 
 			// per-line allow directive
 			lineAllow := map[string]bool{}
-			if m := reIgnore.FindStringSubmatch(line); m != nil {
+			for _, m := range reIgnore.FindAllStringSubmatch(line, -1) {
 				lineAllow[m[1]] = true
 			}
 			skip := func(tok string) bool { return allow[tok] || lineAllow[tok] }

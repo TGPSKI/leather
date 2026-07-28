@@ -56,7 +56,7 @@ snapshot() {
     mt=$(ls "$S/artifacts/match"   2>/dev/null | wc -l)
     tools=$(grep -c 'executing tool' "$S/run.log" 2>/dev/null); tools=${tools:-0}
     pages=$(grep -cE 'tool=hide_(next|jump)' "$S/run.log" 2>/dev/null); pages=${pages:-0}
-    reflect=$(grep -c 'receive the content in multiple pages' "$S/run.log" 2>/dev/null); reflect=${reflect:-0}
+    reflect=$(grep -c 'reflection mode active' "$S/run.log" 2>/dev/null); reflect=${reflect:-0}
     err=$(grep -c 'hide missing' "$S/run.log" 2>/dev/null); err=${err:-0}
     read -r calls tok <<<"$(grep -oE 'agent=[a-z]+ tokens=[0-9]+' "$S/run.log" 2>/dev/null |
       awk -F'tokens=' '{s+=$2; n++} END {print (n?n:0), (s?s:0)}')"
