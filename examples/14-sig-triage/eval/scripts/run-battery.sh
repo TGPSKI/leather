@@ -67,6 +67,8 @@ tag, base, rig = sys.argv[1], sys.argv[2], sys.argv[3]
 cat = open('sigs.reference.yaml').read().rstrip()
 block = ("The SIG feature catalog follows. Match the issue's signals against it.\n\n"
          "```yaml\n" + cat + "\n```")
+import os
+os.makedirs("eval/.caches", exist_ok=True)
 out = f"eval/.caches/analyze-cache-{tag}-{rig}.jsonl"
 with open(out, "w") as f:
     for l in open(base):

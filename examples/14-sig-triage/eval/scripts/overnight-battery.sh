@@ -50,17 +50,17 @@ run_rig() { # rig
   export LEATHER=../../leather SHELLMCP=../../shell-mcp
   export STATE_SUFFIX="-$RIG" LOGPROB=1
 
-  PRIMARY_ENDPOINT="$LEATHER_LLM_ENDPOINT" PRIMARY_MODEL="$LEATHER_MODEL" \
-    bash eval/scripts/preflight.sh > "$TMP/overnight-preflight-$RIG.log" 2>&1 || {
-      echo "$RIG: PREFLIGHT RED — refusing to spend the night (see $TMP/overnight-preflight-$RIG.log)" >&2
-      return 2; }
-  echo "$RIG: preflight green"
-
+  # Preflight is run by the caller (serialized — preflight.sh uses fixed shared
+  # WORK/ports/state, so two concurrent preflights corrupt each other).
   local LOCK="$TMP/.lock-$RIG"
   if ! mkdir "$LOCK" 2>/dev/null; then
     echo "$RIG: a battery is already running (lock: $LOCK)" >&2; return 2
   fi
-  trap 'rmdir "'"$LOCK"'" 2>/dev/null' RETURN
+  # EXIT, not RETURN: a RETURN trap never fires on signal death, so a SIGTERM'd
+  # overnight run would strand the lock and refuse every later battery. In
+  # `both` mode run_rig executes in a backgrounded subshell, so this EXIT is
+  # per-rig; single-rig mode ends the script right after run_rig anyway.
+  trap 'rmdir "'"$LOCK"'" 2>/dev/null' EXIT INT TERM
 
   local CACHE="eval/results/runs/${RIG}-A/analyze-notes.jsonl"
   local AGENTS="$TMP/agents-overnight-$RIG"
@@ -100,7 +100,7 @@ run_rig() { # rig
       run_cell 35b-T2c-2-2 eval/ablation/match.T2c.agent.md 0 "" "" "$CACHE"
       ;;
   esac
-  rmdir "$LOCK" 2>/dev/null; trap - RETURN
+  rmdir "$LOCK" 2>/dev/null
   if [ "$RIG" = 4b ]; then
     echo "=== 4b / noise family (frozen H x5, fresh A x5) ==="
     bash eval/scripts/noise-battery.sh 4b
@@ -108,11 +108,31 @@ run_rig() { # rig
   echo "DONE-OVERNIGHT $RIG"
 }
 
+preflight_rig() { # rig — SEQUENTIAL only; preflight.sh uses fixed shared paths/ports
+  local RIG="$1" EP MODEL
+  case "$RIG" in
+    35b) EP=http://127.0.0.1:8000; MODEL=qwen36-35b-a3b-nvfp4 ;;
+    4b)  EP=http://10.0.0.64:8000; MODEL=/home/tyler/llm/models/Qwen3-4B-Instruct-2507-AWQ ;;
+  esac
+  LEATHER=../../leather SHELLMCP=../../shell-mcp \
+  PRIMARY_ENDPOINT="$EP" PRIMARY_MODEL="$MODEL" \
+    bash eval/scripts/preflight.sh > "$TMP/overnight-preflight-$RIG.log" 2>&1 || {
+      echo "$RIG: PREFLIGHT RED — refusing to spend the night (see $TMP/overnight-preflight-$RIG.log)" >&2
+      return 2; }
+  echo "$RIG: preflight green"
+}
+
+FAILED=0
 case "$WHICH" in
-  both) run_rig 35b & P35=$!; run_rig 4b & P4=$!
-        wait "$P35"; wait "$P4" ;;
-  35b|4b) run_rig "$WHICH" ;;
+  both) preflight_rig 35b || FAILED=1
+        preflight_rig 4b  || FAILED=1
+        [ "$FAILED" = 1 ] && { echo "aborting: a preflight was red" >&2; exit 2; }
+        ( run_rig 35b ) & P35=$!; ( run_rig 4b ) & P4=$!
+        wait "$P35" || FAILED=1; wait "$P4" || FAILED=1 ;;
+  35b|4b) preflight_rig "$WHICH" || exit 2
+          run_rig "$WHICH" || FAILED=1 ;;
   *) echo "usage: overnight-battery.sh <35b|4b|both>" >&2; exit 2 ;;
 esac
+[ "$FAILED" = 1 ] && { echo "overnight finished WITH FAILURES — check logs in $TMP" >&2; exit 1; }
 echo "overnight complete — read verdicts with:"
 echo "  python3 eval/scripts/paired-verdicts.py"
