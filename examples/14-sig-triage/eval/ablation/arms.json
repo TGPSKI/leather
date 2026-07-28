@@ -179,5 +179,14 @@
     "variable": "bounded context via a STAGE boundary",
     "compare_to": "T2",
     "description": "Two curings: shortlist narrows to a concern plus 2-3 candidates with no catalog, then a FRESH SESSION decides from the shortlist alone, fetching only those candidates' entries. The decide stage never sees the analyze note or the whole catalog. Contrast with T3, where context grew 1206 -> 2828 tokens across turns because Session.Reset is unwired."
+  },
+  "H2": {
+    "stages": 2,
+    "turns": 1,
+    "catalog": "narrowed lookup, boundaries enforced",
+    "rules": true,
+    "variable": "rules + NARROWED retrieval (vs rules + bulk)",
+    "compare_to": "H",
+    "description": "Arm H with the catalog delivered by the enforced v3 lookup instead of a bulk fetch. Every other catalog arm removes the rules first; H delivers bulk alongside them. Since the 4B gains most from narrowing (+5.2 vs 35B +2.0) and least from bulk (+4.0 vs +7.6), rules+narrowed is its untested best case."
   }
 }
