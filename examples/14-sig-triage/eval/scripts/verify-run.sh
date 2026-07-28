@@ -24,6 +24,11 @@ set -uo pipefail
 EVAL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 EX_DIR="$(cd "${EVAL_DIR}/.." && pwd)"
 cd "$EX_DIR"
+# --archive <dir> verifies a COMPLETED cell from results/runs/<tag>/ instead of live
+# state. Live state is destroyed by the next cell, so without this a cell can never
+# be re-verified — which is how one arm's tool evidence was lost.
+ARCHIVE=""
+if [ "${1:-}" = "--archive" ]; then ARCHIVE="${2:?--archive needs a directory}"; shift 2; fi
 SUFFIX="${1:-}"
 STATE="${EVAL_DIR}/.state-eval${SUFFIX}"
 PRED="eval/predictions${SUFFIX}.jsonl"
@@ -37,8 +42,20 @@ pass() { printf '  [PASS] %s\n' "$1"; }
 fail() { printf '  [FAIL] %s\n' "$1"; fails=$((fails+1)); }
 skip() { printf '  [SKIP] %s\n' "$1"; }
 
-echo "verifying run state: ${STATE}"
-[ -d "$STATE" ] || { echo "  no such state dir" >&2; exit 2; }
+if [ -n "$ARCHIVE" ]; then
+  echo "verifying ARCHIVE: ${ARCHIVE}"
+  [ -d "$ARCHIVE" ] || { echo "  no such archive" >&2; exit 2; }
+  MANIFEST="${ARCHIVE}/run-manifest.json"
+  PRED="${ARCHIVE}/predictions.jsonl"
+  LP="${ARCHIVE}/.logprobs.jsonl"      # decompressed below
+  RUNLOG="${ARCHIVE}/.evidence.log"
+  [ -f "${ARCHIVE}/logprobs.jsonl.gz" ] && gzip -dc "${ARCHIVE}/logprobs.jsonl.gz" > "$LP"
+  [ -f "${ARCHIVE}/run-evidence.log.gz" ] && gzip -dc "${ARCHIVE}/run-evidence.log.gz" > "$RUNLOG"
+  trap 'rm -f "$LP" "$RUNLOG"' EXIT
+else
+  echo "verifying run state: ${STATE}"
+  [ -d "$STATE" ] || { echo "  no such state dir" >&2; exit 2; }
+fi
 
 # 1. Provenance. Without a manifest, every later check describes a run you cannot
 #    identify afterwards -- which model, which index, which prompt.
@@ -124,6 +141,34 @@ if [ -n "${EXPECT_TOOL:-}" ]; then
   else
     [ "$n" -gt 0 ] && pass "${EXPECT_TOOL} executed $n times" || fail "${EXPECT_TOOL} never executed"
   fi
+fi
+
+# 5b. Pagination. An oversized hide puts leather into reflection mode (paging
+#     preamble, tools stripped per turn, N+1 alternating turns), so an arm that
+#     believes it is single-turn silently measures a different mechanism.
+pages=$(grep -cE 'tool=hide_(next|jump)' "$RUNLOG" 2>/dev/null); pages=${pages:-0}
+if [ "$pages" -gt 0 ]; then
+  fail "PAGINATED: $pages hide-navigation calls — this ran in reflection mode"
+else
+  pass "no pagination (single-page hide delivery)"
+fi
+
+# 5c. Attribution sanity. Artifacts are attributed by an ISSUE: line the model
+#     COPIES, so a mis-transcribed id silently drops a row — or, worse, lands on
+#     another real issue and overwrites its answer with every counter reading clean.
+if [ -f "${ARCHIVE:-$STATE}/analyze-notes.jsonl" ]; then
+  python3 - "${ARCHIVE:-$STATE}/analyze-notes.jsonl" "$CORPUS" <<'PYA'
+import json, sys
+notes = [json.loads(l)["number"] for l in open(sys.argv[1]) if l.strip()]
+corpus = {json.loads(l)["number"] for l in open(sys.argv[2]) if l.strip()}
+orphans = sorted(set(notes) - corpus)
+dupes = sorted({n for n in notes if notes.count(n) > 1})
+if orphans: print(f"  [FAIL] artifacts attributed to issues not in the corpus "
+                  f"(model mis-transcribed an id): {orphans[:5]}")
+if dupes:   print(f"  [FAIL] duplicate ISSUE attribution — one issue's answer may have "
+                  f"overwritten another's: {dupes[:5]}")
+if not orphans and not dupes: print("  [PASS] every artifact maps to a distinct corpus issue")
+PYA
 fi
 
 # 6. Greedy decoding. The temperature trap cost a committed number once: the

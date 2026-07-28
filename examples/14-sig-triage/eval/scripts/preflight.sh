@@ -134,6 +134,29 @@ else
   echo "  [skip] set SECONDARY_ENDPOINT and SECONDARY_MODEL to check parallel isolation"
 fi
 
+echo "=== 7. multi-turn arm (per-turn tool scope) ==="
+cell pf-T2 eval/ablation/match.T2.agent.md 0 "$A/analyze-notes.jsonl" "" -pf 8061
+b400=$(grep -c 'status 400' "${EVAL_DIR}/.state-eval-pf/run.log" 2>/dev/null); b400=${b400:-0}
+[ "$b400" = 0 ] && ck "no 400s (turn scope uses tools:, not skills:)" 1 \
+                || ck "no 400s (got $b400 — a turn-level skills: injects a mid-conversation system message)" 0
+t=$(grep -c 'executing tool' "${EVAL_DIR}/.state-eval-pf/run.log" 2>/dev/null); t=${t:-0}
+[ "$t" -ge 3 ] && ck "the fetch turn actually called the tool ($t)" 1 || ck "fetch turn called the tool (got $t)" 0
+grep -qE "mean match rounds/issue [2-9]\." "$WORK/pf-T2.log" \
+  && ck "rounds/issue > 2 — multi-turn is visible in the summary" 1 \
+  || ck "rounds/issue reflects multi-turn (counter bug?)" 0
+pg=$(grep -cE 'tool=hide_(next|jump)' "${EVAL_DIR}/.state-eval-pf/run.log" 2>/dev/null); pg=${pg:-0}
+[ "$pg" = 0 ] && ck "no pagination" 1 || ck "no pagination (got $pg hide-nav calls)" 0
+
+echo "=== 8. arm G (lookup returning full catalog entries) ==="
+if grep -q lookup_sig_v2 shell-tools.json 2>/dev/null && [ -f eval/ablation/match.G.agent.md ]; then
+  cell pf-G eval/ablation/match.G.agent.md 1 "$A/analyze-notes.jsonl" sigs.index.seeded.tsv -pf 8061
+  g=$(grep -c 'tool=lookup_sig_v2' "${EVAL_DIR}/.state-eval-pf/run.log" 2>/dev/null); g=${g:-0}
+  [ "$g" -ge 3 ] && ck "lookup_sig_v2 executed ($g)" 1 || ck "lookup_sig_v2 executed (got $g)" 0
+  grep -q "attributed 5/5" "$WORK/pf-G.log" && ck "arm G attributed every row" 1 || ck "arm G attributed every row" 0
+else
+  echo "  [skip] lookup_sig_v2 / match.G.agent.md not present"
+fi
+
 echo
 if [ "$fails" -eq 0 ]; then echo "PREFLIGHT GREEN"; else echo "PREFLIGHT RED ($fails failures)"; fi
 exit $(( fails > 0 ))

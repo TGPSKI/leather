@@ -218,6 +218,11 @@ class Handler(BaseHTTPRequestHandler):
             # temperature 0 while the runtime sends 0.7 is otherwise invisible.
             "temperature": req.get("temperature"),
             "model": req.get("model"),
+            # The server's own tokenizer counts. Without these, per-arm context
+            # cost has to be reconstructed with estimateTokens (4 + (len+3)/4),
+            # and arm F's "must fit the 4B window" constraint cannot be asserted
+            # from measurement rather than arithmetic.
+            "usage": resp.get("usage"),
             # Provenance: was the catalog tool actually OFFERED on this request?
             "tools_offered": [t.get("function", {}).get("name")
                               for t in (req.get("tools") or [])],

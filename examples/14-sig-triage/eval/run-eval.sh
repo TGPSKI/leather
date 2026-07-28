@@ -307,7 +307,16 @@ called = sum(1 for p in rows if p.get("tool_called"))
 have = sum(1 for p in rows if p.get("sig_margin") is not None)
 # Rounds per issue is the independent check on the tool counter: a tool call
 # forces a second round, so 1.00 rounds/issue IS the evidence that none happened.
-rounds = sum(p.get("rounds", 1) for p in rows) / max(len(rows), 1)
+# Count match-stage records per issue straight from the proxy log. Threading a
+# tally through the predictions merge under-reported multi-turn arms as 1.00 --
+# which is precisely the metric that distinguishes them from single-turn arms.
+_seen = {}
+for _l in open(lp_p):
+    try: _r = json.loads(_l)
+    except Exception: continue
+    if _r.get("stage") == "match" and _r.get("issue") is not None:
+        _seen[_r["issue"]] = _seen.get(_r["issue"], 0) + 1
+rounds = (sum(_seen.values()) / len(_seen)) if _seen else 1.0
 print(f"logprobs: {have}/{len(rows)} rows with a SIG margin; "
       f"catalog tool offered on {offered}/{len(rows)}, actually called {called}; "
       f"mean match rounds/issue {rounds:.2f} (>1.00 means a tool call happened)")

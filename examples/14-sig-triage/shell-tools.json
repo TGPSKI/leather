@@ -45,6 +45,22 @@
       ],
       "timeout_seconds": 5,
       "output_cap_bytes": 8000
+    },
+    {
+      "name": "lookup_sig_v2",
+      "description": "Given the issue's components and keywords as a comma-separated list, return the FULL catalog entries for the 2-4 candidate SIGs those terms point at, plus any NOT_MATCH exclusions. Falls back to the whole catalog when nothing matches, because an empty lookup is worse than no lookup.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "idx=\"${SIG_INDEX:-sigs.index.tsv}\"; cat=\"${SIG_REFERENCE:-sigs.reference.yaml}\"; q=\"$1\"; IFS=\",\" read -ra TS <<< \"$q\"; hits=\"\"; for t in \"${TS[@]}\"; do   t=\"$(printf \"%s\" \"$t\" | sed -e \"s/^[[:space:]]*//\" -e \"s/[[:space:]]*$//\")\";   [ \"${#t}\" -ge 3 ] || continue;   h=\"$(grep -iF -- \"$t\" \"$idx\" || true)\"; [ -n \"$h\" ] && hits=\"$hits$h\n\"; done; hits=\"$(printf \"%b\" \"$hits\" | grep . | sort -u || true)\"; cands=\"$(printf \"%s\\n\" \"$hits\" | awk -F\"\\t\" \"\\$2==\\\"MATCH\\\"{print \\$3}\" | sort | uniq -c | sort -rn | head -4 | awk \"{print \\$2}\")\"; if [ -z \"$cands\" ]; then echo \"NO INDEX MATCH - returning the full catalog:\"; cat \"$cat\"; exit 0; fi; echo \"CANDIDATE SIGS (narrowed from the issue terms), with their catalog entries:\"; echo; for s in $cands; do awk -v s=\"$s\" \"/^  - name: /{p=(\\$0 ~ s\\\"\\$\\\")} p\" \"$cat\"; done; echo; echo \"EXCLUSIONS (NOT_MATCH rules a sig out for that term):\"; printf \"%s\\n\" \"$hits\" | awk -F\"\\t\" \"\\$2==\\\"NOT_MATCH\\\"{print \\$1\\\"  ->  NOT \\\"\\$3}\" | sort -u",
+        "--",
+        "{{terms}}"
+      ],
+      "required": [
+        "terms"
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 8000
     }
   ]
 }
