@@ -83,6 +83,16 @@ sigs:
       - reference/API docs generation
       - localization, Hugo doc builds
 
+  - name: sig-etcd
+    label: sig/etcd
+    features:
+      - etcd operation, upgrade, defragmentation, compaction
+      - etcd client/clientv3 behaviour, leases, watch from the etcd side
+      - etcd data corruption, backup/restore, cluster membership
+      - etcd performance and reliability as a datastore
+      # Boundary: the apiserver's storage layer ABOVE etcd (RESTStorage,
+      # server-side apply, resourceVersion semantics) is sig-api-machinery.
+
   - name: sig-instrumentation
     label: sig/instrumentation
     features:

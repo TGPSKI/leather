@@ -11,7 +11,7 @@
 
 .PHONY: help all clean reset ensure-bin ensure-shell-mcp \
 	01 02 03 04 05 06 07 08 08-requeue 09 10 11 12 13 14 \
-	14-eval 14-eval-fetch 14-eval-lint 14-eval-test 14-taxonomy-check 14-live \
+	14-eval 14-eval-fetch 14-eval-lint 14-eval-splits 14-eval-test 14-taxonomy-check 14-live \
 	09-live 10-live 11-live 12-live \
 	rpi-01 rpi-02 rpi-03 \
 	validate-02 validate-rpi-01 validate-rpi-02 validate-rpi-03 summary view
@@ -283,6 +283,9 @@ reset:
 14-eval-lint:
 	@echo "==> 14-sig-triage gold-sanity lint (content-free rows must permit abstention)"
 	@cd 14-sig-triage && bash eval/scripts/gold-sanity-lint.sh
+14-eval-splits:
+	@echo "==> 14-sig-triage tier manifest (smoke/acceptance/holdout, stratified per SIG)"
+	@cd 14-sig-triage && bash eval/scripts/make-splits.sh
 14-eval-test:
 	@echo "==> 14-sig-triage eval scorer self-test"
 	@go test ./14-sig-triage/eval/

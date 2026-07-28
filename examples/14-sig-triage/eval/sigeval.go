@@ -295,11 +295,16 @@ func main() {
 	// are slice-overfitting and must be rejected.
 	if len(tierOf) > 0 {
 		type bucket struct{ n, ok int }
-		devB, heldB := bucket{}, bucket{}
+		buckets := map[string]*bucket{}
 		for _, g := range golds {
-			b := &heldB
-			if tierOf[g.Number] == "dev" {
-				b = &devB
+			t := tierOf[g.Number]
+			if t == "" {
+				t = "(untiered)"
+			}
+			b := buckets[t]
+			if b == nil {
+				b = &bucket{}
+				buckets[t] = b
 			}
 			b.n++
 			if correctByNum[g.Number] {
@@ -308,15 +313,35 @@ func main() {
 		}
 		pct := func(b bucket) string {
 			if b.n == 0 {
-				return "     n/a"
+				return "      n/a"
 			}
 			return fmt.Sprintf("%5.1f%% (%d/%d)", 100*float64(b.ok)/float64(b.n), b.ok, b.n)
 		}
+		// smoke is the only tier tuning may look at; acceptance is the rest of the
+		// gate of record; holdout is never tuned on and never gated on. Printing
+		// them in that order reads as increasing evidence of generalization.
+		labels := []struct{ tier, note string }{
+			{"smoke", "tuned on -- expect the best number here"},
+			{"acceptance", "gate of record, not tuned on"},
+			{"holdout", "never tuned on <- generalization check"},
+			{"dev", "legacy tier name"},
+			{"(untiered)", "not in the split manifest"},
+		}
 		fmt.Println()
-		fmt.Println("split (dev = tuned on; held-out = never tuned on):")
-		fmt.Printf("  full:      %s\n", pct(bucket{total, correct}))
-		fmt.Printf("  dev-slice: %s\n", pct(devB))
-		fmt.Printf("  held-out:  %s   <- generalization check\n", pct(heldB))
+		fmt.Println("split by tier:")
+		fmt.Printf("  %-12s %s\n", "full:", pct(bucket{total, correct}))
+		seen := map[string]bool{}
+		for _, l := range labels {
+			if b, ok := buckets[l.tier]; ok {
+				fmt.Printf("  %-12s %s   %s\n", l.tier+":", pct(*b), l.note)
+				seen[l.tier] = true
+			}
+		}
+		for t, b := range buckets {
+			if !seen[t] {
+				fmt.Printf("  %-12s %s\n", t+":", pct(*b))
+			}
+		}
 	}
 	fmt.Println()
 
@@ -537,13 +562,34 @@ func main() {
 	chk("abstention-rate", abstainRate <= *maxAbstain, fmt.Sprintf("%.1f%%", 100*abstainRate), fmt.Sprintf("<=%.0f%%", 100**maxAbstain))
 
 	// Macro-recall is the PRIMARY per-class health check: it averages recall over
-	// every gold class, so a class the model systematically ignores still drags
-	// the gate down, but a single defensible confusion in a tiny class does not.
-	macroRecall := 0.0
-	if nClasses > 0 {
-		macroRecall = macroR / float64(nClasses)
+	// gold classes, so a class the model systematically ignores still drags the
+	// gate down, but a single defensible confusion in one class does not.
+	//
+	// It is averaged over the SAME classes the per-class floor applies to. A
+	// singleton class scores 0% or 100% and nothing else, so including tiny
+	// classes lets a handful of 1-row classes swing the headline gate: on the
+	// 250-row corpus, three singletons at 100% inflated it from 86% to 89% and
+	// would have masked a genuine 3-point per-class regression.
+	macroRecall, macroN := 0.0, 0
+	for _, s := range sigs {
+		if recallTot[s] < *minClassSupport {
+			continue
+		}
+		macroRecall += float64(recallHit[s]) / float64(recallTot[s])
+		macroN++
+	}
+	gatedNote := fmt.Sprintf("over %d classes with support>=%d", macroN, *minClassSupport)
+	if macroN == 0 {
+		// No class clears the support bar: fall back to every gold class rather
+		// than silently gating on nothing, and say so.
+		macroRecall, macroN = macroR, nClasses
+		gatedNote = fmt.Sprintf("over all %d gold classes -- NO class reaches support %d", nClasses, *minClassSupport)
+	}
+	if macroN > 0 {
+		macroRecall /= float64(macroN)
 	}
 	chk("macro-recall", macroRecall >= *minMacroRecall, fmt.Sprintf("%.0f%%", 100*macroRecall), fmt.Sprintf(">=%.0f%%", 100**minMacroRecall))
+	fmt.Printf("         %s\n", gatedNote)
 
 	// Per-class recall floors are only meaningful where support can carry them.
 	// At n=10 and p=0.85 the standard error on recall is ~11 points, so a 90%

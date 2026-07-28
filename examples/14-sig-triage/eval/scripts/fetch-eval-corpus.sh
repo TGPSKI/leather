@@ -20,6 +20,11 @@ PER_SIG="${PER_SIG:-10}"
 BODY_CAP="${BODY_CAP:-4000}"
 TARGET="${TARGET:-100}"
 SLEEP="${SLEEP:-7}"   # stay under the unauth search rate limit (~10/min)
+# Cache-file suffix. Every search-sig-*.json in cache/ is merged, so fetching a
+# wider pull under a new suffix ADDS to the corpus instead of replacing it --
+# previously-scored issues stay in, which keeps old runs comparable. Bump the
+# suffix (not REFRESH=1) when growing the corpus.
+SUFFIX="${SUFFIX:-}"
 
 # balanced across common + long-tail SIGs; trimmed to $TARGET after dedup
 SIGS=(network node storage scheduling apps api-machinery auth cli autoscaling instrumentation)
@@ -27,7 +32,7 @@ SIGS=(network node storage scheduling apps api-machinery auth cli autoscaling in
 auth=(); [ -n "${GH_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $GH_TOKEN")
 
 for sig in "${SIGS[@]}"; do
-  out="$CACHE/search-sig-$sig.json"
+  out="$CACHE/search-sig-${sig}${SUFFIX}.json"
   if [ -s "$out" ] && [ "${REFRESH:-0}" != 1 ]; then
     echo "cached: sig/$sig" >&2; continue
   fi
@@ -74,8 +79,46 @@ for f in sorted(glob.glob(os.path.join(cache, "search-sig-*.json"))):
                 "body": scrub((it.get("body") or "")[:cap]),
                 "sigs": sigs,
             }
-# stable order: by number; trim to target
-rows = sorted(seen.values(), key=lambda r: r["number"])[:target]
+# Trim to target by ROUND-ROBIN over primary SIG, not by taking the first N
+# issue numbers. A plain `[:target]` cut keeps whichever SIGs happen to own the
+# lowest-numbered issues and can starve a class below the support its recall
+# gate needs; round-robin gives every SIG an equal share of the budget and only
+# spills the surplus of over-represented ones.
+#
+# Multi-SIG issues are the ambiguous tail and the honest part of the
+# distribution (they become accept-sets), so they are retained at their NATURAL
+# RATE rather than either dropped or preferred. Drawing them first would double
+# the ambiguity rate and make the corpus harder than the population it claims to
+# sample; dropping them would make it easier. Within each SIG the two strata are
+# interleaved in proportion to that SIG's own multi-label rate, most recent
+# first, so any prefix of the budget preserves the mix.
+by_sig = {}
+for r in seen.values():
+    by_sig.setdefault(r["sigs"][0], []).append(r)
+for s, rows_s in by_sig.items():
+    multi = sorted((r for r in rows_s if len(r["sigs"]) > 1),
+                   key=lambda r: -r["number"])
+    single = sorted((r for r in rows_s if len(r["sigs"]) == 1),
+                    key=lambda r: -r["number"])
+    rate = len(multi) / len(rows_s) if rows_s else 0
+    merged, mi, si = [], 0, 0
+    while mi < len(multi) or si < len(single):
+        want_multi = (mi + si) * rate >= mi  # keep the running share near `rate`
+        if want_multi and mi < len(multi):
+            merged.append(multi[mi]); mi += 1
+        elif si < len(single):
+            merged.append(single[si]); si += 1
+        elif mi < len(multi):
+            merged.append(multi[mi]); mi += 1
+    by_sig[s] = merged
+
+picked, sigs_cycle = [], sorted(by_sig)
+while len(picked) < target and any(by_sig[s] for s in sigs_cycle):
+    for s in sigs_cycle:
+        if not by_sig[s] or len(picked) >= target:
+            continue
+        picked.append(by_sig[s].pop(0))
+rows = sorted(picked, key=lambda r: r["number"])
 
 with open("corpus.jsonl", "w") as c, open("gold.jsonl", "w") as g:
     for r in rows:

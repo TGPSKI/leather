@@ -143,10 +143,11 @@ func TestGoldOverridesApplied(t *testing.T) {
 	}
 }
 
-// The split manifest drives the dev / held-out report — the anti-overfitting
-// evidence. Tuning only sees `dev`; held-out tracking full means the rules
-// generalize rather than memorize.
-func TestSplitReport(t *testing.T) {
+// The split manifest drives the per-tier report — the anti-overfitting evidence.
+// Tuning only sees `smoke`; holdout tracking full means the rules generalize
+// rather than memorize. Rows absent from the manifest must still be visible
+// rather than silently folded into a tier.
+func TestSplitReportTiers(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, body string) string {
 		p := dir + "/" + name
@@ -160,21 +161,28 @@ func TestSplitReport(t *testing.T) {
 		`{"number":2,"sig":"sig-network"}`,
 		`{"number":3,"sig":"sig-node"}`,
 		`{"number":4,"sig":"sig-node"}`,
+		`{"number":5,"sig":"sig-apps"}`,
 	}, "\n"))
 	pred := write("p.jsonl", strings.Join([]string{
-		`{"number":1,"predicted":"sig-network"}`, // dev, correct
-		`{"number":2,"predicted":"sig-network"}`, // dev, correct
-		`{"number":3,"predicted":"sig-node"}`,    // held-out, correct
-		`{"number":4,"predicted":"sig-network"}`, // held-out, wrong
+		`{"number":1,"predicted":"sig-network"}`, // smoke, correct
+		`{"number":2,"predicted":"sig-network"}`, // acceptance, correct
+		`{"number":3,"predicted":"sig-apps"}`,    // acceptance, wrong
+		`{"number":4,"predicted":"sig-node"}`,    // holdout, correct
+		`{"number":5,"predicted":"sig-apps"}`,    // NOT in the manifest
 	}, "\n"))
 	sp := write("s.jsonl", strings.Join([]string{
-		`{"number":1,"tier":"dev"}`,
-		`{"number":2,"tier":"dev"}`,
-		`{"number":3,"tier":"holdout"}`,
+		`{"number":1,"tier":"smoke"}`,
+		`{"number":2,"tier":"acceptance"}`,
+		`{"number":3,"tier":"acceptance"}`,
 		`{"number":4,"tier":"holdout"}`,
 	}, "\n"))
-	out, _ := run(t, corpus, pred, "-split", sp, "-min-macro-recall", "0")
-	for _, want := range []string{"dev-slice: 100.0% (2/2)", "held-out:   50.0% (1/2)"} {
+	out, _ := run(t, corpus, pred, "-split", sp, "-min-macro-recall", "0", "-min-accuracy", "0")
+	for _, want := range []string{
+		"smoke:       100.0% (1/1)",
+		"acceptance:   50.0% (1/2)",
+		"holdout:     100.0% (1/1)",
+		"(untiered):  100.0% (1/1)", // an unmanifested row must not vanish
+	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("split report missing %q\n%s", want, out)
 		}

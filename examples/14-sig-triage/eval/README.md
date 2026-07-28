@@ -14,9 +14,10 @@ scripts/fetch-eval-corpus.sh   GitHub search API -> cache/ (raw) -> split:
                              corpus.jsonl  {number,repo,title,body}   (BLIND, scrubbed)
                              gold.jsonl    {number,sig,accept[]}       (answer key, PRISTINE)
 scripts/gold-sanity-lint.sh    corpus + gold -> gold.overrides.jsonl   (rule-based relabels)
+scripts/make-splits.sh         corpus + gold -> splits.jsonl           (tier manifest)
 run-eval.sh                blind corpus -> analyze->match on your model -> predictions.jsonl
 sigeval.go                 gold + overrides + splits + predictions
-                             -> classification report + 3-way split + PASS/FAIL gate
+                             -> classification report + tiered split + PASS/FAIL gate
 ```
 
 Labels never touch the model: `run-eval.sh` reads only `corpus.jsonl`; scoring
@@ -29,9 +30,33 @@ PER_SIG=15 bash eval/scripts/fetch-eval-corpus.sh          # unauth: ~10 search 
 GH_TOKEN=ghp_... PER_SIG=15 bash eval/scripts/fetch-eval-corpus.sh   # higher rate limit
 ```
 
+The committed corpus is **250 issues**, 24-25 per core SIG.
+
 One search request per SIG (balanced across 10 SIGs), deduped by issue number.
 Cached in `cache/`; re-running is free unless `REFRESH=1`. Prints the gold
 distribution and multi-SIG count.
+
+**Growing the corpus.** Bump `SUFFIX` rather than `REFRESH=1` — every
+`cache/search-sig-*.json` is merged, so a wider pull under a new suffix ADDS to
+the corpus and previously-scored issues stay in:
+
+```
+GH_TOKEN=$(gh auth token) PER_SIG=60 TARGET=250 SUFFIX=-p2 \
+  bash eval/scripts/fetch-eval-corpus.sh
+bash eval/scripts/make-splits.sh        # rebuild the tier manifest
+WRITE=1 bash eval/scripts/gold-sanity-lint.sh   # rebuild the gold overlay
+```
+
+Two sampling rules keep the corpus honest, both in the fetcher:
+
+- **Round-robin over SIGs, not the first N issue numbers.** A plain `[:target]`
+  cut keeps whichever SIGs own the lowest-numbered issues and can starve a class
+  below the support its own recall gate needs.
+- **The ambiguous tail is retained at its natural rate.** Multi-SIG issues are
+  neither dropped nor preferred: each SIG interleaves its multi- and single-label
+  strata in proportion to its own multi-label rate. Drawing them first doubled
+  ambiguity from 26% to 52% and made the corpus harder than the population it
+  claims to sample; dropping them would make it easier.
 
 **Label hygiene (important):** real issues carry `/sig <name>` prow commands and
 `sig/<name>` mentions in the body — ~46% of a raw pull leaks its own answer. The
@@ -62,7 +87,7 @@ MIN_ACCURACY=0.80 MAX_ABSTAIN=0.20 MIN_CORE_RECALL=0.80 bash eval/run-eval.sh
 
 - overall accuracy (accept-set aware), accuracy on *answered* (excl. abstentions),
   abstention rate
-- the 3-way split: full / dev-slice / held-out
+- the tiered split: full / smoke / acceptance / holdout
 - per-SIG **precision / recall / f1 / support / abstain**, with macro and
   weighted-f1 averages
 - top confusions (gold -> predicted)
@@ -75,11 +100,19 @@ support can carry it: at n=10 and p≈0.85 the standard error on recall is ~11
 points, so a 90% floor gates on sampling noise — one defensible confusion is −8
 to −14 points and flips the verdict. Below `-min-class-support` (default 20) a
 class is printed with its support and excluded from the gate, and **macro-recall
-(default >= 85%) is the primary per-class health check** instead: it still
-catches a class the model systematically ignores without inheriting single-class
-noise. On the current 93-row corpus every core class is under the guard, so
-macro-recall alone carries per-class health — that is an argument for a bigger
-corpus, not for a lower threshold.
+(default >= 85%) is the primary per-class health check** instead.
+
+Macro-recall averages over **the same classes the per-class floor applies to**,
+and the report says which. That is not cosmetic: a singleton class can only score
+0% or 100%, so averaging over every gold class lets a few 1-row classes swing the
+headline gate. On this corpus three singletons at 100% recall inflated
+macro-recall from 86% to 89% — enough to mask a real 3-point per-class
+regression.
+
+At the 93-row corpus every core class sat under the support guard, so
+macro-recall alone carried per-class health. At 250 rows each core SIG has
+support 21–25, the per-class floors apply for real, and they currently **fail on
+5 of 6** — which is the honest signal the small corpus could not produce.
 
 Read precision and recall together: high precision + low recall on a SIG means
 the model is *cautious* about it (good — pair with abstention); low precision
@@ -149,22 +182,35 @@ the five "Created by mistake" rows with no false positives. Each override keeps
 the issue's real labels in `accept`, so only the demand for a *specific* concrete
 answer is lifted; a model that guesses one of them is not punished either.
 
-## The dev / held-out split
+## The tiered split
 
 `splits.jsonl` (`{number, tier}`) is the committed record of which rows tuning
-was allowed to see. `sigeval.go` reports the three numbers side by side:
+was allowed to see. Three disjoint tiers, stratified so each core SIG splits
+5/15/5 — a tier that starved a class would make its per-class numbers unreadable:
+
+| tier | rows | role |
+|---|---|---|
+| `smoke` | 53 | the fast iteration slice — **the only tier tuning may look at** |
+| `acceptance` | 151 | the rest of the gate of record; not tuned on |
+| `holdout` | 46 | never tuned on, never gated on — the generalization check |
 
 ```
-split (dev = tuned on; held-out = never tuned on):
-  full:       87.1% (81/93)
-  dev-slice:  86.4% (38/44)
-  held-out:   87.8% (43/49)   <- generalization check
+split by tier:
+  full:         86.8% (217/250)
+  smoke:        84.9% (45/53)     tuned on -- expect the best number here
+  acceptance:   85.4% (129/151)   gate of record, not tuned on
+  holdout:      93.5% (43/46)     never tuned on <- generalization check
 ```
 
-Held-out ≈ full means the catalog/prompt rules generalized. dev >> held-out means
+holdout ≈ full means the catalog/prompt rules generalized. smoke ≫ holdout means
 they memorized the slice — reject the change no matter what the aggregate did.
-It is a **reported** rail, not a gate: at n=49 the held-out standard error is
+It is a **reported** rail, not a gate: at n=46 the holdout standard error is still
 ~±5 points, enough to catch gross memorization and not enough to threshold on.
+
+Rebuild after a re-fetch with `bash eval/scripts/make-splits.sh`. Assignment is
+deterministic (round-robin over each SIG's issues in number order), not a random
+seed, so membership is stable and auditable. A corpus row missing from the
+manifest is reported as `(untiered)` rather than silently folded into a tier.
 
 The `analyze`/`match` agents run with `thinking: false` (Qwen3 no-think): the
 `match` prompt reasons in a visible `REASONING:` line before committing to `SIG:`,
@@ -176,7 +222,19 @@ which is faster and avoids long hidden traces timing out mid-run.
 `sigs.reference.yaml`; drive catalog refreshes from `scripts/check-taxonomy-currency.sh`.
 See `Makefile-snippet.txt`.
 
-## Note on "100"
+## Taxonomy currency
 
-A 10-SIG unauthenticated pull dedups to ~90 issues (multi-SIG issues collapse
-across queries). `PER_SIG=15`, adding SIGs, or a `GH_TOKEN` gets a clean 100+.
+`scripts/check-taxonomy-currency.sh` (cron) hashes the upstream SIG list and
+signals drift; `scripts/gen-taxonomy.sh` parses the names out of
+kubernetes/community `sigs.yaml`. Run the cross-check after any corpus re-fetch —
+old issues can carry retired or renamed SIG labels, and old gold is wrong gold:
+
+```
+bash scripts/gen-taxonomy.sh     # current upstream SIG names (fails loudly if empty)
+```
+
+Compare against the labels in `gold.jsonl` and against `sigs.reference.yaml`.
+A gold label that is no longer upstream should be relabelled **via the overrides
+overlay**, never by editing raw gold. A gold label that is upstream but missing
+from the catalog is unpredictable by construction — author `features` for it.
+That check is what added `sig-etcd` to the catalog.
