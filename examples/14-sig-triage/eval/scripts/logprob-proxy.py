@@ -172,8 +172,11 @@ class Handler(BaseHTTPRequestHandler):
         (cmar, ctok, calts), (dmar, dtok, dalts) = _sig_margins(toks)
         sysmsg = next((m.get("content", "") for m in msgs if m.get("role") == "system"), "")
         # Which stage produced this call, inferred from the system prompt.
-        stage = "match" if "get_sig_reference" in sysmsg else (
-            "analyze" if "COMPONENTS:" in sysmsg else "other")
+        # adjudicate is checked FIRST: it also carries get_sig_reference, so the
+        # match test would swallow it and both stages would land in one bucket.
+        stage = "adjudicate" if "CANDIDATE_1" in sysmsg else (
+            "match" if "get_sig_reference" in sysmsg else (
+                "analyze" if "COMPONENTS:" in sysmsg else "other"))
         _record({
             "issue": _issue_of(msgs),
             "stage": stage,

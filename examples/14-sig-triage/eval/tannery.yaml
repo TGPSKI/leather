@@ -15,3 +15,11 @@ queues:
     concurrency: 4
     max_attempts: 2
     max_depth: 1000
+  # Second-pass tie-break queue. Nothing routes into it automatically: leather
+  # has no content-conditional output routing, so eval/scripts/adjudicate-pass.sh
+  # selects the uncertain rows and ingests them here itself. EXPERIMENTAL, and
+  # eval-harness-only -- see eval/README.md "Two-pass adjudication (experimental)".
+  adjudicate-in:
+    concurrency: 4
+    max_attempts: 2
+    max_depth: 1000
