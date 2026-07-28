@@ -163,6 +163,33 @@ LEATHER_MODEL=... leather workflow run ... 2>&1 | grep 'agent config'
 This is a real drift in leather, not an eval quirk; the same trap applies to any
 agent wanting greedy decode. Until it is fixed, do not remove either setting.
 
+## The catalog is a shadow: the model never reads it
+
+Measured from the request body (not from log counts) via `scripts/logprob-proxy.py`:
+`get_sig_reference` is **offered on 250/250 match requests and called on 0**. The
+tool is wired correctly; the model declines it every time, because it can already
+answer from the inline rule block in `agents/match.agent.md` plus its pretrained
+knowledge of the public Kubernetes SIG taxonomy.
+
+So the accuracy number measures a **prompt-driven** classifier, not the
+read-the-catalog design. Practical consequences, learned the hard way:
+
+- **Accuracy work goes in the prompt.** Editing `sigs.reference.yaml` to fix a
+  confusion measures nothing. `sig-etcd` was added to the catalog by the currency
+  check and changed no prediction until the same guidance went into the prompt.
+- **The catalog can silently rot**, because nothing consuming it fails when it is
+  wrong. Its real claim is *maintainability* — it is regenerable from upstream
+  `sigs.yaml` — and that claim is proven separately from accuracy.
+- **Nothing constrains predictions to the catalog's vocabulary.** The model
+  emitted `sig-device-plugins`, which is not a SIG (device plugins are sig-node) —
+  a name invented from priors, which is exactly the failure mode a catalog the
+  model actually read would prevent. The prompt now enforces a closed vocabulary;
+  a real fix would validate the prediction against the catalog in the scorer.
+
+Testing the actual fetch loop (rather than the catalog's information content)
+needs `tool_choice: required`, which leather does not expose — `http_client.go`
+hardcodes `"auto"`.
+
 ## Uncertainty: do not route on the model's self-report
 
 `CONFIDENCE: high|medium|low` is emitted but is **not a usable routing signal**,

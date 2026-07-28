@@ -181,6 +181,7 @@ echo "               ${retries:-0} stage retries, ${toolfail:-0} tool errors  (f
     -gold "examples/14-sig-triage/${GOLD}" -pred "examples/14-sig-triage/${PRED}" \
     -overrides "examples/14-sig-triage/${OVERRIDES:-eval/gold.overrides.jsonl}" \
     -split "examples/14-sig-triage/${SPLIT:-eval/splits.jsonl}" \
+    -catalog "examples/14-sig-triage/sigs.reference.yaml" \
     -min-accuracy "${MIN_ACCURACY:-0.80}" -max-abstain "${MAX_ABSTAIN:-0.30}" \
     -min-macro-recall "${MIN_MACRO_RECALL:-0.85}" \
     -min-core-recall "${MIN_CORE_RECALL:-0.90}" \

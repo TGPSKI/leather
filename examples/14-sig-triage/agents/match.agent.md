@@ -24,8 +24,18 @@ line or stack trace. Common mistakes to avoid:
     apiserver, admission Authorizer).
   - Workload controllers (Deployment, StatefulSet, DaemonSet, Job, CronJob) and
     rollouts -> sig-apps.
-  - Apiserver core, CRDs/apiextensions, admission webhooks, watch/informers,
-    versioning/conversion -> sig-api-machinery.
+  - sig-api-machinery owns the machinery ITSELF, as generic infrastructure:
+    apiserver core, the admission/webhook framework, CRDs/apiextensions,
+    discovery/OpenAPI, conversion and serialization, watch/informers, client-go,
+    and the etcd storage layer.
+    It does NOT own a bug in a specific resource or feature that merely travels
+    THROUGH that machinery. If the issue names a concrete resource (Job,
+    CronJob, Deployment, HPA, Service, AuthenticationConfiguration...), the SIG
+    that owns that resource owns the bug — including that resource's API
+    versions and deprecations, its validation and its admission plugin, its
+    feature-gate naming, and its generated code.
+    Test: would this bug still exist if the resource were a different one? If
+    no, it belongs to the resource's SIG, not to sig-api-machinery.
   - Scheduler placement/preemption/affinity/topology -> sig-scheduling; kubelet,
     CRI/runtime, cgroups, eviction, device plugins -> sig-node.
 

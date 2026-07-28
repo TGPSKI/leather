@@ -126,6 +126,7 @@ func main() {
 	goldPath := flag.String("gold", "eval/gold.jsonl", "answer-key JSONL {number,sig,accept?} — pristine fetch output")
 	ovrPath := flag.String("overrides", "eval/gold.overrides.jsonl", "gold overrides overlay JSONL {number,sig?,accept?,reason} (optional)")
 	splitPath := flag.String("split", "eval/splits.jsonl", "split manifest JSONL {number,tier} (optional; enables the dev/held-out report)")
+	catalogPath := flag.String("catalog", "sigs.reference.yaml", "SIG catalog, for the closed-vocabulary check (optional)")
 	predPath := flag.String("pred", "eval/predictions.jsonl", "predictions JSONL")
 	flipVs := flag.String("flip-vs", "", "prior predictions JSONL: report the per-item flip diff (fixed / regressed / unchanged) against it")
 	minAcc := flag.Float64("min-accuracy", 0.80, "gate: minimum overall accuracy (excl. abstentions on ambiguous rows)")
@@ -427,6 +428,43 @@ func main() {
 		}
 	}
 
+	// ---- closed-vocabulary check ----
+	// Nothing forces a prediction to be a real SIG. The model has emitted
+	// `sig-device-plugins` -- plausible, not a SIG (device plugins are sig-node) --
+	// which is a name invented from priors rather than read from the catalog. Such
+	// a prediction is unroutable by any downstream consumer, so it is worth
+	// naming separately from an ordinary misclassification. Checked here rather
+	// than asked for in the prompt: this rung is deterministic and free, and
+	// prompt budget turned out to be a scarce resource (adding rules degraded
+	// unrelated classes).
+	if *catalogPath != "" {
+		if raw, err := os.ReadFile(*catalogPath); err == nil {
+			known := map[string]bool{"unknown": true}
+			for _, line := range strings.Split(string(raw), "\n") {
+				line = strings.TrimSpace(line)
+				if after, ok := strings.CutPrefix(line, "- name:"); ok {
+					known[normSIG(strings.TrimSpace(after))] = true
+				}
+			}
+			offVocab := map[string]int{}
+			for _, p := range preds {
+				if p.Predicted != "" && !known[p.Predicted] {
+					offVocab[p.Predicted]++
+				}
+			}
+			if len(offVocab) > 0 {
+				names := make([]string, 0, len(offVocab))
+				for s, n := range offVocab {
+					names = append(names, fmt.Sprintf("%s x%d", s, n))
+				}
+				sort.Strings(names)
+				fmt.Printf("\nOFF-VOCABULARY predictions (not in %s): %s\n",
+					*catalogPath, strings.Join(names, ", "))
+				fmt.Println("  these are unroutable regardless of correctness — the model invented a SIG name")
+			}
+		}
+	}
+
 	// ---- confidence calibration ----
 	// Confidence is only useful if it SEPARATES. A model that stamps `high` on
 	// every row gives a confidence router nothing to route on, and voting over it
@@ -544,6 +582,45 @@ func main() {
 		}
 		for _, s := range regressed {
 			fmt.Println("  - " + s)
+		}
+
+		// Per-class recall delta, and the accept rule that matters: a change may
+		// trade DOWN a class that is already failing its floor (that is often the
+		// point -- an over-predicting class gives rows back and its own recall
+		// dips), but it must not push a PASSING class below the floor. The
+		// aggregate hides exactly that trade, so name it here.
+		fmt.Println("\n  per-class recall delta (support >= min-class-support):")
+		var broke []string
+		for _, s := range sigs {
+			sup := recallTot[s]
+			if sup < *minClassSupport {
+				continue
+			}
+			nowR := float64(recallHit[s]) / float64(sup)
+			wasHit := 0
+			for _, g := range golds {
+				if g.SIG == s && was[g.Number] {
+					wasHit++
+				}
+			}
+			wasR := float64(wasHit) / float64(sup)
+			d := 100 * (nowR - wasR)
+			flag := ""
+			// PASS -> FAIL on a gated class is the reject signal.
+			if core[s] && wasR >= *minCore && nowR < *minCore {
+				flag = "  <- REGRESSED A PASSING CLASS (reject signal)"
+				broke = append(broke, s)
+			} else if core[s] && nowR < *minCore && d < 0 {
+				flag = "  (was already failing; trade-down allowed)"
+			}
+			if d != 0 || flag != "" {
+				fmt.Printf("    %-24s %3.0f%% -> %3.0f%%  (%+.0f pts)%s\n", s, 100*wasR, 100*nowR, d, flag)
+			}
+		}
+		if len(broke) > 0 {
+			fmt.Printf("  VERDICT: reject — %s crossed the recall floor downward.\n", strings.Join(broke, ", "))
+		} else {
+			fmt.Println("    (no passing core class was pushed below the floor)")
 		}
 	}
 
