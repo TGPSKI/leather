@@ -99,8 +99,23 @@ Two counters that changed conclusions:
   harness lost the answer." A run with a nonzero count is measuring the harness.
 - **"tool offered on N/250, called M"** — reading the log for `executing tool`
   cannot distinguish "the model declined" from "the tool was never offered." The
-  request body can. This single counter is the entire shadow-catalog finding: the
-  catalog tool is offered on 250/250 and called on **0**, on both model scales.
+  request body can.
+
+**And a worked example of how a broken counter manufactures a false finding.**
+That counter first reported the catalog tool as offered 250/250 and called 0 *on
+both model scales*, which became a headline claim. It was wrong for the small
+model. The fold kept only the **last** match round per issue — but a tool call
+*forces* a second round, and that round carries no `tool_calls`, so the fold
+deleted precisely the evidence it was counting. Re-measured after the fix, on the
+same prompt and corpus: the 35B calls the catalog **zero** times; the 4B calls it
+on essentially every issue.
+
+Two lessons, and the second is the expensive one. First, a counter that can only
+under-report still produces confident conclusions. Second — **a conclusion drawn
+from a broken instrument does not correct itself when the instrument is fixed.**
+The bug was found and patched, and the claim it had produced went on standing in
+this document until something else contradicted it. Fixing an instrument means
+re-deriving what it told you, not just trusting it from then on.
 
 ## Keep the answer key pristine; put fixes in an overlay
 
