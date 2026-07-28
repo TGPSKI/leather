@@ -58,6 +58,8 @@ cat > "${STATE_DIR}/run-manifest.json" <<EOF
   "agent_sha":  "$(sha "${LEATHER_AGENT_DIR:-agents}/match.agent.md")",
   "index":      "${SIG_INDEX:-sigs.index.tsv}",
   "index_sha":  "$(sha "${SIG_INDEX:-sigs.index.tsv}")",
+  "analyze_cache":     "${ANALYZE_CACHE:-none}",
+  "analyze_cache_sha": "$(sha "${ANALYZE_CACHE:-/nonexistent}")",
   "corpus":     "${CORPUS}",
   "corpus_sha": "$(sha "${CORPUS}")",
   "git_commit": "$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || echo none)",
@@ -76,6 +78,46 @@ EOF
 # rm -rf above clears stale queue items, so a previous run's DLQ leftovers can no
 # longer be re-drained by the next run.
 export LEATHER_STATE_DIR="${STATE_DIR}/leather-state"
+
+# Archive the evidence before the next run wipes this directory. Derived facts,
+# not bulk: the analyze notes are what exposure analysis needs, and they are ~5%
+# of the raw artifacts' size. Set RUN_TAG to name the cell.
+archive_evidence() {
+  [ -n "${RUN_TAG:-}" ] || return 0
+  ARCH="${EVAL_DIR}/results/runs/${RUN_TAG}"
+  mkdir -p "$ARCH"
+  cp "${STATE_DIR}/run-manifest.json" "$ARCH/" 2>/dev/null
+  cp "$PRED" "$ARCH/predictions.jsonl" 2>/dev/null
+  [ -s "$LOGPROB_OUT" ] && gzip -c "$LOGPROB_OUT" > "$ARCH/logprobs.jsonl.gz"
+  # The log lines that carry evidence: tool executions, failures, and the agent
+  # responses that show whether a boundary was cited.
+  grep -E 'executing tool|process failed|hide missing|agent response content' \
+    "$RUNLOG" 2>/dev/null | gzip -c > "$ARCH/run-evidence.log.gz"
+  python3 - "$ARTIFACT_DIR/analyze" "$ARCH/analyze-notes.jsonl" <<'PYARCH'
+import glob, json, os, re, sys
+src, out = sys.argv[1], sys.argv[2]
+rows = []
+for f in glob.glob(os.path.join(src, "*.json")):
+    try: c = json.load(open(f)).get("content") or ""
+    except Exception: continue
+    m = re.search(r"^ISSUE:\s*(\d+)", c, re.M)
+    if not m: continue
+    def fld(n):
+        h = re.search(rf"^{n}:\s*(.+)$", c, re.M)
+        return h.group(1).strip() if h else ""
+    rows.append({"number": int(m.group(1)), "note": c.strip(),
+                 "components": fld("COMPONENTS"), "keywords": fld("KEYWORDS")})
+rows.sort(key=lambda r: r["number"])
+with open(out, "w") as fh:
+    for r in rows: fh.write(json.dumps(r) + "\n")
+print(f"archived {len(rows)} analyze notes", file=sys.stderr)
+PYARCH
+  echo "evidence archived to ${ARCH}"
+}
+
+
+trap 'archive_evidence; rm -f "$RESOLVED_TANNERY"' EXIT
+
 
 # LOGPROB=1 routes the run through eval/scripts/logprob-proxy.py, which injects
 # `logprobs: true` (leather has no knob for it) and records the top-token margin
@@ -102,7 +144,7 @@ if [ "${LOGPROB:-0}" = "1" ]; then
     python3 "${EVAL_DIR}/scripts/logprob-proxy.py" \
       >>"$RUNLOG" 2>&1 &
   LP_PID=$!
-  trap 'kill "$LP_PID" 2>/dev/null; rm -f "$RESOLVED_TANNERY"' EXIT
+  trap 'kill "$LP_PID" 2>/dev/null; archive_evidence; rm -f "$RESOLVED_TANNERY"' EXIT
   ready=0
   for _ in $(seq 1 20); do
     if curl -fsS -m 1 "http://127.0.0.1:${LP_PORT}/v1/models" >/dev/null 2>&1; then
@@ -277,41 +319,6 @@ toolfail=$(grep -ciE "tool.*(error|failed)|get_sig_reference.*(error|fail)" "$RU
 echo "run integrity: ${empty}/${total} rows with no usable match artifact, ${mismatch} of those saw only another issue's artifact"
 echo "               ${retries:-0} stage retries, ${toolfail:-0} tool errors  (full log: ${RUNLOG})"
 
-
-# Archive the evidence before the next run wipes this directory. Derived facts,
-# not bulk: the analyze notes are what exposure analysis needs, and they are ~5%
-# of the raw artifacts' size. Set RUN_TAG to name the cell.
-if [ -n "${RUN_TAG:-}" ]; then
-  ARCH="${EVAL_DIR}/results/runs/${RUN_TAG}"
-  mkdir -p "$ARCH"
-  cp "${STATE_DIR}/run-manifest.json" "$ARCH/" 2>/dev/null
-  cp "$PRED" "$ARCH/predictions.jsonl" 2>/dev/null
-  [ -s "$LOGPROB_OUT" ] && gzip -c "$LOGPROB_OUT" > "$ARCH/logprobs.jsonl.gz"
-  # The log lines that carry evidence: tool executions, failures, and the agent
-  # responses that show whether a boundary was cited.
-  grep -E 'executing tool|process failed|hide missing|agent response content' \
-    "$RUNLOG" 2>/dev/null | gzip -c > "$ARCH/run-evidence.log.gz"
-  python3 - "$ARTIFACT_DIR/analyze" "$ARCH/analyze-notes.jsonl" <<'PYARCH'
-import glob, json, os, re, sys
-src, out = sys.argv[1], sys.argv[2]
-rows = []
-for f in glob.glob(os.path.join(src, "*.json")):
-    try: c = json.load(open(f)).get("content") or ""
-    except Exception: continue
-    m = re.search(r"^ISSUE:\s*(\d+)", c, re.M)
-    if not m: continue
-    def fld(n):
-        h = re.search(rf"^{n}:\s*(.+)$", c, re.M)
-        return h.group(1).strip() if h else ""
-    rows.append({"number": int(m.group(1)), "note": c.strip(),
-                 "components": fld("COMPONENTS"), "keywords": fld("KEYWORDS")})
-rows.sort(key=lambda r: r["number"])
-with open(out, "w") as fh:
-    for r in rows: fh.write(json.dumps(r) + "\n")
-print(f"archived {len(rows)} analyze notes", file=sys.stderr)
-PYARCH
-  echo "evidence archived to ${ARCH}"
-fi
 
 ( cd "$ROOT_DIR" && go run ./examples/14-sig-triage/eval/sigeval.go \
     -gold "examples/14-sig-triage/${GOLD}" -pred "examples/14-sig-triage/${PRED}" \
