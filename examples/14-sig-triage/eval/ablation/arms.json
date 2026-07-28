@@ -16,7 +16,11 @@
     "rules": true,
     "variable": "cost of an offered-but-unused tool",
     "compare_to": "A",
-    "description": "Arm A with the catalog skill removed. A minus A0 is what the catalog contributes when the model actually reads it (4B) or nothing (35B)."
+    "description": "Arm A with the catalog skill removed. A minus A0 is what the catalog contributes when the model actually reads it (4B) or nothing (35B). allow_diff: replays <rig>-A's own archived notes, so match inputs are identical to A's by construction; the cache-sha diff is bookkeeping, verified 2026-07-28.",
+    "allow_diff": [
+      "analyze_cache",
+      "analyze_cache_sha"
+    ]
   },
   "B": {
     "stages": 2,
@@ -52,7 +56,11 @@
     "rules": false,
     "variable": "message ROLE (system vs user), order held",
     "compare_to": "C",
-    "description": "Same bytes as C, moved from the system prompt into the user turn, still ahead of the issue. Requires curings-nopage: the 7215 B payload paginates under the 6000 default."
+    "description": "Same bytes as C, moved from the system prompt into the user turn, still ahead of the issue. Requires curings-nopage: the 7215 B payload paginates under the 6000 default. allow_diff: pcache strips back to the base <rig>-A cache byte-for-byte on all 250 notes (verified 2026-07-28, both rigs); the spliced block IS the declared variable.",
+    "allow_diff": [
+      "analyze_cache",
+      "analyze_cache_sha"
+    ]
   },
   "P2": {
     "stages": 2,
@@ -61,7 +69,11 @@
     "rules": false,
     "variable": "ORDER (before vs after the issue), role held",
     "compare_to": "P1",
-    "description": "As P1 but the catalog follows the issue, so the model reads the question before the reference material."
+    "description": "As P1 but the catalog follows the issue, so the model reads the question before the reference material. allow_diff: pcache strips back to the base <rig>-A cache byte-for-byte on all 250 notes (verified 2026-07-28, both rigs); the spliced block IS the declared variable.",
+    "allow_diff": [
+      "analyze_cache",
+      "analyze_cache_sha"
+    ]
   },
   "D": {
     "stages": 2,
@@ -70,7 +82,11 @@
     "rules": false,
     "variable": "tool round + second forward pass, order held",
     "compare_to": "P2",
-    "description": "Whole catalog returned as a tool result. Forcing is injected by the logprob proxy, since leather hardcodes tool_choice: auto \u2014 so this arm partly measures harness scaffolding."
+    "description": "Whole catalog returned as a tool result. Forcing is injected by the logprob proxy, since leather hardcodes tool_choice: auto \u2014 so this arm partly measures harness scaffolding. allow_diff: pcache strips back to the base <rig>-A cache byte-for-byte on all 250 notes (verified 2026-07-28, both rigs); the spliced block IS the declared variable.",
+    "allow_diff": [
+      "analyze_cache",
+      "analyze_cache_sha"
+    ]
   },
   "Dn": {
     "stages": 2,
@@ -133,7 +149,11 @@
     "rules": true,
     "variable": "does the catalog ADD to the rules",
     "compare_to": "A",
-    "description": "Arm A's exact prompt with the fetch forced. Tests whether catalog and rules are complementary or redundant."
+    "description": "Arm A's exact prompt with the fetch forced. Tests whether catalog and rules are complementary or redundant. allow_diff: replays <rig>-A's own archived notes, so match inputs are identical to A's by construction; the cache-sha diff is bookkeeping, verified 2026-07-28.",
+    "allow_diff": [
+      "analyze_cache",
+      "analyze_cache_sha"
+    ]
   },
   "T2": {
     "stages": 2,
@@ -160,16 +180,24 @@
     "rules": true,
     "variable": "the analyze->match STAGE SPLIT",
     "compare_to": "A",
-    "description": "One stage: raw issue in, answer out, no analyze step. The only cell that removes a stage. Handicapped by pasted delivery \u2014 see F2."
+    "description": "One stage: raw issue in, answer out, no analyze step. The only cell that removes a stage. Handicapped by pasted delivery \u2014 see F2.",
+    "allow_diff": [
+      "analyze_cache",
+      "analyze_cache_sha"
+    ]
   },
   "F2": {
     "stages": 1,
     "turns": 1,
     "catalog": "narrowed lookup, boundaries enforced",
     "rules": true,
-    "variable": "the stage split, with catalog handling held CORRECT",
-    "compare_to": "G2",
-    "description": "One stage with the enforced v3 lookup instead of a pasted catalog, so the stage-split comparison is not confounded by the worst delivery mechanism measured."
+    "variable": "the stage split, rules AND catalog handling held constant",
+    "compare_to": "H2",
+    "description": "One stage with rules kept and the enforced v3 lookup. Original registered comparator was G2, which differs in BOTH stage count and rules \u2014 that comparison bundles the stage split with the established rules effect and is not a stage experiment. H2 (two stages, rules, enforced lookup) is the matched comparator; re-registered 2026-07-28. allow_diff: F2 removes the analyze stage by design, so no cache; verified note-equivalence does not apply \u2014 the missing stage IS the variable.",
+    "allow_diff": [
+      "analyze_cache",
+      "analyze_cache_sha"
+    ]
   },
   "S1": {
     "stages": 2,
@@ -187,6 +215,19 @@
     "rules": true,
     "variable": "rules + NARROWED retrieval (vs rules + bulk)",
     "compare_to": "H",
-    "description": "Arm H with the catalog delivered by the enforced v3 lookup instead of a bulk fetch. Every other catalog arm removes the rules first; H delivers bulk alongside them. Since the 4B gains most from narrowing (+5.2 vs 35B +2.0) and least from bulk (+4.0 vs +7.6), rules+narrowed is its untested best case."
+    "description": "Arm H with the catalog delivered by the enforced v3 lookup instead of a bulk fetch. Every other catalog arm removes the rules first; H delivers bulk alongside them. Since the 4B gains most from narrowing (+5.2 vs 35B +2.0) and least from bulk (+4.0 vs +7.6), rules+narrowed is its untested best case. allow_diff: replays <rig>-A's own archived notes, so match inputs are identical to A's by construction; the cache-sha diff is bookkeeping, verified 2026-07-28.",
+    "allow_diff": [
+      "analyze_cache",
+      "analyze_cache_sha"
+    ]
+  },
+  "T2c": {
+    "stages": 2,
+    "turns": 2,
+    "catalog": "fetched via per-turn tool scope; decide turn CLEARED",
+    "rules": false,
+    "variable": "per-turn context clearing (bounded decide, no queue hop)",
+    "compare_to": "T2",
+    "description": "Arm T2 with `clear: true` on the decide turn: the conversation is reset before the decide prompt, so the raw catalog blob and the note are dropped and the decide turn sees only the system prompt plus the shortlist the model recorded via record_shortlist (carried across the boundary by a skill extract into {{shortlist}}). Varies clearing AND the recording tool call vs T2 \u2014 the recording is the mechanism's cost of carriage, not a separate treatment. Read against T2 (cost of dropping raw context) and against S1's decide stage at 85.4% given gold survived (bounded decide without S1's lossy funnel)."
   }
 }
