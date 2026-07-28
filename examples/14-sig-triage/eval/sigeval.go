@@ -143,6 +143,7 @@ func main() {
 	minCore := flag.Float64("min-core-recall", 0.90, "gate: minimum recall on each core SIG with support >= -min-class-support")
 	minClassSupport := flag.Int("min-class-support", 20, "gate: do not apply the per-class recall floor below this support (small-N noise guard; 0 = always apply)")
 	coreCSV := flag.String("core", "sig-network,sig-node,sig-storage,sig-scheduling,sig-apps,sig-api-machinery", "comma-separated core SIGs held to min-core-recall")
+	emitRows := flag.String("emit-rows", "", "write per-row verdicts JSONL {number,predicted,gold,correct,abstained} to this path. This is the row-level form of the scorer of record: downstream tools (table, paired comparisons) MUST consume these rows rather than re-deriving correctness, so one scorer produces one number (task #32)")
 	flag.Parse()
 
 	golds, err := readJSONL[gold](*goldPath)
@@ -273,6 +274,38 @@ func main() {
 			return 0
 		}
 		return 2 * p * r / (p + r)
+	}
+
+	// ---- per-row verdict emission (-emit-rows) ----
+	// Written from correctByNum — the same map the split report and flip diff
+	// read — so an emitted row can never disagree with the headline number.
+	if *emitRows != "" {
+		f, err := os.Create(*emitRows)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "emit-rows:", err)
+			os.Exit(2)
+		}
+		w := bufio.NewWriter(f)
+		enc := json.NewEncoder(w)
+		for _, g := range golds { // gold order: stable across arms, diffable
+			p, ok := pByNum[g.Number]
+			row := struct {
+				Number    int    `json:"number"`
+				Predicted string `json:"predicted"` // post-normSIG; "" = missing
+				Gold      string `json:"gold"`
+				Correct   bool   `json:"correct"`
+				Abstained bool   `json:"abstained"`
+			}{g.Number, p.Predicted, g.SIG, correctByNum[g.Number], ok && p.Predicted == "unknown"}
+			if err := enc.Encode(row); err != nil {
+				fmt.Fprintln(os.Stderr, "emit-rows:", err)
+				os.Exit(2)
+			}
+		}
+		if err := w.Flush(); err != nil {
+			fmt.Fprintln(os.Stderr, "emit-rows:", err)
+			os.Exit(2)
+		}
+		f.Close()
 	}
 
 	answered := total - abstain
