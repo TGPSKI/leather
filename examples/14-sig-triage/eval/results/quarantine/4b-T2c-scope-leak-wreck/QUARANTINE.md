@@ -1,15 +1,27 @@
-# Quarantined: 4b-T2c first attempt (turn-scope execution leak)
+# Quarantined: 4b-T2c first attempt (run-fatal scope refusal)
+
+(Directory name "scope-leak" is historical and imprecise — kept to match
+committed references. The evidence log shows the OPPOSITE of a leak.)
 
 12.8% / 214 of 250 rows no-output — not a measurement of context clearing.
-435/471 decide rounds called get_sig_reference on a turn declared `tools: []`,
-and leather EXECUTED it: per-turn tool scope gates what is OFFERED in the
-request, but the executor honors any registered tool name. The cleared context
-leaves only the system prompt, whose sig-catalog skill text says "Call it
-once" — the 4B obeys that over the turn prompt, refetches every round, and
-dies at the 8-round cap. The 35B ran the same config to completion because it
-never attempted the out-of-scope call (its wreck-free twin archived at 74.8).
+On 435/471 decide rounds the 4B called get_sig_reference on a turn declared
+`tools: []` — recalled from the system prompt, which survives the clear and
+says "call it once". The executor did NOT run it: the run-evidence log carries
+435 "not in current tool scope" rejections and zero out-of-scope executions
+(all 473 get_sig_reference executions are fetch-turn). The security boundary
+held.
 
-Same shape as the G/G2 finding, pointed at the harness: a boundary delivered
-as advice is ignored; only enforcement in code binds. Core fix wanted: reject
-out-of-scope tool calls with a tool-result error instead of executing.
-Re-run mitigates at the prompt level (decide turn states no tool exists).
+The defect is the failure mode: the rejection was RUN-FATAL — one recoverable
+model mistake dead-lettered the whole work item, twice (temp-0 retry repeats
+it deterministically), killing 214/250 rows. The 35B ran the identical config
+to completion because it never attempted the out-of-scope call, which is why
+the failure mode survived until a tool-happy small model hit it.
+
+Fixed post-wreck: the runner now refuses out-of-scope calls with a
+tool-result error the model can recover from ("tool X is not available on
+this turn"), still never executing them; a model that keeps calling is bounded
+by max tool rounds. See internal/runner tests
+TestRunner_OutOfScopeTurnToolRefusedWithoutExecution (this exact shape) and
+TestRunner_UnknownToolRejected. Re-run mitigated at the prompt level instead
+(decide turn states no tool exists) — with the runner fix, that wording is
+belt-and-braces rather than load-bearing.

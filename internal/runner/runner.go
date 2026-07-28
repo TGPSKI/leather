@@ -598,16 +598,22 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 
 			hideToolSucceeded := false
 			for _, tc := range resp.ToolCalls {
-				def, ok := toolByName[tc.Name]
-				if !ok {
-					// Tool not in the current turn scope — reject to prevent execution of
-					// globally registered tools not declared by this agent/turn, and to guard
-					// against prompt injection naming arbitrary registered tools.
-					wErr := fmt.Errorf("runner/Run %s: tool %q not in current tool scope (possible prompt injection)", a.Name, tc.Name)
-					r.Log.Error("out-of-scope tool call rejected", "agent", a.Name, "tool", tc.Name)
-					return r.errorRecord(a, startTs, wErr), wErr
+				def, inScope := toolByName[tc.Name]
+				if !inScope {
+					// Tool not in the current turn scope — hallucinated, prompt-injected,
+					// or recalled from the system prompt after a context clear. NEVER
+					// executed, same as before. What changed: the refusal is a
+					// tool-result error the model can recover from, not a run failure.
+					// Failing the run turned one bad call into a dead work item —
+					// measured on the sig-triage eval, a 4B re-called a skill tool on a
+					// `tools: []` turn on 435/471 rounds and the run-fatal rejection
+					// dead-lettered 214/250 issues, where the 35B on the identical
+					// config simply never tried the call. A model that keeps calling
+					// anyway is bounded by max tool rounds.
+					r.Log.Warn("out-of-scope tool call refused", "agent", a.Name, "tool", tc.Name)
+				} else {
+					r.Log.Info("executing tool", "agent", a.Name, "tool", tc.Name)
 				}
-				r.Log.Info("executing tool", "agent", a.Name, "tool", tc.Name)
 				// Debug: log full tool call arguments for diagnostics (tool name/byte-only logs above don't reveal repeated-args loops).
 				argBytes, argErr := json.Marshal(tc.Arguments)
 				if argErr == nil {
@@ -618,7 +624,7 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 				}
 				var result model.ToolResult
 				dedupeKey := ""
-				if def.Type != "hide" && argErr == nil {
+				if inScope && def.Type != "hide" && argErr == nil {
 					dedupeKey = tc.Name + "\x00" + string(argBytes)
 				}
 				// effectiveMax is the number of successful executions of this
@@ -633,6 +639,13 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 				replayed := false
 				execStart := time.Now()
 				switch {
+				case !inScope:
+					result = model.ToolResult{
+						Name:       tc.Name,
+						ToolCallID: tc.ID,
+						Error: fmt.Sprintf("tool %q is not available on this turn; "+
+							"continue without it using what is already in the conversation", tc.Name),
+					}
 				case dedupeKey != "" && effectiveMax > 0 && completedToolCalls[dedupeKey].count >= effectiveMax:
 					r.Log.Warn("replaying duplicate tool call result",
 						"agent", a.Name, "tool", tc.Name, "count", completedToolCalls[dedupeKey].count)

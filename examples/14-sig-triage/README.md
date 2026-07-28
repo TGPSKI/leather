@@ -52,10 +52,13 @@ the larger scale show which failures are 4B-specific (order sensitivity,
 forced-tool fragility) and which transfer (turn accumulation hurts both).
 
 One finding was a runtime defect, found because the tool-happy 4B probed a
-boundary the 35B never touched: a turn declared `tools: []` still *executed* a
-registered tool the model named from memory — per-turn scope gated what was
-offered, not what ran. Advisory boundaries are ignored; only enforcement in
-code binds. (`eval/results/quarantine/4b-T2c-scope-leak-wreck/QUARANTINE.md`.)
+boundary the 35B never touched: on a turn declared `tools: []` the model kept
+calling a tool it remembered from the system prompt. The executor correctly
+refused every call — but the refusal was run-fatal, so one recoverable model
+mistake dead-lettered the whole work item, 214 times out of 250. Fixed: the
+runner now refuses out-of-scope calls with a tool-result error the model can
+recover from, still never executing them.
+(`eval/results/quarantine/4b-T2c-scope-leak-wreck/QUARANTINE.md`.)
 
 ## The pipeline
 
