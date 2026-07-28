@@ -29,7 +29,11 @@ ARTIFACT_DIR="${STATE_DIR}/artifacts"
 RESOLVED_TANNERY="${EVAL_DIR}/.tannery.resolved${STATE_SUFFIX:-}.yaml"
 trap 'rm -f "$RESOLVED_TANNERY"' EXIT
 
-awk -v hide="${STATE_DIR}/hides" -v art="${ARTIFACT_DIR}" -v cur="${EVAL_DIR}/curings" '
+# CURING_DIR selects an alternate curing set. curings-nopage/ raises page_size_bytes so
+# an oversized hide arrives in ONE page: the P1/P2 positional controls splice the catalog
+# into the user turn (7215 B against the 6000 default), which silently switched them into
+# reflection mode and made them measure a different delivery mechanism than their name says.
+awk -v hide="${STATE_DIR}/hides" -v art="${ARTIFACT_DIR}" -v cur="${EVAL_DIR}/${CURING_DIR:-curings}" '
   /^hide_dir:/     { print "hide_dir: " hide; next }
   /^artifact_dir:/ { print "artifact_dir: " art; next }
   /^curing_dir:/   { print "curing_dir: " cur; next }
