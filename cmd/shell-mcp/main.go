@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"time"
 )
@@ -96,6 +97,17 @@ type server struct {
 }
 
 func main() {
+	// The first positional arg is otherwise a config path, so version must be
+	// asked for explicitly — previously `shell-mcp --version` failed with
+	// `read config --version: no such file` (issue #50).
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "--version", "-v", "version":
+			fmt.Println("shell-mcp " + buildVersion())
+			return
+		}
+	}
+
 	cfgPath, err := resolveConfigPath()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "shell-mcp:", err)
@@ -343,6 +355,30 @@ func isNotFound(err error) bool {
 	}
 	return strings.Contains(err.Error(), "executable file not found") ||
 		strings.Contains(err.Error(), "no such file or directory")
+}
+
+// buildVersion reports the module version from the embedded Go build info
+// (the tag for `go install module@tag` builds, "(devel)" or a vcs revision
+// for local ones). shell-mcp is stdlib-only, so this stays self-contained
+// instead of importing internal/cli.
+func buildVersion() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+	v := bi.Main.Version
+	if v == "" || v == "(devel)" {
+		for _, s := range bi.Settings {
+			if s.Key == "vcs.revision" {
+				if len(s.Value) > 12 {
+					return "dev (" + s.Value[:12] + ")"
+				}
+				return "dev (" + s.Value + ")"
+			}
+		}
+		return "dev"
+	}
+	return v
 }
 
 // resolveConfigPath returns the config file path from args, env, or default.

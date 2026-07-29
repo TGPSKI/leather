@@ -79,6 +79,24 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   error instead of executing the command with literal `{{placeholder}}`
   argv.
 
+- **`go install` binaries self-identified as `dev (none)`** (#49, #50) — the
+  version stamp came only from the Makefile's `-ldflags`, which plain
+  `go install github.com/TGPSKI/leather/cmd/{leather,shell-mcp}@<tag>` never
+  applies (the installs themselves work as of the v0.4.1 module-path fix;
+  verified against the module proxy). Both binaries now fall back to the
+  embedded Go build info — the module version for `@tag` installs, the VCS
+  revision for plain `go build` from a checkout. `shell-mcp --version` (also
+  `-v`/`version`) now prints it too, instead of failing with
+  `read config --version: no such file` because the argument was taken for a
+  config path.
+
+- **`queue_input:` in agent frontmatter was accepted but silently ignored** —
+  both `AgentFrontmatterSchema` and `agent-1.schema.yaml` advertised the
+  field ("a paired lifecycle takes precedence"), and `leather validate`
+  passed it, but only the lifecycle parser actually read it, so a
+  frontmatter-only agent never drained its queue and nothing said why. The
+  frontmatter parser now honors it; lifecycle still wins when both are set.
+
 ### Added
 
 - **Per-tool-call timeout** — a single run-level timeout previously governed

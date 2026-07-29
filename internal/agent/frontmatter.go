@@ -24,6 +24,10 @@ type frontMatter struct {
 	Skills            []string
 	Toolsets          []string
 	ToolRounds        int
+	// QueueInput names a queue this agent drains one item per tick. A paired
+	// *.lifecycle.yaml queue_input takes precedence (applyLifecycle overlays
+	// non-empty lifecycle values over frontmatter).
+	QueueInput string
 	// DisableThinking mirrors model.Agent.DisableThinking. Set via
 	// "thinking: false" in frontmatter; defaults to false (model default,
 	// no override).
@@ -193,6 +197,8 @@ func applyFrontMatterFields(yamlBlock string, fm *frontMatter) error {
 				return fmt.Errorf("invalid tool_rounds %q: %w", raw, err)
 			}
 			fm.ToolRounds = n
+		case "queue_input":
+			fm.QueueInput = yamlx.StripQuotes(raw)
 		case "thinking":
 			b, err := strconv.ParseBool(raw)
 			if err != nil {
