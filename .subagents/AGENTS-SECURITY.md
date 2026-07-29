@@ -131,8 +131,10 @@ startup; the resolved value is held in memory for the process lifetime.
 
 - `--api-token-file <path>` — bearer-token shared secret loaded from a
   0600 file.
-- `--api-bind-loopback-only` — default `true`; refuse `0.0.0.0` /
+- `--api-bind-loopback-only` — default `true`; refuse `0.0.0.0` / <!-- doclint:allow --api-bind-loopback-only -->
   external IPs unless explicitly disabled.
+  (Today the loopback default comes from `--api-addr`'s default value
+  plus the startup `WARN`; there is no refusal flag yet.)
 - Access-log line per request (currently silent on the happy path).
 - Per-endpoint allow-list for any mutating action.
 
@@ -182,15 +184,20 @@ Read-only subcommands (`status`, `validate`, `version`) may skip the lock.
 See [AGENTS-SHELL-MCP.md](AGENTS-SHELL-MCP.md) for the full
 specification. Security-specific rules:
 
-- The manifest's argument templating MUST shell-quote substitutions by
-  default.
-- A `--no-shell` (argv-only) mode is the safe default for new tools;
-  document the security trade-off when authors opt into shell mode.
-- Manifest entries MUST validate `Required` fields before substitution
-  begins; missing required values reject the call.
-- Operator responsibility: never write a manifest that passes raw
-  `{{arg}}` into `bash -c "rm {{arg}}"` unless the agent author and the
-  model are both trusted.
+- `{{key}}` substitutions land inside single argv elements — no shell
+  interprets them unless the operator's own entry invokes one
+  (`command: bash` + `-c`). Entries that do MUST pass model-supplied
+  values as positional parameters after `--`, never spliced into the
+  script string.
+- There is no hardening mode that filters config entries: the
+  `shell-tools.json` file itself is the trust boundary. Vet it before
+  pointing `shell-mcp` at it.
+- `required` and `patterns` are validated before substitution begins;
+  missing or mismatched values reject the call before the command
+  runs. Anchor patterns so absent values are rejected too.
+- Operator responsibility: never write a config that passes raw
+  `{{arg}}` into a shell string like `bash -c "rm {{arg}}"` — that is
+  an injection primitive regardless of who the agent author is.
 
 ---
 
@@ -264,11 +271,11 @@ secrets; the runner cannot know.
 
 - Replay records have the same FS mode as `~/.leather/.state/`
   (0700 dir, 0600 files).
-- A `--redact` flag scrubs any value matching a resolved
-  `model.SecretRef` from the record before write.
+- Redaction scrubs any value matching a resolved `model.SecretRef`
+  from the record before write (via `internal/secret`).
 - The replay UI displays a "redaction enabled" banner so readers know
   when content was scrubbed.
-- Long-form export (zip / share) requires `--redact` and refuses to
+- Long-form export (zip / share) requires redaction and refuses to
   proceed otherwise.
 
 ---
@@ -320,8 +327,8 @@ changes.
 | Adding a new API endpoint without auth review | Add to the v1 read-only allow-list, or wait for auth landing. |
 | Storing API tokens inline in `config.yaml` | Always use `env:` or `pass:` references via `model.SecretRef`. |
 | Binding `--api-addr` to `0.0.0.0` "for the dashboard" | Use an SSH tunnel; the API is loopback-only by design. |
-| Adding a `bash -c "{{arg}}"` template to `shell-tools.json` | Use argv form; opt into shell mode only with documented risk acceptance. |
-| Sharing a replay export without redaction | `--redact` is mandatory for non-local export. |
+| Adding a `bash -c "{{arg}}"` template to `shell-tools.json` | Substitute into argv elements, or pass values as positional parameters after `--`; never splice into the script string. |
+| Sharing a replay export without redaction | Redaction is mandatory for non-local export. |
 
 ---
 

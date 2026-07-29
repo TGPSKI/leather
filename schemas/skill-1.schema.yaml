@@ -83,11 +83,22 @@ properties:
         type:
           type: string
           enum: [http, mcp, sh]
-          description: | 
-            Tool execution backend. 
-              "http" calls a REST endpoint; 
-              "mcp" calls a local MCP server process; 
+          description: |
+            Tool execution backend.
+              "http" calls a REST endpoint;
+              "mcp" calls a local MCP server process;
               "sh" executes a shell command.
+
+        max_repeats:
+          type: integer
+          minimum: -1
+          description: |
+            Caps how many times an identical call (same name and arguments) may
+            successfully execute within a single run before further identical
+            calls replay the cached result. 0 (unset) = dedupe on, one execution
+            then replay; positive N permits N executions before replay; -1
+            disables dedupe entirely. Failed calls never count against the
+            budget. See docs/GUIDE.md "max_repeats".
 
         parameters:
           type: object

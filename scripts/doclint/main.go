@@ -44,6 +44,9 @@ var (
 	reFlag   = regexp.MustCompile(`fs\.(?:String|Bool|Int|Int64|Uint|Uint64|Duration|Float64|Var)\(\s*"([a-z0-9][a-z0-9-]*)"`)
 	reEnvFn  = regexp.MustCompile(`\benv[A-Za-z0-9]*\(\s*"([A-Z0-9_]+)"`)
 	reGetenv = regexp.MustCompile(`os\.Getenv\(\s*"([A-Z0-9_]+)"\)`)
+	// A var leather sets for child processes (e.g. LEATHER_INTAKE_URL for
+	// shell-mcp children) is as real a referent as one it reads.
+	reSetenv = regexp.MustCompile(`os\.Setenv\(\s*"([A-Z0-9_]+)"`)
 	reRoute  = regexp.MustCompile(`\.Handle(?:Func)?\(\s*"(/[^"]*)"`)
 )
 
@@ -85,6 +88,9 @@ func scanTruth(srcRoots []string) (truth, error) {
 			for _, m := range reGetenv.FindAllStringSubmatch(s, -1) {
 				t.envs[m[1]] = true
 			}
+			for _, m := range reSetenv.FindAllStringSubmatch(s, -1) {
+				t.envs[m[1]] = true
+			}
 			for _, m := range reRoute.FindAllStringSubmatch(s, -1) {
 				r := m[1]
 				t.exact[r] = true
@@ -123,7 +129,11 @@ var (
 	reCSSVar   = regexp.MustCompile(`var\(\s*(--[a-z0-9-]+)`)
 	reCSSDef   = regexp.MustCompile(`(?m)(--[a-z0-9-]+)\s*:\s*[^;\n|]`)
 	reIgnore   = regexp.MustCompile(`doclint:allow\s+(\S+)`)
-	rePlanned  = regexp.MustCompile(`(?i)\b(planned|future|not yet|when .* lands|roadmap|todo|n/a)\b`)
+	// File-level opt-out for documents that quote drift by design (audit
+	// reports, post-mortems). Place near the top of the file with a comment
+	// saying why; never use it to silence drift in a live doc.
+	reDisableFile = regexp.MustCompile(`doclint:disable-file\b`)
+	rePlanned     = regexp.MustCompile(`(?i)\b(planned|future|not yet|when .* lands|roadmap|todo|n/a)\b`)
 )
 
 // env tokens that are legitimately external / not leather-owned.
@@ -286,6 +296,9 @@ func main() {
 			continue
 		}
 		content := string(b)
+		if reDisableFile.MatchString(content) {
+			continue
+		}
 		lines := strings.Split(content, "\n")
 		cssVars := map[string]bool{}
 		for _, m := range reCSSVar.FindAllStringSubmatch(content, -1) {

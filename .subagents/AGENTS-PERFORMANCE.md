@@ -43,7 +43,7 @@ require a benchmark + a pprof check.
 | MCP `tools/call` round-trip | `internal/mcp` | per MCP tool call | Medium — IO-bound; allocation-light. |
 | Queue dequeue / enqueue | `internal/queue` | per scheduled job | High — file I/O + serialization. |
 | Cache lookup / write | `internal/cache` | per run (cache-enabled) | Medium — file I/O + SHA-256. |
-| HTTP API `/jobs`, `/runs` | `internal/cli` (serve) | per scrape | Low — JSON serialization. |
+| HTTP API `/jobs`, `/history` | `internal/cli` (serve) | per scrape | Low — JSON serialization. |
 | `LoadDir` (agent loading) | `internal/agent` | startup + reload | Low (startup) — but allocations are unbounded by N agents. |
 
 Cold paths are intentionally not listed; if a change starts touching

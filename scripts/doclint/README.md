@@ -15,7 +15,7 @@ ship.
 | Check | Documented token | Ground truth | Catches |
 | ----- | ---------------- | ------------ | ------- |
 | `flag` | `` `--flag` `` in inline code | `fs.*("flag", …)` registrations | flags that don't exist (`--no-shell`, `--metrics-public`, `--debug-api`) |
-| `env` | `LEATHER_*` / `SHELL_MCP_*` tokens | `env*("NAME")` + `os.Getenv("NAME")` | phantom env (`LEATHER_LOG_DIR`, `SHELL_MCP_MANIFEST`) |
+| `env` | `LEATHER_*` / `SHELL_MCP_*` tokens | `env*("NAME")` + `os.Getenv("NAME")` + `os.Setenv("NAME")` | phantom env (`LEATHER_LOG_DIR`, `SHELL_MCP_MANIFEST`) |
 | `endpoint` | `` `/path` `` on an HTTP-verb line | `mux.Handle(Func)?("/…")` (prefix-aware) | routes not served (`/status/agents`, `/replay/runs`) |
 | `shell-tools` | ```` ```json ```` tool blocks | shell-mcp `toolDef` shape | removed `exec.*` form; missing `command` |
 
@@ -38,6 +38,10 @@ Exit 0 = clean, 1 = violations, 2 = scan error.
 referent (external service endpoints, browser globals, UI design tokens, naming
 placeholders). Keep it short — it is an exception list, not a place to hide drift.
 Per-line inline exceptions are also supported: `<!-- doclint:allow /some/path -->`.
+
+A whole file can opt out with `<!-- doclint:disable-file -->` near its top — for
+documents that quote drift *by design* (audit reports, post-mortems). Never use
+it to silence drift in a live doc.
 
 ## Known limitations (deliberately out of scope)
 

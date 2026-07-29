@@ -19,6 +19,10 @@ LEATHER_FLAG_NAME
 LEATHER_RPI_LLM_ENDPOINT
 LEATHER_RPI_MODEL
 
+# Repo-wide dry/live convention consumed by example shell tools
+# (examples/scripts/preflight.sh), not by the leather binary.
+LEATHER_DEMO_MODE
+
 # Tannery webhook routes are registered dynamically per-config, not as static mux patterns.
 /webhooks/{name}
 

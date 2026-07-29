@@ -107,3 +107,21 @@ func TestRouteCovered(t *testing.T) {
 		}
 	}
 }
+
+func TestSetenvCountsAsEnvReferent(t *testing.T) {
+	src := `package x
+func f() { os.Setenv("LEATHER_INTAKE_URL", url) }`
+	m := reSetenv.FindAllStringSubmatch(src, -1)
+	if len(m) != 1 || m[0][1] != "LEATHER_INTAKE_URL" {
+		t.Fatalf("reSetenv matches = %v, want one match for LEATHER_INTAKE_URL", m)
+	}
+}
+
+func TestDisableFileDirective(t *testing.T) {
+	if !reDisableFile.MatchString("<!-- doclint:disable-file — audit quotes drift by design -->") {
+		t.Error("disable-file directive not recognized")
+	}
+	if reDisableFile.MatchString("normal prose mentioning doclint:allow --foo") {
+		t.Error("allow directive must not trigger file disable")
+	}
+}

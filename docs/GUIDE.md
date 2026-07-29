@@ -316,69 +316,66 @@ instances:
 
 ## 5. Shell tools — `shell-tools.json`
 
-`shell-tools.json` is the manifest consumed by the `shell-mcp` binary. Each
+`shell-tools.json` is the config consumed by the `shell-mcp` binary. Each
 entry becomes one callable tool.
 
 ```json
 {
   "tools": [
     {
-      "name": "git-log",
+      "name": "git_log",
       "description": "Recent git history. Returns last 20 commits, one per line.",
-      "args": [
-        { "name": "ref", "type": "string", "required": false, "default": "HEAD",
-          "description": "Branch, tag, or SHA." }
-      ],
-      "exec": {
-        "argv": ["git", "log", "--oneline", "-n", "20", "{{ref}}"]
-      },
-      "cwd": "{{env.PROJECT_ROOT}}",
-      "timeout": "5s"
+      "command": "git",
+      "args": ["log", "--oneline", "-n", "20", "{{ref}}"],
+      "defaults": { "ref": "HEAD" },
+      "patterns": { "ref": "^[A-Za-z0-9._/-]+$" },
+      "timeout_seconds": 5
     },
     {
-      "name": "get-pr-diff",
+      "name": "get_pr_diff",
       "description": "Fetch unified diff for a GitHub PR (first 4000 bytes).",
-      "args": [
-        { "name": "pr_number", "type": "int",    "required": true },
-        { "name": "repo",      "type": "string", "required": true,
-          "description": "owner/repo" }
-      ],
-      "exec": {
-        "shell": "gh pr diff {{pr_number}} -R {{repo|shq}} | head -c 4000"
-      },
-      "timeout": "30s"
+      "command": "bash",
+      "args": ["-c", "gh pr diff \"$1\" -R \"$2\" | head -c 4000", "--",
+               "{{pr_number}}", "{{repo}}"],
+      "required": ["pr_number", "repo"],
+      "patterns": { "pr_number": "^[0-9]+$", "repo": "^[\\w.-]+/[\\w.-]+$" },
+      "timeout_seconds": 30
     }
   ]
 }
 ```
 
-### `exec.argv` vs `exec.shell`
-
-| Form | When to use |
-|---|---|
-| `exec.argv` | Single command, no pipes, no shell expansion needed. Safest. |
-| `exec.shell` | Need pipes, `&&`, subshells, or shell builtins. Args are shell-quoted automatically (`{{name}}` → `{{name\|shq}}`). |
-
-**Prefer `exec.argv`.** Never add a Python/Node interpreter just to chain shell
-commands — use `bash -c` with positional args instead:
+Every tool is `command` + `args`: the executable is looked up on `PATH` and
+spawned directly, with `{{key}}` placeholders substituted into individual
+argv elements at call time. There is no separate "shell form" — when you
+need pipes, `&&`, or shell builtins, make the command `bash -c` and pass
+model-supplied values as positional parameters after `--`, never spliced
+into the script string:
 
 ```json
-"exec": {
-  "argv": ["bash", "-c", "cd \"$1\" && git status", "--", "{{path}}"]
-}
+{ "command": "bash", "args": ["-c", "cd \"$1\" && git status", "--", "{{path}}"] }
 ```
 
-### Arg types and quoting
+### Arguments and validation
 
-- `string` args in `exec.argv` are passed as single elements — no quoting needed.
-- `string` args in `exec.shell` are shell-quoted automatically.
-- `int` and `bool` args are interpolated as-is (no quoting).
-- `{{env.VAR}}` reads from the server process environment.
+- All argument values are strings; there is no type or enum system.
+- `required` lists keys that must be present — a missing key fails the call
+  before the command runs.
+- `defaults` supplies fallback values for optional keys (call args win).
+- `patterns` maps keys to RE2 regexps the value must match; a missing
+  argument validates as the empty string, so anchored patterns also reject
+  absent values. Patterns are advertised in the tool's `inputSchema`.
+- `timeout_seconds` (default 30) bounds each call; `output_cap_bytes`
+  (default 4000, per-tool or top-level) truncates output with an
+  `[output capped]` sentinel.
 
 ### Naming convention
 
-Tool names use `kebab-case`. Match the `name` here to the `name` in your
-`*.skill.yaml` tool list.
+Tool names use `snake_case` — the skill schema's tool-name pattern
+(`^[a-z][a-z0-9_]*$`) rejects hyphens, and every example follows it. Match
+the `name` here to the `name` in your `*.skill.yaml` tool list. (Note the
+asymmetry: a skill's own `name:` may contain hyphens; tool names and
+`mcp.tool` references may not.)
 
 ### Error contract
 
@@ -753,31 +750,31 @@ Inspect the repository and produce the status report.
 name: repo
 system_prompt_append: |
   You have shell tools for inspecting a git repository:
-    git-status  → current branch and working-tree state
-    git-log     → recent commits
-    git-branch  → list of local branches
+    git_status  → current branch and working-tree state
+    git_log     → recent commits
+    git_branch  → list of local branches
 
 tools:
-  - name: git-status
+  - name: git_status
     description: Current branch and working-tree state.
     type: mcp
     mcp:
       server: shell
-      tool: git-status
+      tool: git_status
 
-  - name: git-log
+  - name: git_log
     description: Last 20 commits, one per line.
     type: mcp
     mcp:
       server: shell
-      tool: git-log
+      tool: git_log
 
-  - name: git-branch
+  - name: git_branch
     description: List all local branches.
     type: mcp
     mcp:
       server: shell
-      tool: git-branch
+      tool: git_branch
 ```
 
 **`shell-tools.json`**
@@ -786,22 +783,25 @@ tools:
 {
   "tools": [
     {
-      "name": "git-status",
+      "name": "git_status",
       "description": "Current branch and working-tree state.",
-      "exec": { "argv": ["git", "status", "--short", "--branch"] },
-      "timeout": "5s"
+      "command": "git",
+      "args": ["status", "--short", "--branch"],
+      "timeout_seconds": 5
     },
     {
-      "name": "git-log",
+      "name": "git_log",
       "description": "Recent 20 commits.",
-      "exec": { "argv": ["git", "log", "--oneline", "-n", "20"] },
-      "timeout": "5s"
+      "command": "git",
+      "args": ["log", "--oneline", "-n", "20"],
+      "timeout_seconds": 5
     },
     {
-      "name": "git-branch",
+      "name": "git_branch",
       "description": "Local branches.",
-      "exec": { "argv": ["git", "branch"] },
-      "timeout": "5s"
+      "command": "git",
+      "args": ["branch"],
+      "timeout_seconds": 5
     }
   ]
 }
@@ -1262,7 +1262,7 @@ my-project/
 | `leather run` | Execute one agent once and exit. |
 | `leather validate` | Parse and schema-check all files; report errors. |
 | `leather ingest` | Write a file as a hide and optionally enqueue it. |
-| `leather workflow` | Run bounded one-shot tannery workflows to queue quiescence. |
+| `leather workflow run` | Run a bounded one-shot tannery workflow: reads one hide from stdin, drains queues to quiescence. |
 | `leather status` | Print job history, token usage, scheduler state. |
 | `leather test-agent` | Run an agent against `MockLLM` and print the transcript. |
 | `leather snapshot` | Save or restore a point-in-time `tar.gz` archive of runtime state. |

@@ -42,6 +42,43 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   gains a per-tool `max_repeats` (skill yaml), with `-1` disabling dedupe
   entirely.
 
+- **An out-of-scope tool call was run-fatal** — a tool call outside the
+  current turn's scope (hallucinated, prompt-injected, or recalled from the
+  system prompt after a context clear) was correctly never executed, but the
+  rejection failed the entire run, and the temperature-0 retry reproduced it
+  deterministically — one recoverable model mistake became a dead work item.
+  On the sig-triage eval a 4B model re-called a system-prompt-mentioned tool
+  on a `tools: []` turn in 435/471 decide rounds, dead-lettering 214/250
+  issues; a 35B never attempted the call on the identical config, which is
+  why the failure mode was invisible until a tool-happy small model probed
+  it. The executor now answers such calls with a tool-result error
+  (`tool X is not available on this turn`), still never executing them; a
+  model that keeps calling anyway is bounded by max tool rounds, and refused
+  calls never populate the dedupe cache.
+
+- **`shell-mcp` emitted invalid JSON Schema for zero-argument tools** — a
+  tool declaring no arguments serialized its schema as `"required": null`
+  instead of `"required": []`. Invisible under `tool_choice: auto`, but any
+  backend that compiles the schema into a grammar rejects every call with
+  `400 Grammar error: Expected array for 'required', got null`. The field
+  now always marshals as an array.
+
+- **Editor JSON schemas flagged valid, runtime-supported fields** — the
+  hand-maintained `schemas/*.schema.yaml` had drifted from the runtime
+  validators in `internal/schema/defs.go`: `toolsets` was missing from
+  `agent-1` (while present in `lifecycle-1`), `persist_runs_detail` /
+  `persist_runs_tool_cap` from `config-1`, and per-tool `max_repeats` from
+  `skill-1`, so editors marked working configs as errors. The missing fields
+  are now declared; full codegen from `defs.go` remains an open follow-up.
+
+- **`shell-mcp` per-tool limits were silently ignored** — per-tool
+  `timeout_seconds` and `output_cap_bytes` in shell-tools config were parsed
+  but never applied, so every tool ran at the global defaults (30 s /
+  4000 bytes), silently truncating large results mid-output. Both are now
+  enforced, and a call missing a required argument returns a proper tool
+  error instead of executing the command with literal `{{placeholder}}`
+  argv.
+
 ### Added
 
 - **Per-tool-call timeout** — a single run-level timeout previously governed
@@ -62,6 +99,46 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   new `persist_runs_detail: none|tools` config (default `none`, byte-identical
   legacy output) and `persist_runs_tool_cap` (default 2048 bytes/field). Args
   are redacted via `internal/secret` before persisting.
+
+- **Per-turn context clearing — `clear: true` on a turn section** — leather
+  had per-turn *tool* scoping (`tools:` / `skills:` / `toolsets:` per turn)
+  but no per-turn *context* bounding: `Session.Reset` had zero production
+  callers, so context only ever grew, and every turn inherited everything —
+  including the model's own intermediate speculation (measured on the
+  sig-triage eval: a three-turn agent grew 1206 → 2828 prompt tokens across
+  its turns and lost ~9 points to its two-turn sibling on paired per-issue
+  comparison). A turn may now
+  declare `clear: true` alongside `tools:`/`skills:`/`toolsets:`: the
+  conversation is reset before that turn's prompt is added; the system
+  message and turn variables survive, because skill `extract:` captures live
+  outside the session. That pairing is the point — distil a large tool
+  result into `{{key}}`, then discard the raw blob. The alternative
+  (splitting into two curings for a fresh session) was measured too and
+  costs information: the handoff discarded the correct answer on 9.6% of
+  issues; per-turn clear keeps one agent reasoning across the boundary.
+
+- **`examples/14-sig-triage`** — assign a Kubernetes SIG to unlabeled issues
+  with a small local model, with the accuracy claims measured rather than
+  asserted: the same frozen 4B model scores 62.8%–81.6% on a 250-issue gold
+  corpus depending only on the runtime design around it. The example ships
+  the eval harness that measured it (tiered corpus, ablation-arm registry,
+  paired per-issue verdicts, evidence archives with replayable analysis)
+  alongside the winning curing design; method and verdicts are documented in
+  `docs/LEP-0006-group-evals.md` and `docs/LEP-0008-conditional-routing.md`.
+
+- **doclint** — a documentation-consistency gate (`scripts/doclint`, CI
+  workflow `doclint.yml`) that cross-checks doc claims against the source,
+  with per-line `doclint:allow` escapes and a file-level
+  `doclint:disable-file` directive for documents that quote drift by design
+  (audit reports); a missing docs root fails closed. Env vars leather *sets*
+  for child processes (`os.Setenv`, e.g. `LEATHER_INTAKE_URL`) count as
+  referents. The full doc set — subagent guides, `docs/GUIDE.md`, schemas —
+  was reconciled against the code to bring the gate to zero violations:
+  phantom flags/env/endpoints removed or marked planned, the stale
+  `exec.*` shell-tools form replaced with the real `command`/`args` schema,
+  tool-name casing corrected to snake_case, `/metrics` documented as the
+  JSON it actually returns, and UI docs repointed from `/runs` to the real
+  `/jobs` + `/history`.
 
 ## [0.4.1] — 2026-07-05
 

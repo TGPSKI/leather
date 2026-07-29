@@ -42,10 +42,10 @@ ui/
 ├── index.html             # single entry; loads all modules
 ├── styles.css             # design tokens + layout
 ├── app.js                 # bootstraps modules, owns the top-level router
-├── api.js                 # the only file that talks to /jobs, /runs, etc.
+├── leather-api.js         # the only file that talks to /jobs, /history, etc.
 ├── state.js               # shared in-memory state container + subscribers
 ├── views/
-│   ├── dashboard.js       # /jobs + /runs summary
+│   ├── dashboard.js       # /jobs + /history summary
 │   ├── job-detail.js      # single-job drilldown
 │   ├── run-detail.js      # single-run drilldown (lifts into replay; see AGENTS-REPLAY)
 │   ├── config.js          # /config readout
@@ -62,8 +62,8 @@ ui/
 
 ### Hard rules
 
-- **All HTTP calls go through `api.js`.** Views call `state.js`; state
-  calls `api.js`. No `fetch()` outside `api.js`.
+- **All HTTP calls go through `leather-api.js`.** Views call `state.js`; state
+  calls `leather-api.js`. No `fetch()` outside `leather-api.js`.
 - **No transpilation.** Modern ES modules + dynamic `import()` only.
   If a feature requires a transpile step, it's out of scope.
 - **No npm dependencies.** Inline copy with attribution if a tiny
@@ -96,21 +96,20 @@ mentioning each impacted view.
 
 ---
 
-## API contract layer (`api.js`)
+## API contract layer (`leather-api.js`)
 
-`api.js` is the single boundary between the UI and the backend. Every
+`leather-api.js` is the single boundary between the UI and the backend. Every
 endpoint gets a typed-by-convention wrapper:
 
 ```js
-// api.js
+// leather-api.js
 const BASE = window.LEATHER_API_BASE || "http://127.0.0.1:7749";
 
 export async function listJobs() { return getJSON("/jobs"); }
 export async function getJob(name) { return getJSON(`/jobs/${encodeURIComponent(name)}`); }
-export async function listRuns(query = {}) { return getJSON("/runs", query); }
-export async function getRun(id) { return getJSON(`/runs/${encodeURIComponent(id)}`); }
+export async function listRuns(query = {}) { return getJSON("/history", query); }
 export async function getConfig() { return getJSON("/config"); }
-export async function getMetrics() { return getText("/metrics"); }
+export async function getMetrics() { return getJSON("/metrics"); }
 // …
 ```
 
@@ -233,7 +232,7 @@ Document the smoke test in the PR description.
 
 1. **Confirm the API exists.** If not, land the endpoint in
    [AGENTS-SERVE.md](AGENTS-SERVE.md) first.
-2. **Add the wrapper in `api.js`**, including shape validation.
+2. **Add the wrapper in `leather-api.js`**, including shape validation.
 3. **Add `views/<name>.js`** implementing `loading`/`empty`/`error`/`ready`.
 4. **Add routing** in `app.js`.
 5. **Add nav entry** with the matching design-token colors.
@@ -247,7 +246,7 @@ Document the smoke test in the PR description.
 
 | Mistake | Correct approach |
 |---|---|
-| Calling `fetch()` directly from a view | Always go through `api.js`. |
+| Calling `fetch()` directly from a view | Always go through `leather-api.js`. |
 | Adding a build step "just for this one library" | Inline the helper or skip the feature. |
 | Silent failure on API error (logging only) | Render the `error` state with a `Retry`. |
 | Encoding meaning in color only | Pair color with a glyph and text. |
@@ -268,7 +267,7 @@ Before opening a PR that affects `ui/`:
 - [ ] Contrast verified on light and dark themes
 - [ ] Mobile (360 px portrait) does not introduce horizontal scroll on
       dashboard or job-detail
-- [ ] No new fetch outside `api.js`
+- [ ] No new fetch outside `leather-api.js`
 - [ ] No new dependency, no build step
 - [ ] [AGENTS-SERVE.md](AGENTS-SERVE.md) endpoint table consistent
       with any new wrapper added

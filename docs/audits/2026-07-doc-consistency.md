@@ -1,3 +1,6 @@
+<!-- doclint:disable-file — this audit is a historical record that quotes
+     phantom flags/env/endpoints it found; the quotes are the point. -->
+
 # leather — documentation consistency audit
 
 Scope: `docs/GUIDE.md`, `schemas/*.schema.yaml`, `internal/schema/defs.go`, the runtime (`internal/model`, `internal/config`, `internal/cli`), `cmd/shell-mcp`, and `examples/`. Every finding below is backed by file:line and mapped to an agent-ready issue.

@@ -49,6 +49,17 @@ properties:
     examples:
       - [github-issue-manager]
 
+  toolsets:
+    type: array
+    items:
+      type: string
+    description: |
+      Names of *.toolset.yaml tool groups to load. Each name must match a loaded
+      toolset's "name:" field. Cross-reference validated at runtime by the tool
+      loader. See toolset-1.schema.yaml.
+    examples:
+      - [git-readonly]
+
   tool_rounds:
     type: integer
     minimum: 1
