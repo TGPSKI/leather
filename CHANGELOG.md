@@ -7,7 +7,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [0.4.2] — 2026-07-29
+## [0.5.0] — 2026-07-29 "alligator"
 
 ### Fixed
 
@@ -788,8 +788,8 @@ Intentionally out of scope for v0.1.0; tracked for v0.2:
 See [ROADMAP.md](ROADMAP.md) for the full deferred-item list with
 rationales and proposed shapes.
 
-[Unreleased]: https://github.com/TGPSKI/leather/compare/v0.4.2...HEAD
-[0.4.2]: https://github.com/TGPSKI/leather/compare/v0.4.1...v0.4.2
+[Unreleased]: https://github.com/TGPSKI/leather/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/TGPSKI/leather/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/TGPSKI/leather/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/TGPSKI/leather/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/TGPSKI/leather/compare/v0.2.0...v0.3.0
