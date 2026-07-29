@@ -1,0 +1,10 @@
+# LLM fixture for the 06-smoke target: replays one recorded completion per
+# model call, in order (triage first, then summarize), so the full
+# ingest -> triage -> summarize -> artifact pipeline runs with no model.
+# Paired with sample/pr-thread-small.txt (sub-page-size, so exactly two
+# calls). To re-record against a live model, run the serve command from the
+# 06-smoke target with --llm-record sample/fixture.jsonl instead of
+# --llm-fixture (and note the full pr-thread.txt adds hide-pagination
+# rounds to the sequence).
+{"content":"CLASSIFICATION: bugfix\nRISK: low\nHIGHLIGHTS:\n- Fixes a nil-map write in the retry path\n- Adds a regression test for concurrent enqueue\n- No API surface changes","finish_reason":"stop","completion_tokens":42}
+{"content":"This PR is a low-risk bugfix that resolves a nil-map write in the retry path and adds a regression test for concurrent enqueue. No API surface changes; safe to merge once CI is green.","finish_reason":"stop","completion_tokens":48}

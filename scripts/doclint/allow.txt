@@ -23,6 +23,10 @@ LEATHER_RPI_MODEL
 # (examples/scripts/preflight.sh), not by the leather binary.
 LEATHER_DEMO_MODE
 
+# Example-13 shell-script contract vars (docs/CONVENTIONS.md), shell-only.
+LEATHER_GIT_SIGNING_KEY
+LEATHER_GIT_DIFF_LINES
+
 # Tannery webhook routes are registered dynamically per-config, not as static mux patterns.
 /webhooks/{name}
 

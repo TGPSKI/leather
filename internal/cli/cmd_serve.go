@@ -659,8 +659,11 @@ func (m *runMetrics) allHistory(limit int) []model.RunRecord {
 
 // apiDeps groups the dependencies required by apiMux.
 type apiDeps struct {
-	sched        *scheduler.Scheduler
-	metrics      *runMetrics
+	sched   *scheduler.Scheduler
+	metrics *runMetrics
+	// llm is the process-wide LLM client (live, fixture, or recording),
+	// shared with the scheduler's runners; used by tannery curing runners.
+	llm          session.LLMClient
 	cfg          model.Config
 	startedAt    time.Time
 	version      string
@@ -897,6 +900,23 @@ func RunServe(args []string, stdout, stderr io.Writer, version, commit string) i
 	devtoolsBus := bus.New(4096)
 	devtoolsSrc := sources.Wire(devtoolsBus, sources.Deps{})
 
+	// One LLM client for the whole process (live, fixture, or recording) so
+	// fixture replay order spans jobs instead of restarting per job.
+	llmClient, llmErr := buildLLMClient(cfg)
+	if llmErr != nil {
+		fmt.Fprintf(stderr, "leather serve: llm client: %v\n", llmErr)
+		return 1
+	}
+	if closer, ok := llmClient.(interface{ Close() error }); ok {
+		defer closer.Close() //nolint:errcheck
+	}
+	if cfg.LLMFixture != "" {
+		log.Info("LLM fixture mode: replaying recorded completions", "file", cfg.LLMFixture)
+	}
+	if cfg.LLMRecord != "" {
+		log.Info("LLM record mode: capturing completions", "file", cfg.LLMRecord)
+	}
+
 	var toolLimiter *tool.HostLimiter
 	if len(cfg.ToolRateLimits) > 0 {
 		var limErr error
@@ -909,6 +929,7 @@ func RunServe(args []string, stdout, stderr io.Writer, version, commit string) i
 
 	regDeps := agentRegDeps{
 		sched:          sched,
+		llm:            llmClient,
 		metrics:        metrics,
 		toolReg:        toolReg,
 		agentCache:     agentCache,
@@ -1012,6 +1033,7 @@ func RunServe(args []string, stdout, stderr io.Writer, version, commit string) i
 	deps := apiDeps{
 		sched:     sched,
 		metrics:   metrics,
+		llm:       llmClient,
 		cfg:       cfg,
 		startedAt: serveStart,
 		version:   version,
@@ -1279,14 +1301,17 @@ func resolveTokenBudget(cfg model.Config, a model.Agent) model.TokenBudget {
 // agentRegDeps holds the shared resources required to register a scheduled agent job.
 // All fields are set once at serve startup and are safe for concurrent use.
 type agentRegDeps struct {
-	sched          *scheduler.Scheduler
-	metrics        *runMetrics
-	toolReg        *tool.Registry
-	agentCache     *cache.FileCache
-	queueMgr       *queue.Manager
-	notifiers      map[string]notify.Notifier
-	mcpReg         *mcp.Registry
-	toolLimiter    *tool.HostLimiter
+	sched       *scheduler.Scheduler
+	metrics     *runMetrics
+	toolReg     *tool.Registry
+	agentCache  *cache.FileCache
+	queueMgr    *queue.Manager
+	notifiers   map[string]notify.Notifier
+	mcpReg      *mcp.Registry
+	toolLimiter *tool.HostLimiter
+	// llm is the process-wide LLM client (live, fixture, or recording).
+	// Shared so fixture replay order spans jobs instead of restarting per job.
+	llm            session.LLMClient
 	cfg            model.Config
 	log            *logging.Logger
 	stdout         io.Writer
@@ -1312,7 +1337,7 @@ func registerAgentJob(deps agentRegDeps, a model.Agent) error {
 	}
 	budget := resolveTokenBudget(deps.cfg, agentCopy)
 	agentRunner := &runner.Runner{
-		Client:             session.NewHTTPClient(deps.cfg.LLMEndpoint, deps.cfg.LLMAPIKey, deps.cfg.LLMTimeout),
+		Client:             deps.llm,
 		Registry:           deps.toolReg,
 		Log:                deps.log,
 		MaxToolRounds:      deps.cfg.MaxToolRounds,
@@ -2698,9 +2723,22 @@ func printTurnAt(w io.Writer, at time.Time, a model.Agent, resp model.LLMRespons
 	prettyWriteEntry(w, ts, boldGreen(prettyPadLabel("agent")), respLines)
 }
 
-// buildHTTPClient returns an HTTPClient from cfg.
-func buildHTTPClient(cfg model.Config) *session.HTTPClient {
-	return session.NewHTTPClient(cfg.LLMEndpoint, cfg.LLMAPIKey, cfg.LLMTimeout)
+// buildLLMClient returns the LLM client cfg selects: a JSONL fixture replay
+// (llm_fixture), a live HTTP client, or a live client wrapped in a JSONL
+// recorder (llm_record). Fixture and record are mutually exclusive —
+// recording a replay would only copy the fixture.
+func buildLLMClient(cfg model.Config) (session.LLMClient, error) {
+	if cfg.LLMFixture != "" && cfg.LLMRecord != "" {
+		return nil, fmt.Errorf("llm_fixture and llm_record are mutually exclusive")
+	}
+	if cfg.LLMFixture != "" {
+		return session.NewFixtureClient(cfg.LLMFixture)
+	}
+	httpClient := session.NewHTTPClient(cfg.LLMEndpoint, cfg.LLMAPIKey, cfg.LLMTimeout)
+	if cfg.LLMRecord != "" {
+		return session.NewRecordingClient(httpClient, cfg.LLMRecord)
+	}
+	return httpClient, nil
 }
 
 // lifecycleBaseName returns the base filename (no directory) of a lifecycle file path.

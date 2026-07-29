@@ -62,7 +62,11 @@ state_dir: .state          # hides, artifacts, queues, run history
 
 # --- Model ---
 model: /path/to/model      # model name or path; override: LEATHER_MODEL=
+llm_endpoint: http://127.0.0.1:8000/v1/chat/completions  # OpenAI-compatible endpoint; override: LEATHER_LLM_ENDPOINT=
+llm_api_key: ""            # bearer key if the endpoint needs one; override: LEATHER_LLM_API_KEY= (prefer env:/pass: secret refs)
 llm_timeout: 120s          # per-call timeout; override: LEATHER_LLM_TIMEOUT=
+# llm_fixture: fixture.jsonl  # replay recorded completions instead of a live LLM (see below)
+# llm_record: capture.jsonl   # capture live completions to a replayable fixture
 max_tokens: 8192           # context window budget
 completion_reserve: 1024   # tokens reserved for model output
 reasoning_reserve: 0       # extra tokens for a reasoning model's <think> trace; override: LEATHER_REASONING_RESERVE=
@@ -72,6 +76,9 @@ summarize_threshold: 0.85  # compress history at 85% of max_tokens
 log_level: info            # debug | info | warn | error
 scheduler_tick: 1s         # how often the scheduler checks for due jobs
 max_concurrent_jobs: 2     # max simultaneous agent calls
+
+# --- Tools ---
+mcp_servers_file: mcp-servers.yaml  # where serve/workflow-run find MCP servers (and thus tools)
 
 # --- HTTP API (required for tannery and queue inspection) ---
 api: true
@@ -91,7 +98,27 @@ notify:
 ```
 
 **Every flag has a matching env var.** `--model` → `LEATHER_MODEL`, `--llm-endpoint`
-→ `LEATHER_LLM_ENDPOINT`. Flags win when both are set.
+→ `LEATHER_LLM_ENDPOINT`. Flags win when both are set. The central reference
+for every variable that carries meaning in this repo (including the example
+shell conventions like `LEATHER_DEMO_MODE`) is
+[CONVENTIONS.md](CONVENTIONS.md).
+
+**Tools come from `mcp_servers_file`.** `leather serve` and
+`leather workflow run` load MCP servers — and therefore every `type: mcp`
+tool — from the file named by `mcp_servers_file` (falling back to
+`~/.leather/mcp-servers.yaml`). There is no flag for it in `workflow run`;
+it is read from config. Without it, agents run tool-less and no error tells
+you why.
+
+**Offline runs: `llm_fixture` / `llm_record`.** `--llm-record capture.jsonl`
+wraps the live client and captures every completion (including tool calls)
+to a JSONL file; `--llm-fixture capture.jsonl` replays it instead of calling
+a model — one recorded completion per call, in order, failing loudly with
+the call index and last message if the run diverges from the recording. This
+makes a full pipeline runnable in CI with no model (`make 06-smoke` in
+`examples/` is the working proof). The two are mutually exclusive; run
+fixture-backed configs with `max_concurrent_jobs: 1` so call order is
+deterministic.
 
 ### Minimal config (no tannery, no notify)
 
@@ -347,7 +374,9 @@ entry becomes one callable tool.
 
 Every tool is `command` + `args`: the executable is looked up on `PATH` and
 spawned directly, with `{{key}}` placeholders substituted into individual
-argv elements at call time. There is no separate "shell form" — when you
+argv elements at call time. (Command lines may also read env vars at the
+shell — the conventions for those, like `LEATHER_DEMO_MODE`, live in
+[CONVENTIONS.md](CONVENTIONS.md).) There is no separate "shell form" — when you
 need pipes, `&&`, or shell builtins, make the command `bash -c` and pass
 model-supplied values as positional parameters after `--`, never spliced
 into the script string:
@@ -649,6 +678,12 @@ Convention (matching examples 04–10):
 - `source:` alone → matches any event from that source (catch-all/fallback).
 - `source:` + `event_type:` → matches only that specific event type.
 - Routes are evaluated in order; all matching routes are executed (fan-out).
+
+A route names its destination with exactly one of `queue:` (a fixed queue
+from `queues:`) or `queue_pattern:` (a template that derives the queue name
+per hide, e.g. `pr-meta/{{hide_id}}` — per-event single-use input queues, as
+in `examples/10-ci-gate/tannery.yaml`, or `events.{{.source}}` for
+per-source fan-out).
 
 ### Queue configuration
 
@@ -1262,7 +1297,7 @@ my-project/
 | `leather run` | Execute one agent once and exit. |
 | `leather validate` | Parse and schema-check all files; report errors. |
 | `leather ingest` | Write a file as a hide and optionally enqueue it. |
-| `leather workflow run` | Run a bounded one-shot tannery workflow: reads one hide from stdin, drains queues to quiescence. |
+| `leather workflow run` | Run a bounded one-shot tannery workflow: reads one hide from stdin, drains queues to quiescence. Loads MCP servers from config `mcp_servers_file`. Note: it still validates tannery webhook secrets (`{{env:…}}`) even though it never serves the webhook — set the env var or omit the webhook block. |
 | `leather status` | Print job history, token usage, scheduler state. |
 | `leather test-agent` | Run an agent against `MockLLM` and print the transcript. |
 | `leather snapshot` | Save or restore a point-in-time `tar.gz` archive of runtime state. |

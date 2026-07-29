@@ -83,6 +83,13 @@ properties:
     $ref: "common-1.schema.yaml#/definitions/duration"
     description: Per-request LLM timeout. Overrides config.yaml llm_timeout.
 
+  tool_timeout:
+    $ref: "common-1.schema.yaml#/definitions/duration"
+    description: |
+      Per-tool-call timeout for this agent. Overrides the global tool_timeout
+      (default 600s). "0" disables the per-tool deadline.
+      CLI: --tool-timeout  Env: LEATHER_TOOL_TIMEOUT
+
   completion_reserve:
     type: integer
     minimum: 1
@@ -100,6 +107,13 @@ properties:
     type: boolean
     default: true
     description: Set to false to skip this agent at load time.
+
+  thinking:
+    type: boolean
+    default: true
+    description: |
+      Set to false to disable the model's thinking/reasoning trace for this
+      agent (sets the request's reasoning off where the endpoint supports it).
 
   queue_input:
     type: string

@@ -1,0 +1,33 @@
+PR #4821: Bump redis pool size from 8 to 64 and add connection health monitoring in checkout-api
+
+Author: @rwilson
+Branch: feat/redis-pool-bump -> main
+Repository: acme-corp/checkout-api
+Files changed: 6 (+187 -34)
+  internal/cache/redis.go
+  internal/cache/redis_test.go
+  internal/cache/health.go          [new file]
+  internal/cache/health_test.go     [new file]
+  internal/middleware/redis_guard.go
+  config/defaults.yaml
+
+Labels: performance, infra, needs-review
+Milestone: Q2-2026-reliability
+Created: 2026-05-14 09:12 UTC
+
+---
+
+DESCRIPTION
+
+Under p99 load tests, the checkout-api was saturating the Redis connection
+pool during peak traffic windows. With the default pool size of 8, concurrent
+goroutines were blocking on connection acquisition for up to 340ms, which
+cascaded into checkout timeouts and cart abandonment spikes.
+
+Root cause analysis:
+  - Each checkout flow makes 3-5 Redis calls (session read, inventory lock,
+    cart merge, promo validation, rate-limit check).
+  - At peak load, ~250 concurrent checkout goroutines require up to 1250
+    Redis connections simultaneously.
+  - With pool=8, queue depth hit 242 waiters at 13:47 UTC on 2026-05-12
+    (truncated excerpt for the fixture-backed 06-smoke target)

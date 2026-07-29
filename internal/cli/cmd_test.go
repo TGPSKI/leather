@@ -640,13 +640,16 @@ func TestRenderPrettyTimeline_UsesRecordedTimestamps(t *testing.T) {
 	}
 }
 
-// --- buildHTTPClient ---
+// --- buildLLMClient ---
 
-func TestBuildHTTPClient_ReturnsNonNil(t *testing.T) {
+func TestBuildLLMClient_ReturnsNonNil(t *testing.T) {
 	cfg := model.Config{LLMEndpoint: "http://localhost:11434", LLMTimeout: 30 * time.Second}
-	client := buildHTTPClient(cfg)
+	client, err := buildLLMClient(cfg)
+	if err != nil {
+		t.Fatalf("buildLLMClient: %v", err)
+	}
 	if client == nil {
-		t.Fatal("buildHTTPClient returned nil")
+		t.Fatal("buildLLMClient returned nil")
 	}
 }
 

@@ -140,6 +140,56 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   JSON it actually returns, and UI docs repointed from `/runs` to the real
   `/jobs` + `/history`.
 
+- **Offline LLM fixture: `llm_record` / `llm_fixture`** — there was no
+  supported way to run a full pipeline end-to-end without a live model:
+  `MockLLM` was reachable only from `test-agent`, so proving wiring in CI
+  meant hand-rolling a scripted OpenAI-compatible server. `--llm-record
+  capture.jsonl` now wraps the live client and captures every completion
+  (including tool calls) to JSONL; `--llm-fixture capture.jsonl` replays it
+  instead of calling a model — one recorded completion per call, in order,
+  failing loudly with the call index and last message when a run diverges
+  from its recording. serve, run, and workflow-run share one client per
+  process so replay order spans jobs. `make 06-smoke` is the working proof:
+  the full ingest → triage → summarize → artifact pipeline of example 06,
+  modelless, failing the target if no artifact is produced.
+
+- **`leather validate` covers `shell-tools.json`** — the most format-fiddly
+  hand-edited artifact was the only one with no schema and no validate
+  coverage; a malformed tools file passed `leather validate` and failed only
+  at runtime inside shell-mcp, as a silently tool-less agent.
+  `schema.ValidateShellToolsJSON` now validates every `*.json` referenced
+  from an `mcp-servers.yaml` command line: required fields, the removed
+  `exec.*`/`argv` forms, unknown fields, RE2 pattern compilation, snake_case
+  and duplicate names. A matching editor schema ships as
+  `schemas/shell-tools-1.schema.yaml`. First catch: example 09 declared
+  `"timeout": N`, a field shell-mcp silently ignores — its tools had been
+  running at the 30 s default since they were written (now
+  `timeout_seconds`).
+
+- **Schema ↔ runtime parity is now enforced** — a test
+  (`internal/schema/parity_test.go`) asserts every runtime validator field
+  in `defs.go` appears in the corresponding `schemas/*.schema.yaml` and
+  vice-versa (nested-only blocks declared explicitly), so the editor-schema
+  drift class cannot recur; the YAML schemas stay hand-written because their
+  descriptions carry operator guidance codegen would flatten. First catches:
+  agent frontmatter accepted `toolsets`, `tool_timeout`, and `thinking`
+  while both `defs.go` and `agent-1.schema.yaml` omitted them.
+
+- **`make new-example NAME=<slug>`** — adding an example was tribal
+  knowledge (pick the next index, hand-register Makefile targets, copy
+  `pretty.sh`, source `preflight.sh`). The scaffolder allocates the index,
+  creates the standard tree, appends the `NN`/`NN-live` targets, and prints
+  the two hand-written registrations; the convention itself is now
+  documented in `examples/README.md`.
+
+- **`docs/CONVENTIONS.md`** — central environment-variable reference (name,
+  default, scope, effect) covering the binary's load-bearing vars, shell-mcp,
+  and the example-shell contract (`LEATHER_DEMO_MODE` and the dry-mode
+  idiom, example 13's git vars, webhook/GitHub tokens). The GUIDE config
+  reference now also documents `llm_endpoint`/`llm_api_key`,
+  `mcp_servers_file` (without it, agents run tool-less with no error),
+  `queue_pattern` routes, and the `workflow run` webhook-secret coupling.
+
 ## [0.4.1] — 2026-07-05
 
 ### Fixed

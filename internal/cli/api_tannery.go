@@ -24,7 +24,6 @@ import (
 	"github.com/TGPSKI/leather/internal/model"
 	"github.com/TGPSKI/leather/internal/queue"
 	"github.com/TGPSKI/leather/internal/runner"
-	"github.com/TGPSKI/leather/internal/session"
 )
 
 // tanneryDeps groups the tannery-specific runtime state used by handlers.
@@ -88,7 +87,7 @@ func initTannery(ctx context.Context, tanneryFile string, deps *apiDeps) (*tanne
 	curingRouter := curing.NewRouter(tannCfg.Routes)
 
 	runnerDeps := &curing.RunnerDeps{
-		Client:             session.NewHTTPClient(deps.cfg.LLMEndpoint, deps.cfg.LLMAPIKey, deps.cfg.LLMTimeout),
+		Client:             deps.llm,
 		ToolReg:            deps.toolReg,
 		Log:                deps.log,
 		MaxToolRounds:      deps.cfg.MaxToolRounds,

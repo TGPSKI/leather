@@ -1,0 +1,99 @@
+# Validates shell-tools.json files (the cmd/shell-mcp tool config).
+#
+# Format authority: cmd/shell-mcp/main.go (toolDef).
+# Runtime validation: internal/schema.ValidateShellToolsJSON, run by
+# `leather validate` for every *.json referenced from an mcp-servers.yaml
+# command line.
+# VS Code: add to .vscode/settings.json json.schemas for inline diagnostics.
+version: "1"
+type: object
+additionalProperties: false
+required:
+  - tools
+properties:
+
+  output_cap_bytes:
+    type: integer
+    minimum: 0
+    description: |
+      Server-wide byte ceiling applied to every tool result. Output is trimmed
+      to the last complete line with an "[output capped]" sentinel.
+      Default: 4000.
+
+  tools:
+    type: array
+    minItems: 1
+    description: One entry per exposed tool.
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - description
+        - command
+      properties:
+
+        name:
+          type: string
+          pattern: '^[a-z][a-z0-9_]*$'
+          description: |
+            MCP tool name (snake_case). Referenced from skills as
+            mcp.tool and addressable in leather as <server>/<name>.
+
+        description:
+          type: string
+          description: One-line purpose shown to the LLM in tools/list.
+
+        command:
+          type: string
+          description: Executable name, looked up via PATH.
+
+        args:
+          type: array
+          items:
+            type: string
+          description: |
+            Argument list; {{key}} placeholders are substituted into
+            individual argv elements at call time. For shell pipelines use
+            command: bash with args: ["-c", "script using \"$1\"", "--",
+            "{{key}}"] — never splice {{key}} into the script string.
+
+        required:
+          type: array
+          items:
+            type: string
+          description: |
+            Argument keys that must be present in every call. A missing key
+            fails the call before the command runs.
+
+        patterns:
+          type: object
+          additionalProperties:
+            type: string
+          description: |
+            Map of argument key to RE2 regexp the substituted value must
+            match. A missing argument validates as the empty string, so
+            anchored patterns also reject absent values. Advertised in the
+            tool's inputSchema.
+
+        defaults:
+          type: object
+          additionalProperties:
+            type: string
+          description: Fallback values for optional argument keys (call args win).
+
+        optional:
+          type: boolean
+          description: |
+            When true, a command missing from PATH returns a graceful
+            "not installed" message instead of an error.
+
+        timeout_seconds:
+          type: integer
+          minimum: 0
+          description: Per-call execution timeout. Default: 30.
+
+        output_cap_bytes:
+          type: integer
+          minimum: 0
+          description: Per-tool output cap; overrides the server-wide cap.

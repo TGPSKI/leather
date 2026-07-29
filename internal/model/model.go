@@ -527,7 +527,14 @@ type Config struct {
 	ReasoningReserve   int
 	SummarizeThreshold float64
 	LLMEndpoint        string
-	LLMTimeout         time.Duration
+	// LLMFixture, when set, replaces the HTTP LLM client with a JSONL replay
+	// client (session.FixtureClient): each recorded completion answers one
+	// model call, in order, so a full pipeline runs with no model behind it.
+	LLMFixture string
+	// LLMRecord, when set, wraps the live LLM client and captures every
+	// completion to this JSONL file in the LLMFixture format.
+	LLMRecord  string
+	LLMTimeout time.Duration
 	// ToolTimeout is the global default per-tool-call timeout. Each tool call is
 	// wrapped in a child context with this deadline so one slow tool fails a
 	// single call cleanly instead of consuming the whole run budget (and, for

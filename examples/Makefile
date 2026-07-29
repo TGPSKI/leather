@@ -10,7 +10,7 @@
 #
 
 .PHONY: help all clean reset ensure-bin ensure-shell-mcp \
-	01 02 03 04 05 06 07 08 08-requeue 09 10 11 12 13 14 \
+	01 02 03 04 05 06 06-smoke 07 08 08-requeue 09 10 11 12 13 14 \
 	14-eval 14-eval-fetch 14-eval-lint 14-eval-splits 14-eval-test 14-taxonomy-check 14-live \
 	09-live 10-live 11-live 12-live \
 	rpi-01 rpi-02 rpi-03 \
@@ -46,6 +46,7 @@ help:
 	@echo "  04   tannery-ingest      CLI ingest -> curing -> artifact"
 	@echo "  05   tannery-webhook     webhook -> curing -> artifact"
 	@echo "  06   multi-agent-curing  two curings chained via output.queue"
+	@echo "  06-smoke                 fixture-backed 06 pipeline, no LLM required (CI wiring proof)"
 	@echo "  07   external-routing    webhook source+event_type route selection"
 	@echo "  08   dead-letter-queue   retry then DLQ promotion demo"
 	@echo "  08-requeue               DLQ requeue operator recovery demo"
@@ -141,6 +142,31 @@ ensure-shell-mcp:
 	  --config config.yaml \
 	  --tannery tannery.yaml \
 	  --pretty --stats --run-duration 60s --api
+
+# Fixture-backed smoke: the full ingest -> triage -> summarize -> artifact
+# pipeline with NO model behind it (sample/fixture.jsonl answers both LLM
+# calls). Proves the wiring in CI; fails if no artifact is produced.
+# Uses the sub-page-size sample so the call sequence is exactly two
+# completions (the full pr-thread.txt triggers hide pagination, whose
+# multi-round protocol belongs in a live recording, not a hand-written one).
+06-smoke: ensure-bin
+	@echo "==> 06-multi-agent-curing (fixture-backed smoke, no LLM required)"
+	cd 06-multi-agent-curing && rm -rf .state && mkdir -p .state && \
+	  $(LEATHER) ingest \
+	    --config config.yaml \
+	    --tannery tannery.yaml \
+	    --kind pr.thread --source cli \
+	    --curing triage --queue triage-in \
+	    sample/pr-thread-small.txt
+	cd 06-multi-agent-curing && $(LEATHER) serve \
+	  --config config.yaml \
+	  --tannery tannery.yaml \
+	  --llm-fixture sample/fixture.jsonl \
+	  --max-concurrent-jobs 1 \
+	  --run-duration 15s --api
+	@ls 06-multi-agent-curing/.state/artifacts/* >/dev/null 2>&1 \
+	  && echo "06-smoke: artifact produced — pipeline wiring OK" \
+	  || { echo "06-smoke: FAIL — no artifact produced"; exit 1; }
 
 07: ensure-bin
 	@echo "==> 07-external-routing (webhook external routing demo)"
@@ -240,6 +266,14 @@ all: 01 02 03 04 05 06 07 08 08-requeue 09 10 11 12 13
 summary:
 	@bash $(ROOT)/examples/scripts/examples-summary.sh
 
+# Scaffold a new mainline example: allocates the next NN index, creates the
+# standard tree, and appends the NN / NN-live targets below. Usage:
+#   make new-example NAME=<slug>
+.PHONY: new-example
+NAME ?=
+new-example:
+	@bash scripts/new-example.sh "$(NAME)"
+
 # Live viewer: start `leather serve` against an example's existing .state/ so
 # the DevTools UI is browsable after `make all` has torn down per-example
 # servers. Usage: make view EX=NN [ADDR=0.0.0.0:7749]
@@ -292,3 +326,4 @@ reset:
 14-taxonomy-check: ensure-bin
 	@echo "==> 14-sig-triage taxonomy currency (exit 10 = upstream SIG drift)"
 	@cd 14-sig-triage && bash scripts/check-taxonomy-currency.sh
+

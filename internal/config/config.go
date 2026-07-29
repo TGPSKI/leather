@@ -41,6 +41,8 @@ func Load(fs *flag.FlagSet) (model.Config, error) {
 		ReasoningReserve:   envInt("REASONING_RESERVE", DefaultReasoningReserve),
 		SummarizeThreshold: envFloat("SUMMARIZE_THRESHOLD", DefaultSummarizeThreshold),
 		LLMEndpoint:        envString("LLM_ENDPOINT", DefaultLLMEndpoint),
+		LLMFixture:         envString("LLM_FIXTURE", ""),
+		LLMRecord:          envString("LLM_RECORD", ""),
 		LLMTimeout:         envDuration("LLM_TIMEOUT", DefaultLLMTimeout),
 		ToolTimeout:        envDuration("TOOL_TIMEOUT", DefaultToolTimeout),
 		SchedulerTick:      envDuration("SCHEDULER_TICK", DefaultSchedulerTick),
@@ -139,6 +141,8 @@ func applyEnvOverrides(cfg *model.Config) {
 	cfg.ReasoningReserve = envInt("REASONING_RESERVE", cfg.ReasoningReserve)
 	cfg.SummarizeThreshold = envFloat("SUMMARIZE_THRESHOLD", cfg.SummarizeThreshold)
 	cfg.LLMEndpoint = envString("LLM_ENDPOINT", cfg.LLMEndpoint)
+	cfg.LLMFixture = envString("LLM_FIXTURE", cfg.LLMFixture)
+	cfg.LLMRecord = envString("LLM_RECORD", cfg.LLMRecord)
 	cfg.LLMTimeout = envDuration("LLM_TIMEOUT", cfg.LLMTimeout)
 	cfg.ToolTimeout = envDuration("TOOL_TIMEOUT", cfg.ToolTimeout)
 	cfg.SchedulerTick = envDuration("SCHEDULER_TICK", cfg.SchedulerTick)
@@ -189,6 +193,8 @@ func BindFlags(fs *flag.FlagSet) {
 	fs.Int("reasoning-reserve", envInt("REASONING_RESERVE", DefaultReasoningReserve), "tokens reserved for a reasoning model's <think> trace, on top of completion-reserve (LEATHER_REASONING_RESERVE)")
 	fs.Float64("summarize-threshold", envFloat("SUMMARIZE_THRESHOLD", DefaultSummarizeThreshold), "summarization trigger fraction (LEATHER_SUMMARIZE_THRESHOLD)")
 	fs.String("llm-endpoint", envString("LLM_ENDPOINT", DefaultLLMEndpoint), "LLM base URL (LEATHER_LLM_ENDPOINT)")
+	fs.String("llm-fixture", envString("LLM_FIXTURE", ""), "JSONL fixture replayed instead of a live LLM (LEATHER_LLM_FIXTURE)")
+	fs.String("llm-record", envString("LLM_RECORD", ""), "capture live completions to this JSONL fixture file (LEATHER_LLM_RECORD)")
 	fs.Duration("llm-timeout", envDuration("LLM_TIMEOUT", DefaultLLMTimeout), "LLM request timeout (LEATHER_LLM_TIMEOUT)")
 	fs.Duration("tool-timeout", envDuration("TOOL_TIMEOUT", DefaultToolTimeout), "global default per-tool-call timeout, 0=none (LEATHER_TOOL_TIMEOUT)")
 	fs.Duration("scheduler-tick", envDuration("SCHEDULER_TICK", DefaultSchedulerTick), "scheduler wake interval (LEATHER_SCHEDULER_TICK)")
@@ -264,6 +270,12 @@ func applyYAML(r io.Reader, cfg *model.Config) error {
 	}
 	if v, ok := strVal("llm_endpoint"); ok {
 		cfg.LLMEndpoint = v
+	}
+	if v, ok := strVal("llm_fixture"); ok {
+		cfg.LLMFixture = v
+	}
+	if v, ok := strVal("llm_record"); ok {
+		cfg.LLMRecord = v
 	}
 	if v, ok := strVal("api_addr"); ok {
 		cfg.APIAddr = v
@@ -448,6 +460,10 @@ func applyFlag(f *flag.Flag, cfg *model.Config) {
 		}
 	case "llm-endpoint":
 		cfg.LLMEndpoint = v
+	case "llm-fixture":
+		cfg.LLMFixture = v
+	case "llm-record":
+		cfg.LLMRecord = v
 	case "llm-timeout":
 		if d, err := time.ParseDuration(v); err == nil {
 			cfg.LLMTimeout = d
