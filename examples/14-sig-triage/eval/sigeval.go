@@ -311,8 +311,8 @@ func main() {
 		tmpPath := tmp.Name()
 		failTmp := func(err error) {
 			fmt.Fprintln(os.Stderr, "emit-rows:", err)
-			tmp.Close()
-			os.Remove(tmpPath)
+			_ = tmp.Close() // best-effort cleanup on the exit path
+			_ = os.Remove(tmpPath)
 			os.Exit(2)
 		}
 		w := bufio.NewWriter(tmp)
@@ -338,7 +338,7 @@ func main() {
 		}
 		if err := os.Rename(tmpPath, *emitRows); err != nil {
 			fmt.Fprintln(os.Stderr, "emit-rows:", err)
-			os.Remove(tmpPath)
+			_ = os.Remove(tmpPath) // best-effort cleanup on the exit path
 			os.Exit(2)
 		}
 	}

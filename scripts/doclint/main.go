@@ -253,7 +253,9 @@ func collectMarkdown(roots []string) ([]string, error) {
 			return nil, fmt.Errorf("docs root %q: %w", r, err)
 		}
 		if fi.IsDir() {
-			filepath.Walk(r, func(p string, f os.FileInfo, err error) error {
+			// Per-entry errors are handled inside the callback; Walk itself
+			// only fails on the root, which os.Stat above already vetted.
+			_ = filepath.Walk(r, func(p string, f os.FileInfo, err error) error {
 				if err == nil && !f.IsDir() && strings.HasSuffix(p, ".md") && !seen[p] {
 					seen[p] = true
 					files = append(files, p)
@@ -389,7 +391,10 @@ func main() {
 	if *jsonOut {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(vs)
+		if err := enc.Encode(vs); err != nil {
+			fmt.Fprintln(os.Stderr, "encode:", err)
+			os.Exit(2)
+		}
 	} else {
 		for _, v := range vs {
 			fmt.Printf("%s:%d: [%s] %s\n", v.File, v.Line, v.Check, v.Msg)
