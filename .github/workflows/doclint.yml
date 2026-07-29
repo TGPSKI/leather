@@ -1,0 +1,34 @@
+# .github/workflows/doclint.yml
+name: doclint
+on:
+  pull_request:
+    paths: ["docs/**", ".subagents/**", "*.md", "internal/**", "cmd/**", "scripts/doclint/**"]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  doclint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v6.0.2 (Node.js 24)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Set up Go
+        # actions/setup-go v6.4.0 (Node.js 24)
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          go-version-file: go.mod
+          # Project is stdlib-only — there is no go.sum, so the built-in
+          # module cache restore would always miss. Disable to avoid the
+          # spurious "Dependencies file is not found" warning.
+          cache: false
+
+      - name: doclint self-test
+        run: go test ./scripts/doclint/
+
+      - name: doc-consistency gate
+        run: go run ./scripts/doclint

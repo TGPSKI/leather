@@ -12,11 +12,15 @@ import (
 //
 //	-X main.version=$(git describe --tags --always --dirty)
 //	-X main.commit=$(git rev-parse --short HEAD)
+//
+// When the stamps are absent (plain `go install module@tag`), they are
+// resolved from the embedded Go build info instead.
 var (
 	version = "dev"
 	commit  = "none"
 )
 
 func main() {
-	os.Exit(cli.Run(os.Args[1:], os.Stdout, os.Stderr, version, commit))
+	v, c := cli.ResolveBuildVersion(version, commit)
+	os.Exit(cli.Run(os.Args[1:], os.Stdout, os.Stderr, v, c))
 }

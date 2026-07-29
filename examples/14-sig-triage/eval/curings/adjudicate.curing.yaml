@@ -1,0 +1,11 @@
+name: adjudicate
+description: >
+  Top-2 tie-break for issues the match stage was uncertain about (eval only;
+  terminal, no side effects). Fed by eval/scripts/adjudicate-pass.sh, NOT by a
+  curing output route -- leather has no content-conditional routing, so the
+  selection happens in the harness. See eval/README.md "Two-pass adjudication".
+agent: adjudicate
+queue: adjudicate-in
+page_size_bytes: 6000
+max_attempts: 2
+timeout_seconds: 180

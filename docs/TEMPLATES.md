@@ -8,7 +8,7 @@ which one is in play.
 
 | Syntax | Example | Where it works | What it does |
 | --- | --- | --- | --- |
-| `{{env:VAR}}` | `secret: "{{env:GITHUB_WEBHOOK_SECRET}}"` | YAML config (`tannery.yaml`, `config.yaml`, notify backends, skills) | Expanded at config load time from the process environment. Missing var → load error (fail closed). |
+| `{{env:VAR}}` | `secret: "{{env:GITHUB_WEBHOOK_SECRET}}"` | **Specific fields only:** `tannery.yaml` webhook `secret`, HTTP tool/skill URLs, headers and body templates, and `http_poll` source URLs/headers. **Not** general `config.yaml` settings — see below. | Expanded at load time from the process environment. Missing var → load error (fail closed). |
 | `{{env.VAR}}` | `"args": ["--token", "{{env.GH_TOKEN}}"]` | `shell-tools.json` (shell-mcp manifests) | Same semantics as `{{env:VAR}}` but uses the dot form to match the JSON manifest house style. |
 | `{{key}}` | `"Summarize {{repo_name}}"` | Agent prompts, lifecycle prompts, runner-injected runtime variables | Substituted at turn dispatch from runtime variables produced by `extract:` rules on prior tool results. Unknown keys are left literal unless `strict_templates` is set. |
 | `{{.field}}` | `"url": "https://api.example.com/{{.id}}"` | HTTP tool argument templates, file-path templates inside tool definitions | Go `text/template` with dot-rooted access to the tool's argument object. |
@@ -16,9 +16,24 @@ which one is in play.
 
 ## Choosing the right one
 
-- **Loading a secret from the environment?** Use `{{env:VAR}}` in YAML or
+- **Loading a secret from the environment?** Use `{{env:VAR}}` in the YAML
+  fields that support it (webhook `secret`, tool URLs/headers/bodies) or
   `{{env.VAR}}` in `shell-tools.json`. Both resolve at load time, both fail
   closed on a missing variable.
+- **Pointing a run at a different model or endpoint?** Use the **`LEATHER_*`
+  env overrides**, not a template. `config.yaml`'s scalar settings (`model`,
+  `llm_endpoint`, `max_tokens`, `log_level`, …) are plain values — a
+  `{{env:VAR}}` written there is **not** expanded and reaches the runtime as
+  the literal string. Keep the config's committed default readable
+  (`model: llama3`) and override per run:
+
+  ```
+  LEATHER_MODEL=qwen3.6-4b-instruct-2507-awq \
+  LEATHER_LLM_ENDPOINT=http://127.0.0.1:8000 leather serve
+  ```
+
+  `leather doctor` prints the effective value with its source, which is the
+  quickest way to confirm an override landed.
 - **Passing a runtime value between agent turns?** Use `{{key}}` in the
   prompt and an `extract:` rule on the upstream tool call to populate it.
 - **Building a tool URL or path from the tool's own arguments?** Use
@@ -30,6 +45,10 @@ which one is in play.
 
 - Mixing `{{env:VAR}}` and `{{env.VAR}}` — the colon form is YAML-only and
   the dot form is `shell-tools.json`-only. They are not interchangeable.
+- Writing `model: "{{env:LEATHER_MODEL}}"` in `config.yaml`. The colon form is
+  scoped to the fields listed above; a general config setting is **not**
+  templated, so this silently sends the literal `{{env:LEATHER_MODEL}}` to the
+  provider as a model name. Use the `LEATHER_MODEL` env override instead.
 - Using `{{key}}` in a YAML config file expecting it to read from the
   environment. `{{key}}` is a *runtime* variable, only meaningful inside an
   agent prompt or lifecycle step.

@@ -73,7 +73,7 @@ may redirect parts of `.state/`:
 ~/.local/state/leather/ → .state, logs (XDG_STATE_HOME)
 ```
 
-leather respects `LEATHER_STATE_DIR`, `LEATHER_LOG_DIR`,
+leather respects `LEATHER_STATE_DIR`, `LEATHER_LOG_FILE`,
 `LEATHER_AGENT_DIR`, `LEATHER_TOOL_DIR` (see
 [AGENTS-SERVE.md](AGENTS-SERVE.md)). XDG mapping is a deployment
 convention, not enforced by the binary.
@@ -183,11 +183,12 @@ logs itself.
   journal and skip the file log. `journalctl --user-unit leather`
   gives full retention control.
 
-- **Debug-log churn:** `--debug-log` files in `logs/debug/` are
-  per-run; manually purge via cron / launchd timer:
+- **Debug-level churn:** `--log-level debug` output grows fast. For a
+  diagnosis session, point `--log-file` at a scratch location and
+  purge it via cron / launchd timer:
 
   ```
-  find ~/.leather/logs/debug -mtime +14 -delete
+  find ~/.leather/logs -name 'debug-*.log' -mtime +14 -delete
   ```
 
 ---
@@ -292,26 +293,28 @@ treat restart as the rotation event. Document this in
 
 ## Metrics export
 
-The `--api` surface exposes `/metrics` (Prometheus-style text) and
-`/runs` / `/jobs` (JSON). For external scraping:
+The `--api` surface exposes `/metrics`, `/jobs`, and `/history` — all
+JSON (there is no Prometheus text exposition; an external Prometheus
+scrape needs a translation step). For external scraping:
 
 - Loopback bind by default; scrape from the same host.
 - For multi-host scraping, use an SSH tunnel or front the API with an
   authenticating reverse proxy.
-- The `runMetrics` block in [AGENTS-SERVE.md](AGENTS-SERVE.md) is the
-  source of truth for the exported metric names.
+- The metrics catalog in
+  [AGENTS-OBSERVABILITY.md](AGENTS-OBSERVABILITY.md) is the source of
+  truth for the exported JSON fields.
 
 ---
 
 ## Health endpoints
 
-- `GET /healthz` — liveness; returns `200 OK` whenever the HTTP server
-  is up.
-- `GET /readyz` — readiness; returns `200` only after the scheduler is
-  registered and the queue store is opened.
-- `GET /version` — `{ "version": "...", "git": "..." }`.
+- `GET /healthz` — liveness **and** readiness in one endpoint: JSON
+  `{status, checks}` covering state-dir writability and LLM-endpoint
+  presence; `200` when ok, `503` when degraded.
+- `GET /status` — includes `version` and `commit` for build
+  identification.
 
-Use `/readyz` for systemd `ExecStartPost=` health checks.
+Use `/healthz` for systemd `ExecStartPost=` health checks.
 
 ---
 

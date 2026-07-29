@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"time"
 )
@@ -52,6 +53,10 @@ type toolDef struct {
 	Defaults map[string]string `json:"defaults,omitempty"`
 	// Optional, when true, returns a graceful message if Command is not on PATH.
 	Optional bool `json:"optional,omitempty"`
+	// TimeoutSeconds overrides the default 30s execution timeout when > 0.
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+	// OutputCapBytes overrides the server's outputCap when > 0.
+	OutputCapBytes int `json:"output_cap_bytes,omitempty"`
 }
 
 // config is the root of the JSON config file.
@@ -92,6 +97,17 @@ type server struct {
 }
 
 func main() {
+	// The first positional arg is otherwise a config path, so version must be
+	// asked for explicitly — previously `shell-mcp --version` failed with
+	// `read config --version: no such file` (issue #50).
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "--version", "-v", "version":
+			fmt.Println("shell-mcp " + buildVersion())
+			return
+		}
+	}
+
 	cfgPath, err := resolveConfigPath()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "shell-mcp:", err)
@@ -192,13 +208,23 @@ func (s *server) toolList() []map[string]any {
 				props[k] = map[string]any{"type": "string", "pattern": pat}
 			}
 		}
+		// JSON Schema requires `required` to be an ARRAY. A tool that declares no
+		// required arguments leaves t.Required nil, which marshals to `null` --
+		// accepted silently under tool_choice:auto (nothing validates the schema)
+		// and fatal the moment a server builds a grammar from it:
+		//   400 Grammar error: Expected array for 'required', got null
+		// Emit an empty array so a zero-argument tool is still a valid schema.
+		required := t.Required
+		if required == nil {
+			required = []string{}
+		}
 		out = append(out, map[string]any{
 			"name":        t.Name,
 			"description": t.Description,
 			"inputSchema": map[string]any{
 				"type":       "object",
 				"properties": props,
-				"required":   t.Required,
+				"required":   required,
 			},
 		})
 	}
@@ -242,6 +268,19 @@ func (s *server) execute(def *toolDef, callArgs map[string]any) (string, error) 
 		merged[k] = fmt.Sprintf("%v", v)
 	}
 
+	// Enforce required arguments before substitution. Without this, a call
+	// that omits a required key runs the command with a literal, unsubstituted
+	// {{placeholder}} in it instead of failing loudly.
+	var missing []string
+	for _, key := range def.Required {
+		if _, ok := merged[key]; !ok {
+			missing = append(missing, key)
+		}
+	}
+	if len(missing) > 0 {
+		return "", fmt.Errorf("missing required argument(s): %s", strings.Join(missing, ", "))
+	}
+
 	// Validate pattern-constrained arguments before substitution. A missing
 	// argument validates as "", so anchored patterns reject absent values too —
 	// this catches a model passing blanks or literal placeholders like
@@ -262,7 +301,11 @@ func (s *server) execute(def *toolDef, callArgs map[string]any) (string, error) 
 		args[i] = applyVars(tmpl, merged)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	timeout := 30 * time.Second
+	if def.TimeoutSeconds > 0 {
+		timeout = time.Duration(def.TimeoutSeconds) * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, def.Command, args...)
@@ -277,7 +320,11 @@ func (s *server) execute(def *toolDef, callArgs map[string]any) (string, error) 
 		return "", err
 	}
 
-	return capOutput(out, s.outputCap), nil
+	outputCap := s.outputCap
+	if def.OutputCapBytes > 0 {
+		outputCap = def.OutputCapBytes
+	}
+	return capOutput(out, outputCap), nil
 }
 
 // applyVars replaces {{key}} occurrences in s with values from vars.
@@ -308,6 +355,30 @@ func isNotFound(err error) bool {
 	}
 	return strings.Contains(err.Error(), "executable file not found") ||
 		strings.Contains(err.Error(), "no such file or directory")
+}
+
+// buildVersion reports the module version from the embedded Go build info
+// (the tag for `go install module@tag` builds, "(devel)" or a vcs revision
+// for local ones). shell-mcp is stdlib-only, so this stays self-contained
+// instead of importing internal/cli.
+func buildVersion() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+	v := bi.Main.Version
+	if v == "" || v == "(devel)" {
+		for _, s := range bi.Settings {
+			if s.Key == "vcs.revision" {
+				if len(s.Value) > 12 {
+					return "dev (" + s.Value[:12] + ")"
+				}
+				return "dev (" + s.Value + ")"
+			}
+		}
+		return "dev"
+	}
+	return v
 }
 
 // resolveConfigPath returns the config file path from args, env, or default.

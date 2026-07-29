@@ -7,6 +7,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-29 "alligator"
+
 ### Fixed
 
 - **One slow MCP tool call bricked the whole scheduler until a manual restart** —
@@ -42,6 +44,61 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   gains a per-tool `max_repeats` (skill yaml), with `-1` disabling dedupe
   entirely.
 
+- **An out-of-scope tool call was run-fatal** — a tool call outside the
+  current turn's scope (hallucinated, prompt-injected, or recalled from the
+  system prompt after a context clear) was correctly never executed, but the
+  rejection failed the entire run, and the temperature-0 retry reproduced it
+  deterministically — one recoverable model mistake became a dead work item.
+  On the sig-triage eval a 4B model re-called a system-prompt-mentioned tool
+  on a `tools: []` turn in 435/471 decide rounds, dead-lettering 214/250
+  issues; a 35B never attempted the call on the identical config, which is
+  why the failure mode was invisible until a tool-happy small model probed
+  it. The executor now answers such calls with a tool-result error
+  (`tool X is not available on this turn`), still never executing them; a
+  model that keeps calling anyway is bounded by max tool rounds, and refused
+  calls never populate the dedupe cache.
+
+- **`shell-mcp` emitted invalid JSON Schema for zero-argument tools** — a
+  tool declaring no arguments serialized its schema as `"required": null`
+  instead of `"required": []`. Invisible under `tool_choice: auto`, but any
+  backend that compiles the schema into a grammar rejects every call with
+  `400 Grammar error: Expected array for 'required', got null`. The field
+  now always marshals as an array.
+
+- **Editor JSON schemas flagged valid, runtime-supported fields** — the
+  hand-maintained `schemas/*.schema.yaml` had drifted from the runtime
+  validators in `internal/schema/defs.go`: `toolsets` was missing from
+  `agent-1` (while present in `lifecycle-1`), `persist_runs_detail` /
+  `persist_runs_tool_cap` from `config-1`, and per-tool `max_repeats` from
+  `skill-1`, so editors marked working configs as errors. The missing fields
+  are now declared; full codegen from `defs.go` remains an open follow-up.
+
+- **`shell-mcp` per-tool limits were silently ignored** — per-tool
+  `timeout_seconds` and `output_cap_bytes` in shell-tools config were parsed
+  but never applied, so every tool ran at the global defaults (30 s /
+  4000 bytes), silently truncating large results mid-output. Both are now
+  enforced, and a call missing a required argument returns a proper tool
+  error instead of executing the command with literal `{{placeholder}}`
+  argv.
+
+- **`go install` binaries self-identified as `dev (none)`** (#49, #50) — the
+  version stamp came only from the Makefile's `-ldflags`, which plain
+  `go install github.com/TGPSKI/leather/cmd/{leather,shell-mcp}@<tag>` never
+  applies (the installs themselves work as of the v0.4.1 module-path fix;
+  verified against the module proxy). Both binaries now fall back to the
+  embedded Go build info — the module version for `@tag` installs, the VCS
+  revision for plain `go build` from a checkout. `shell-mcp --version` (also
+  `-v`/`version`) now prints it too, instead of failing with
+  `read config --version: no such file` because the argument was taken for a
+  config path.
+
+- **`queue_input:` in agent frontmatter was accepted but silently ignored** —
+  both `AgentFrontmatterSchema` and `agent-1.schema.yaml` advertised the
+  field ("a paired lifecycle takes precedence"), and `leather validate`
+  passed it, but only the lifecycle parser actually read it, so a
+  frontmatter-only agent never drained its queue and nothing said why. The
+  frontmatter parser now honors it; lifecycle still wins when both are set.
+
 ### Added
 
 - **Per-tool-call timeout** — a single run-level timeout previously governed
@@ -62,6 +119,96 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   new `persist_runs_detail: none|tools` config (default `none`, byte-identical
   legacy output) and `persist_runs_tool_cap` (default 2048 bytes/field). Args
   are redacted via `internal/secret` before persisting.
+
+- **Per-turn context clearing — `clear: true` on a turn section** — leather
+  had per-turn *tool* scoping (`tools:` / `skills:` / `toolsets:` per turn)
+  but no per-turn *context* bounding: `Session.Reset` had zero production
+  callers, so context only ever grew, and every turn inherited everything —
+  including the model's own intermediate speculation (measured on the
+  sig-triage eval: a three-turn agent grew 1206 → 2828 prompt tokens across
+  its turns and lost ~9 points to its two-turn sibling on paired per-issue
+  comparison). A turn may now
+  declare `clear: true` alongside `tools:`/`skills:`/`toolsets:`: the
+  conversation is reset before that turn's prompt is added; the system
+  message and turn variables survive, because skill `extract:` captures live
+  outside the session. That pairing is the point — distil a large tool
+  result into `{{key}}`, then discard the raw blob. The alternative
+  (splitting into two curings for a fresh session) was measured too and
+  costs information: the handoff discarded the correct answer on 9.6% of
+  issues; per-turn clear keeps one agent reasoning across the boundary.
+
+- **`examples/14-sig-triage`** — assign a Kubernetes SIG to unlabeled issues
+  with a small local model, with the accuracy claims measured rather than
+  asserted: the same frozen 4B model scores 62.8%–81.6% on a 250-issue gold
+  corpus depending only on the runtime design around it. The example ships
+  the eval harness that measured it (tiered corpus, ablation-arm registry,
+  paired per-issue verdicts, evidence archives with replayable analysis)
+  alongside the winning curing design; method and verdicts are documented in
+  `docs/LEP-0006-group-evals.md` and `docs/LEP-0008-conditional-routing.md`.
+
+- **doclint** — a documentation-consistency gate (`scripts/doclint`, CI
+  workflow `doclint.yml`) that cross-checks doc claims against the source,
+  with per-line `doclint:allow` escapes and a file-level
+  `doclint:disable-file` directive for documents that quote drift by design
+  (audit reports); a missing docs root fails closed. Env vars leather *sets*
+  for child processes (`os.Setenv`, e.g. `LEATHER_INTAKE_URL`) count as
+  referents. The full doc set — subagent guides, `docs/GUIDE.md`, schemas —
+  was reconciled against the code to bring the gate to zero violations:
+  phantom flags/env/endpoints removed or marked planned, the stale
+  `exec.*` shell-tools form replaced with the real `command`/`args` schema,
+  tool-name casing corrected to snake_case, `/metrics` documented as the
+  JSON it actually returns, and UI docs repointed from `/runs` to the real
+  `/jobs` + `/history`.
+
+- **Offline LLM fixture: `llm_record` / `llm_fixture`** — there was no
+  supported way to run a full pipeline end-to-end without a live model:
+  `MockLLM` was reachable only from `test-agent`, so proving wiring in CI
+  meant hand-rolling a scripted OpenAI-compatible server. `--llm-record
+  capture.jsonl` now wraps the live client and captures every completion
+  (including tool calls) to JSONL; `--llm-fixture capture.jsonl` replays it
+  instead of calling a model — one recorded completion per call, in order,
+  failing loudly with the call index and last message when a run diverges
+  from its recording. serve, run, and workflow-run share one client per
+  process so replay order spans jobs. `make 06-smoke` is the working proof:
+  the full ingest → triage → summarize → artifact pipeline of example 06,
+  modelless, failing the target if no artifact is produced.
+
+- **`leather validate` covers `shell-tools.json`** — the most format-fiddly
+  hand-edited artifact was the only one with no schema and no validate
+  coverage; a malformed tools file passed `leather validate` and failed only
+  at runtime inside shell-mcp, as a silently tool-less agent.
+  `schema.ValidateShellToolsJSON` now validates every `*.json` referenced
+  from an `mcp-servers.yaml` command line: required fields, the removed
+  `exec.*`/`argv` forms, unknown fields, RE2 pattern compilation, snake_case
+  and duplicate names. A matching editor schema ships as
+  `schemas/shell-tools-1.schema.yaml`. First catch: example 09 declared
+  `"timeout": N`, a field shell-mcp silently ignores — its tools had been
+  running at the 30 s default since they were written (now
+  `timeout_seconds`).
+
+- **Schema ↔ runtime parity is now enforced** — a test
+  (`internal/schema/parity_test.go`) asserts every runtime validator field
+  in `defs.go` appears in the corresponding `schemas/*.schema.yaml` and
+  vice-versa (nested-only blocks declared explicitly), so the editor-schema
+  drift class cannot recur; the YAML schemas stay hand-written because their
+  descriptions carry operator guidance codegen would flatten. First catches:
+  agent frontmatter accepted `toolsets`, `tool_timeout`, and `thinking`
+  while both `defs.go` and `agent-1.schema.yaml` omitted them.
+
+- **`make new-example NAME=<slug>`** — adding an example was tribal
+  knowledge (pick the next index, hand-register Makefile targets, copy
+  `pretty.sh`, source `preflight.sh`). The scaffolder allocates the index,
+  creates the standard tree, appends the `NN`/`NN-live` targets, and prints
+  the two hand-written registrations; the convention itself is now
+  documented in `examples/README.md`.
+
+- **`docs/CONVENTIONS.md`** — central environment-variable reference (name,
+  default, scope, effect) covering the binary's load-bearing vars, shell-mcp,
+  and the example-shell contract (`LEATHER_DEMO_MODE` and the dry-mode
+  idiom, example 13's git vars, webhook/GitHub tokens). The GUIDE config
+  reference now also documents `llm_endpoint`/`llm_api_key`,
+  `mcp_servers_file` (without it, agents run tool-less with no error),
+  `queue_pattern` routes, and the `workflow run` webhook-secret coupling.
 
 ## [0.4.1] — 2026-07-05
 
@@ -641,7 +788,8 @@ Intentionally out of scope for v0.1.0; tracked for v0.2:
 See [ROADMAP.md](ROADMAP.md) for the full deferred-item list with
 rationales and proposed shapes.
 
-[Unreleased]: https://github.com/TGPSKI/leather/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/TGPSKI/leather/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/TGPSKI/leather/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/TGPSKI/leather/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/TGPSKI/leather/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/TGPSKI/leather/compare/v0.2.0...v0.3.0

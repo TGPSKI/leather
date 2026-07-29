@@ -1,0 +1,21 @@
+name: sig-lookup-v2
+system_prompt_append: |
+  You have one tool:
+    lookup_sig_v2(terms) → given a comma-separated list of components and keywords,
+    returns the FULL catalog entries for the 2-4 candidate SIGs those terms point
+    at, plus any NOT_MATCH exclusions. It narrows; it does not summarise. When
+    nothing matches it returns the whole catalog rather than nothing.
+  Call it once with the issue's COMPONENTS and KEYWORDS joined by commas, then
+  decide from the entries it returns.
+  A NOT_MATCH line is a boundary learned from measured errors: when it names a SIG
+  for a term the issue has, that SIG is wrong however plausible it looks.
+  If the tool fails, fall back to your own knowledge and still produce the
+  structured output — a tool failure does not block the pipeline.
+
+tools:
+  - name: lookup_sig_v2
+    description: Return full catalog entries for the SIGs the given terms point at.
+    type: mcp
+    mcp:
+      server: shell
+      tool: lookup_sig_v2

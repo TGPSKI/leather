@@ -724,12 +724,102 @@ func TestRunner_UnknownToolRejected(t *testing.T) {
 	a := testAgent("injection-test")
 	a.Skills = []string{"safe-skill"}
 
+	// The injected tool is NEVER executed, but the refusal is a tool-result
+	// error the model can recover from — not a run failure. A run-fatal
+	// rejection turned one bad call into a dead work item (measured: 214/250
+	// issues dead-lettered when a 4B recalled a system-prompt tool on a
+	// tools: [] turn).
 	rec, err := r.Run(context.Background(), a, testBudget())
-	if err == nil {
-		t.Fatal("expected error for unknown tool, got nil")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if rec.Status != model.JobStatusError {
-		t.Errorf("status = %q, want error", rec.Status)
+	if rec.Status != model.JobStatusSuccess {
+		t.Errorf("status = %q, want success", rec.Status)
+	}
+	// The follow-up round must have seen the refusal as a tool message.
+	calls := mock.Calls()
+	if len(calls) != 2 {
+		t.Fatalf("LLM call count = %d, want 2 (tool round + recovery round)", len(calls))
+	}
+	found := false
+	for _, m := range calls[1] {
+		if m.Role == "tool" && m.ToolName == "injected_tool" &&
+			strings.Contains(m.Content, `tool "injected_tool" is not available on this turn`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("recovery round did not carry the refusal tool message; messages: %+v", calls[1])
+	}
+}
+
+// TestRunner_OutOfScopeTurnToolRefusedWithoutExecution pins the T2c wreck shape:
+// a tool registered to the agent and available on turn 0 is called by name on a
+// later turn declared `tools: []`. The executor must refuse it (never execute),
+// deliver the refusal as a recoverable tool-result error, and let the run finish.
+func TestRunner_OutOfScopeTurnToolRefusedWithoutExecution(t *testing.T) {
+	reg := tool.NewRegistry()
+	skill := model.Skill{
+		Name: "catalog",
+		Tools: []model.ToolDefinition{
+			{
+				Name: "get_ref",
+				Type: "http",
+				HTTP: model.HTTPToolConfig{Method: "GET", URL: "http://127.0.0.1:0/ref"},
+			},
+		},
+	}
+	if err := reg.Register(skill); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	// Call 0 (turn 0): plain text. Call 1 (turn 1, tools: []): the model recalls
+	// get_ref from the system prompt. Call 2: recovery text.
+	mock := session.NewMockLLM(session.MockConfig{
+		Response: "FINAL",
+		ToolCallSequence: [][]model.ToolCall{
+			nil,
+			{{ID: "call-oos", Name: "get_ref", Arguments: map[string]any{}}},
+		},
+	})
+
+	r := &Runner{
+		Client:        mock,
+		Registry:      reg,
+		Log:           testLogger(t),
+		MaxToolRounds: 5,
+	}
+
+	a := testAgent("t2c-shape")
+	a.Skills = []string{"catalog"}
+	a.UserPrompts = []string{"gather evidence", "decide now"}
+	a.TurnTools = [][]string{nil, {}} // turn 1 declares tools: []
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Errorf("status = %q, want success", rec.Status)
+	}
+	calls := mock.Calls()
+	if len(calls) != 3 {
+		t.Fatalf("LLM call count = %d, want 3 (turn 0 + refused round + recovery)", len(calls))
+	}
+	// The recovery round carries the refusal — and NOT an executed-tool result:
+	// an executed http tool against 127.0.0.1:0 would surface a transport error,
+	// so asserting the refusal text distinguishes refusal from execution.
+	found := false
+	for _, m := range calls[2] {
+		if m.Role == "tool" && m.ToolName == "get_ref" {
+			if !strings.Contains(m.Content, `tool "get_ref" is not available on this turn`) {
+				t.Errorf("tool message is not the refusal (was it executed?): %q", m.Content)
+			}
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no tool message for the refused call in recovery round; messages: %+v", calls[2])
 	}
 }
 

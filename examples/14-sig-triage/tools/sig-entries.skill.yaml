@@ -1,0 +1,14 @@
+name: sig-entries
+system_prompt_append: |
+  You have one tool:
+    sig_entries(sigs) → returns the catalog entries for the SIG names you pass, as a
+    comma-separated list. It returns nothing else, so pass only the candidates you were
+    given.
+  Call it once with the CANDIDATES from your input, then decide between them.
+tools:
+  - name: sig_entries
+    description: Return catalog entries for the named SIGs.
+    type: mcp
+    mcp:
+      server: shell
+      tool: sig_entries

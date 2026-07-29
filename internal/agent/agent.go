@@ -221,7 +221,7 @@ func LoadFile(path string) (model.Agent, error) {
 		return model.Agent{}, fmt.Errorf("agent/LoadFile %s: %w", filepath.Base(path), err)
 	}
 
-	sysPrompt, turnPrompts, turnTools, turnSkills, turnToolsets := splitAgentBody(body)
+	sysPrompt, turnPrompts, turnTools, turnSkills, turnToolsets, turnClear := splitAgentBody(body)
 
 	return model.Agent{
 		Name:              fm.Name,
@@ -240,9 +240,11 @@ func LoadFile(path string) (model.Agent, error) {
 		Skills:            fm.Skills,
 		Toolsets:          fm.Toolsets,
 		ToolRounds:        fm.ToolRounds,
+		QueueInput:        fm.QueueInput,
 		DisableThinking:   fm.DisableThinking,
 		TurnSkills:        turnSkills,
 		TurnToolsets:      turnToolsets,
+		TurnClear:         turnClear,
 		SourcePath:        path,
 	}, nil
 }
@@ -261,24 +263,25 @@ func LoadFile(path string) (model.Agent, error) {
 // A nil entry in turn slices means "not declared for that turn". When the body
 // contains no "---" separators, turn slices are nil and existing behaviour
 // (single system-prompt agent) is preserved.
-func splitAgentBody(body string) (sysPrompt string, turnPrompts []string, turnTools [][]string, turnSkills [][]string, turnToolsets [][]string) {
+func splitAgentBody(body string) (sysPrompt string, turnPrompts []string, turnTools [][]string, turnSkills [][]string, turnToolsets [][]string, turnClear []bool) {
 	const sep = "\n---\n"
 	parts := strings.Split(body, sep)
 	sysPrompt = strings.TrimSpace(parts[0])
 	if len(parts) == 1 {
-		return sysPrompt, nil, nil, nil, nil
+		return sysPrompt, nil, nil, nil, nil, nil
 	}
 	for _, part := range parts[1:] {
-		prompt, skills, toolsets, tools := parseTurnSection(part)
+		prompt, skills, toolsets, tools, clear := parseTurnSection(part)
 		turnPrompts = append(turnPrompts, prompt)
 		turnTools = append(turnTools, tools)
 		turnSkills = append(turnSkills, skills)
 		turnToolsets = append(turnToolsets, toolsets)
+		turnClear = append(turnClear, clear)
 	}
 	return
 }
 
-func parseTurnSection(part string) (prompt string, skills []string, toolsets []string, tools []string) {
+func parseTurnSection(part string) (prompt string, skills []string, toolsets []string, tools []string, clear bool) {
 	lines := strings.Split(strings.TrimSpace(part), "\n")
 	idx := 0
 	for idx < len(lines) {
@@ -299,15 +302,18 @@ func parseTurnSection(part string) (prompt string, skills []string, toolsets []s
 			toolsets = items
 		case "tools":
 			tools = items
+		case "clear":
+			// `clear: true` resets the conversation before this turn.
+			clear = len(items) > 0 && (items[0] == "true" || items[0] == "yes")
 		}
 		idx++
 	}
 	prompt = strings.TrimSpace(strings.Join(lines[idx:], "\n"))
-	return prompt, skills, toolsets, tools
+	return prompt, skills, toolsets, tools, clear
 }
 
 func turnDecl(line string) (string, string, bool) {
-	for _, key := range []string{"skills", "toolsets", "tools"} {
+	for _, key := range []string{"skills", "toolsets", "tools", "clear"} {
 		if after, found := strings.CutPrefix(line, key+":"); found {
 			return key, strings.TrimSpace(after), true
 		}

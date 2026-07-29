@@ -57,7 +57,7 @@ Exit codes:
   2  usage error (missing required flags, unresolved route)
 `
 
-// workflowLLMClient, when non-nil, overrides buildHTTPClient in RunWorkflowRun.
+// workflowLLMClient, when non-nil, overrides buildLLMClient in RunWorkflowRun.
 // Set in tests to inject a MockLLM without an HTTP server.
 var workflowLLMClient session.LLMClient
 
@@ -191,7 +191,15 @@ func RunWorkflowRun(args []string, stdout, stderr io.Writer) int {
 	if workflowLLMClient != nil {
 		llmClient = workflowLLMClient
 	} else {
-		llmClient = buildHTTPClient(cfg)
+		var llmErr error
+		llmClient, llmErr = buildLLMClient(cfg)
+		if llmErr != nil {
+			fmt.Fprintf(stderr, "leather workflow run: llm client: %v\n", llmErr)
+			return 1
+		}
+		if closer, ok := llmClient.(interface{ Close() error }); ok {
+			defer closer.Close() //nolint:errcheck
+		}
 	}
 
 	toolReg, err := tool.Load(cfg.ToolDir)

@@ -34,6 +34,22 @@ run should show page facts for each hide page, successful `hide_next` calls for
 later pages, and a final-output context containing page facts rather than raw
 hide bodies.
 
+## Fixture-backed smoke (no LLM)
+
+```bash
+make 06-smoke
+```
+
+Runs the same ingest → triage → summarize → artifact pipeline with **no
+model behind it**: `--llm-fixture sample/fixture.jsonl` replays two recorded
+completions, one per LLM call, and the target fails if no artifact is
+produced. This is the CI wiring proof — it verifies queues, routing, curing
+chaining, and artifact persistence without an endpoint. It ingests the
+sub-page-size `sample/pr-thread-small.txt` so the call sequence is exactly
+two completions (the full sample triggers hide pagination, whose multi-round
+protocol belongs in a live recording). To capture a fresh recording from a
+live model, swap `--llm-fixture` for `--llm-record sample/fixture.jsonl`.
+
 ## What this shows
 
 - Chaining curings: the triage curing's `output.queue` enqueues the agent

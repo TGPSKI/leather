@@ -19,6 +19,7 @@ isolation from a fresh clone with **a single `make` target**.
 | [11](11-high-volume-ci/) | `11-high-volume-ci` | yes | **Advanced** — high-volume burst of CI webhooks using `queue_pattern` single-use queues |
 | [12](12-spa-maintenance/) | `12-spa-maintenance` | yes | **Advanced** — scheduled SPA health-check agent with artifact persistence |
 | [13](13-git-workflow-commit/) | `13-git-workflow-commit` | yes | **Advanced** — `leather workflow run`: concurrent fan-out; planner enqueues per-file GPG commits picked up immediately by executor workers |
+| [14](14-sig-triage/) | `14-sig-triage` | yes | **Advanced** — classify unsigged k8s issues → SIG on a small local model; ships the full eval harness (250-issue gold corpus, ablation matrix, paired verdicts) that measured a 62.8→81.6% range on one frozen 4B |
 
 ### RPi/Hailo examples
 
@@ -36,8 +37,10 @@ Basic (`01`–`06`): Go 1.22+, `bash`, `curl`.
 
 Webhook examples (`04`–`08`, `10`–`12`): also `openssl` (for HMAC signing).
 
-Advanced (`09`–`13`): also `jq`.  Examples 09 and 10 optionally use the `gh`
-CLI and a Telegram bot token; both degrade gracefully if absent.
+Advanced (`09`–`14`): also `jq`.  Examples 09 and 10 optionally use the `gh`
+CLI and a Telegram bot token; both degrade gracefully if absent. Example 14's
+live mode uses `gh`; its eval targets (`14-eval*`) want an OpenAI-compatible
+endpoint (vLLM, Ollama, ...) and `python3`.
 Example 13 also requires `gpg` and a signing key on the keyring.
 
 RPi/Hailo (`rpi-01`–`rpi-03`): require a Raspberry Pi 5 with AI HAT+ 2,
@@ -81,6 +84,10 @@ LEATHER_RPI_LLM_ENDPOINT=http://pi-host:8080 LEATHER_RPI_MODEL=qwen3:1.7b make r
 - `.state/`, `hides/`, `artifacts/`, and `*.log` are git-ignored.
 - LLM-backed examples honor `LEATHER_LLM_ENDPOINT` and `LEATHER_MODEL` and
   default to `http://localhost:11434` + `llama3`.
+- Outbound side effects are gated by `LEATHER_DEMO_MODE` (default `dry`);
+  `make NN-live` opts into real API calls. The full env-var reference,
+  including the dry-mode idiom, is
+  [docs/CONVENTIONS.md](../docs/CONVENTIONS.md).
 - `make clean` wipes per-example state but leaves source files alone.
 - `make help` lists every target with a one-line description.
 
@@ -97,3 +104,30 @@ NN-name/
   sample/            # canned input you can feed in
   scripts/           # helper shell scripts (e.g. send-webhook.sh)
 ```
+
+## Adding a new example
+
+```
+make new-example NAME=<slug>
+```
+
+The scaffolder (`scripts/new-example.sh`) allocates the next free `NN`
+index, creates the standard tree above, and appends the `NN` / `NN-live`
+Makefile targets. It prints the two registrations that stay hand-written —
+the index-table row in this README and the `make help` line — plus the
+TODOs to replace.
+
+The contract every example follows:
+
+- `make NN` runs the demo in **dry mode** (`LEATHER_DEMO_MODE=dry`): every
+  outbound side effect is mocked with fixtures under `sample/dry/`, and
+  side-effect tools print `dry-mode: would …` instead of acting.
+  `make NN-live` opts into real API calls.
+- `scripts/run-demo.sh` sources `../scripts/preflight.sh` for the mode
+  banner and fail-fast env checks, and drives its output through the
+  example's own `scripts/pretty.sh` copy (no central copy — clone the
+  newest sibling's, which the scaffolder does for you).
+- The example never touches anything outside its own directory;
+  `.state/`, `hides/`, `artifacts/`, and `*.log` are git-ignored.
+- Env-var conventions (including the dry-mode idiom) live in
+  [docs/CONVENTIONS.md](../docs/CONVENTIONS.md).

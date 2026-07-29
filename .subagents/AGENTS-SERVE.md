@@ -52,6 +52,8 @@ Each subcommand has:
 | `snapshot` | `RunSnapshot` → `RunSnapshotSave` / `RunSnapshotRestore` | Save or restore a `tar.gz` point-in-time archive of runtime state |
 | `attach` | `RunAttach` | Join a running `serve` instance and stream pretty-printed DevTools events |
 | `version` | `RunVersion` | Print version, commit, Go runtime version |
+| `replay` | `RunReplay` | Replay a captured snapshot or runs directory via the API |
+| `completion` | `RunCompletion` | Print a static bash/zsh/fish completion script |
 
 `cli.Run` also accepts `help`, `--help`, and `-h`, which print `usage`
 directly without a dedicated `RunHelp` function.

@@ -1,0 +1,7 @@
+name: label
+description: Assign the matched SIG via comment and/or label (dry by default).
+agent: label
+queue: label-in
+page_size_bytes: 4000
+max_attempts: 2
+timeout_seconds: 120

@@ -125,7 +125,7 @@ Check repo state.
 ---
 toolsets: [release-write]
 Create the tag.`
-	sysPrompt, prompts, tools, skills, toolsets := splitAgentBody(body)
+	sysPrompt, prompts, tools, skills, toolsets, _ := splitAgentBody(body)
 	if sysPrompt != "System prompt." {
 		t.Fatalf("sysPrompt = %q", sysPrompt)
 	}

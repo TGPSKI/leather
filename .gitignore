@@ -16,3 +16,7 @@ reviews/
 dev/
 recordings/
 .state-profiles/
+plans/
+
+# private working notes -- never committed
+_private/

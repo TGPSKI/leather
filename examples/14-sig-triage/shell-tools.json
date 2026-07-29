@@ -1,0 +1,114 @@
+{
+  "tools": [
+    {
+      "name": "get_sig_reference",
+      "description": "Return the SIG feature catalog (YAML: each SIG with its signifying components and keywords). Call once, then match the issue's signals against it.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "cat \"${SIG_REFERENCE:-sigs.reference.yaml}\""
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 8000
+    },
+    {
+      "name": "apply_sig",
+      "description": "Assign a SIG to a GitHub issue. SIG_ACTION selects comment (default, posts /sig <name>), label (adds sig/<name>), or both. Dry unless LEATHER_DEMO_MODE=live.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "name=\"${3#sig-}\"; label=\"sig/${name}\"; action=\"${SIG_ACTION:-comment}\"; mode=\"${LEATHER_DEMO_MODE:-dry}\"; if [ \"$action\" = comment ] || [ \"$action\" = both ]; then if [ \"$mode\" = live ]; then gh issue comment \"$1\" --repo \"$2\" --body \"/sig ${name}\"; else printf 'dry-mode: would comment /sig %s on issue #%s in %s\\n' \"$name\" \"$1\" \"$2\"; fi; fi; if [ \"$action\" = label ] || [ \"$action\" = both ]; then if [ \"$mode\" = live ]; then gh issue edit \"$1\" --repo \"$2\" --add-label \"$label\"; else printf 'dry-mode: would add label %s to issue #%s in %s\\n' \"$label\" \"$1\" \"$2\"; fi; fi",
+        "--",
+        "{{issue}}",
+        "{{repo}}",
+        "{{sig}}"
+      ],
+      "required": [
+        "issue",
+        "repo",
+        "sig"
+      ],
+      "timeout_seconds": 20
+    },
+    {
+      "name": "lookup_sig",
+      "description": "Look up which SIGs own the given components/keywords. Pass the issue's COMPONENTS and KEYWORDS as one comma-separated list. Returns only the candidate SIGs for those terms with a tally, plus NOT_MATCH exclusions.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "idx=\"${SIG_INDEX:-sigs.index.tsv}\"; q=\"$(printf \"%s\" \"$1\" | tr \"\\n\" \",\")\"; IFS=\",\" read -ra TS <<< \"$q\"; hits=\"\"; for t in \"${TS[@]}\"; do   t=\"$(printf \"%s\" \"$t\" | sed -e \"s/^[[:space:]]*//\" -e \"s/[[:space:]]*$//\")\";   [ \"${#t}\" -ge 3 ] || continue;   h=\"$(grep -iF -- \"$t\" \"$idx\" || true)\";   [ -n \"$h\" ] && hits=\"$hits$h\n\"; done; hits=\"$(printf \"%b\" \"$hits\" | grep . | sort -u | head -40 || true)\"; if [ -z \"$hits\" ]; then echo \"no associations found for: $q\"; exit 0; fi; echo \"ASSOCIATIONS (term -> verdict -> sig):\"; printf \"%s\\n\" \"$hits\"; echo; echo \"TALLY (MATCH count per sig):\"; printf '%s\\n' \"$hits\" | awk -F'\\t' '$2==\"MATCH\"{c[$3]++} END{for(s in c) print c[s]\"  \"s}' | sort -rn; echo; echo \"EXCLUSIONS (NOT_MATCH rules the sig out for that term):\"; printf '%s\\n' \"$hits\" | awk -F'\\t' '$2==\"NOT_MATCH\"{print $1\"  ->  NOT \"$3}' | sort -u",
+        "--",
+        "{{terms}}"
+      ],
+      "required": [
+        "terms"
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 8000
+    },
+    {
+      "name": "lookup_sig_v2",
+      "description": "Given the issue's components and keywords as a comma-separated list, return the FULL catalog entries for the 2-4 candidate SIGs those terms point at, plus any NOT_MATCH exclusions. Falls back to the whole catalog when nothing matches, because an empty lookup is worse than no lookup.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "idx=\"${SIG_INDEX:-sigs.index.tsv}\"; cat=\"${SIG_REFERENCE:-sigs.reference.yaml}\"; q=\"$(printf \"%s\" \"$1\" | tr \"\\n\" \",\")\"; IFS=\",\" read -ra TS <<< \"$q\"; hits=\"\"; for t in \"${TS[@]}\"; do   t=\"$(printf \"%s\" \"$t\" | sed -e \"s/^[[:space:]]*//\" -e \"s/[[:space:]]*$//\")\";   [ \"${#t}\" -ge 3 ] || continue;   h=\"$(grep -iF -- \"$t\" \"$idx\" || true)\"; [ -n \"$h\" ] && hits=\"$hits$h\n\"; done; hits=\"$(printf \"%b\" \"$hits\" | grep . | sort -u || true)\"; cands=\"$(printf \"%s\\n\" \"$hits\" | awk -F\"\\t\" \"\\$2==\\\"MATCH\\\"{print \\$3}\" | sort | uniq -c | sort -rn | head -4 | awk \"{print \\$2}\")\"; if [ -z \"$cands\" ]; then echo \"NO INDEX MATCH - returning the full catalog:\"; cat \"$cat\"; exit 0; fi; echo \"CANDIDATE SIGS (narrowed from the issue terms), with their catalog entries:\"; echo; for s in $cands; do awk -v s=\"$s\" \"/^  - name: /{p=(\\$0 ~ s\\\"\\$\\\")} p\" \"$cat\"; done; echo; echo \"EXCLUSIONS (NOT_MATCH rules a sig out for that term):\"; printf \"%s\\n\" \"$hits\" | awk -F\"\\t\" \"\\$2==\\\"NOT_MATCH\\\"{print \\$1\\\"  ->  NOT \\\"\\$3}\" | sort -u",
+        "--",
+        "{{terms}}"
+      ],
+      "required": [
+        "terms"
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 8000
+    },
+    {
+      "name": "lookup_sig_v3",
+      "description": "Given the issue's components and keywords as a comma-separated list, return the full catalog entries for the candidate SIGs \u2014 with SIGs ruled out by learned boundaries already removed. The filtering is done for you; every entry returned is a legitimate candidate.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "idx=\"${SIG_INDEX:-sigs.index.tsv}\"; cat=\"${SIG_REFERENCE:-sigs.reference.yaml}\"; q=\"$(printf \"%s\" \"$1\" | tr \"\\n\" \",\")\"; IFS=\",\" read -ra TS <<< \"$q\"; hits=\"\"; for t in \"${TS[@]}\"; do   t=\"$(printf \"%s\" \"$t\" | sed -e \"s/^[[:space:]]*//\" -e \"s/[[:space:]]*$//\")\";   [ \"${#t}\" -ge 3 ] || continue;   h=\"$(grep -iF -- \"$t\" \"$idx\" || true)\"; [ -n \"$h\" ] && hits=\"$hits$h\n\"; done; hits=\"$(printf \"%b\" \"$hits\" | grep . | sort -u || true)\"; if [ -z \"$hits\" ]; then echo \"NO INDEX MATCH - returning the full catalog:\"; cat \"$cat\"; exit 0; fi; cands=\"$(printf \"%s\\n\" \"$hits\" | awk -F\"\\t\" \"\\$2==\\\"MATCH\\\"{print \\$3}\" | sort | uniq -c | sort -rn | head -5 | awk \"{print \\$2}\")\"; excl=\"$(printf \"%s\\n\" \"$hits\" | awk -F\"\\t\" \"\\$2==\\\"NOT_MATCH\\\"{print \\$3}\" | sort -u)\"; kept=\"\"; pruned=\"\"; for c in $cands; do   if printf \"%s\\n\" \"$excl\" | grep -qx \"$c\"; then pruned=\"$pruned $c\"; else kept=\"$kept $c\"; fi; done; if [ -z \"$(printf \"%s\" \"$kept\" | tr -d \"[:space:]\")\" ]; then   echo \"NOTE: every candidate was excluded; returning them unfiltered rather than nothing.\";   kept=\"$cands\"; pruned=\"\"; fi; echo \"CANDIDATE SIGS (already filtered - excluded ones are NOT shown):\"; echo; for s in $kept; do awk -v s=\"$s\" \"/^  - name: /{p=(\\$0 ~ s\\\"\\$\\\")} p\" \"$cat\"; done; if [ -n \"$(printf \"%s\" \"$pruned\" | tr -d \"[:space:]\")\" ]; then   echo; echo \"PRUNED by learned boundaries (do not reconsider these):$pruned\"; fi",
+        "--",
+        "{{terms}}"
+      ],
+      "required": [
+        "terms"
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 8000
+    },
+    {
+      "name": "sig_entries",
+      "description": "Return the catalog entries for the named SIGs. Pass a comma-separated list of catalog names (e.g. sig-node,sig-storage). Returns only those entries.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "cat=\"${SIG_REFERENCE:-sigs.reference.yaml}\"; q=\"$(printf \"%s\" \"$1\" | tr \"\\n\" \",\")\"; IFS=\",\" read -ra SS <<< \"$q\"; n=0; for s in \"${SS[@]}\"; do   s=\"$(printf \"%s\" \"$s\" | tr -d \"[:space:]\")\";   case \"$s\" in sig-*) ;; *) continue ;; esac;   out=\"$(awk -v s=\"$s\" \"/^  - name: /{p=(\\$0 == \\\"  - name: \\\" s)} p\" \"$cat\")\";   [ -n \"$out\" ] && { printf \"%s\\n\" \"$out\"; n=$((n+1)); }; done; [ \"$n\" = 0 ] && echo \"no catalog entry matched: $q\" || true",
+        "--",
+        "{{sigs}}"
+      ],
+      "required": [
+        "sigs"
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 8000
+    },
+    {
+      "name": "record_shortlist",
+      "description": "Record your shortlist before the context is cleared. Pass the complete shortlist text (ISSUE, REPO, CANDIDATES, EVIDENCE lines). Returns it verbatim; only recorded text survives the clear.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "printf \"%s\\n\" \"$1\"",
+        "--",
+        "{{text}}"
+      ],
+      "required": [
+        "text"
+      ],
+      "timeout_seconds": 5,
+      "output_cap_bytes": 8000
+    }
+  ]
+}

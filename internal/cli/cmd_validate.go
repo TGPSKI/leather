@@ -208,6 +208,30 @@ func RunValidate(args []string, stdout, stderr io.Writer) int {
 				fmt.Fprintf(stdout, "ok:     %s  (%s)\n", name, mcpFile)
 			}
 			totalFiles++
+
+			// --- Phase 4b: shell-tools.json files referenced by MCP server
+			// commands. shell-tools.json is the most format-fiddly hand-edited
+			// artifact; without this phase a malformed file passes validate and
+			// only fails at runtime inside shell-mcp (as a silently tool-less
+			// agent).
+			for _, path := range shellToolsPaths(string(data), filepath.Dir(mcpFile)) {
+				stData, err := os.ReadFile(path)
+				if err != nil {
+					fmt.Fprintf(stderr, "error:  %s: %v\n", filepath.Base(path), err)
+					exitCode = 1
+					continue
+				}
+				viols := schema.ValidateShellToolsJSON(string(stData))
+				if len(viols) > 0 {
+					for _, v := range viols {
+						fmt.Fprintln(stderr, fmtViol(filepath.Base(path), v))
+					}
+					exitCode = 1
+				} else {
+					fmt.Fprintf(stdout, "ok:     %s  (%s)\n", filepath.Base(path), path)
+				}
+				totalFiles++
+			}
 		}
 	}
 
@@ -275,6 +299,43 @@ func fmtViol(file string, v schema.Violation) string {
 		return fmt.Sprintf("schema: %s:%d:  field %q: %s", file, v.Line, v.Field, v.Message)
 	}
 	return fmt.Sprintf("schema: %s:  field %q: %s", file, v.Field, v.Message)
+}
+
+// shellToolsPaths extracts candidate shell-tools.json paths from an
+// mcp-servers.yaml document: any whitespace-separated token of a server's
+// command: line that ends in ".json". Relative paths resolve against the
+// mcp-servers.yaml directory first, then the working directory; tokens whose
+// file does not exist at either location are skipped (the server may resolve
+// its config via SHELL_MCP_CONFIG or a default path instead).
+func shellToolsPaths(mcpYAML, baseDir string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, line := range strings.Split(mcpYAML, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "command:") {
+			continue
+		}
+		for _, tok := range strings.Fields(strings.TrimPrefix(trimmed, "command:")) {
+			tok = strings.Trim(tok, `"'[],`)
+			if !strings.HasSuffix(tok, ".json") {
+				continue
+			}
+			candidates := []string{tok}
+			if !filepath.IsAbs(tok) {
+				candidates = []string{filepath.Join(baseDir, tok), tok}
+			}
+			for _, p := range candidates {
+				if _, err := os.Stat(p); err == nil {
+					if !seen[p] {
+						seen[p] = true
+						out = append(out, p)
+					}
+					break
+				}
+			}
+		}
+	}
+	return out
 }
 
 // extractFrontMatterYAML returns the YAML content between the leading --- delimiters of src.

@@ -103,18 +103,21 @@ run was killed mid-execution; readers must tolerate truncation.
 ## `/replay/control` action surface
 
 All mutating replay operations go through the **action surface**.
-Action endpoints are gated behind authn when API auth lands
-([AGENTS-SECURITY.md](AGENTS-SECURITY.md)).
+**Today only `POST /replay/control` is registered in the serve mux**
+(pause/resume/speed for live replay). Every endpoint below is
+**Planned** — design targets, gated behind authn when API auth lands
+([AGENTS-SECURITY.md](AGENTS-SECURITY.md)) — and must not be coded
+against until it appears in `cmd_serve.go`.
 
-| Method | Path | Action | Notes |
+| Method | Path | Action | Status |
 |---|---|---|---|
-| `GET` | `/replay/runs` | List run records (paginated). | Read-only. |
-| `GET` | `/replay/runs/{id}` | Fetch one run as JSONL or JSON. | Honors `Accept:`. |
-| `POST` | `/replay/run/{id}` | Re-execute a stored run end-to-end. | Body: `{ "redact": true }`. |
-| `POST` | `/replay/run/{id}/from/{turn}` | Re-run starting at turn N. | Same body shape. |
-| `GET` | `/replay/diff` | Diff two runs side-by-side. | Query: `a=`, `b=`. |
-| `GET` | `/replay/export/{id}` | Stream a zip of a redacted run record. | **Always** `--redact`; refuses otherwise. |
-| `DELETE` | `/replay/runs/{id}` | Delete a run record. | Hard delete; no undo. |
+| `GET` | `/replay/runs` | List run records (paginated). | Planned |
+| `GET` | `/replay/runs/{id}` | Fetch one run as JSONL or JSON. | Planned |
+| `POST` | `/replay/run/{id}` | Re-execute a stored run end-to-end. | Planned |
+| `POST` | `/replay/run/{id}/from/{turn}` | Re-run starting at turn N. | Planned |
+| `GET` | `/replay/diff` | Diff two runs side-by-side. | Planned |
+| `GET` | `/replay/export/{id}` | Stream a zip of a **redacted** run record; refuses un-redacted export. | Planned |
+| `DELETE` | `/replay/runs/{id}` | Delete a run record. Hard delete; no undo. | Planned |
 
 ### Response shape conventions
 
@@ -190,7 +193,7 @@ UI-side rules:
 
 - "Branch from here" requires confirmation.
 - "Delete" requires double-confirmation (typed run ID).
-- "Export" surfaces the mandatory `--redact` toggle as a fixed on
+- "Export" surfaces the mandatory redaction toggle as a fixed on
   switch with explanation; cannot be turned off.
 
 ---
@@ -205,7 +208,7 @@ UI-side rules:
 3. **Implement on the runner side** — emit through `ReplaySink`.
 4. **Implement the HTTP endpoint** — see [AGENTS-SERVE.md](AGENTS-SERVE.md)
    for endpoint conventions; gate behind auth if mutating.
-5. **Wire the UI** — `api.js` wrapper, then view consumers
+5. **Wire the UI** — `leather-api.js` wrapper, then view consumers
    ([AGENTS-UI.md](AGENTS-UI.md)).
 6. **Test** — `MemorySink` for runner unit tests, file fixtures for
    reader tests, smoke test through the UI.
@@ -220,7 +223,7 @@ UI-side rules:
 | Reading the redacted form for re-run | Re-run uses the **verbatim** on-disk record; redaction is only for read/export. |
 | Bumping `schema` without a migration note | Schema bumps require a migration entry in this guide. |
 | Letting a replay write failure abort the run | Log and continue; runs are first-class, replay is observability. |
-| Exporting without `--redact` | Refuse with `422`; never let an un-redacted export leave the host. |
+| Exporting without redaction | Refuse with `422`; never let an un-redacted export leave the host. |
 | Mixing storage code into the runner | Use the `ReplaySink` interface boundary. |
 | Adding a new event type without updating the event table | Schema bump + table update + reader compat note in the same PR. |
 

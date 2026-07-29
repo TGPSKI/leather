@@ -98,7 +98,7 @@ notify:
 | `401 Unauthorized` | Wrong/expired token | Rotate secret; see AGENTS-OPERATIONS rotation playbook. |
 | `429 Too Many Requests` | Rate-limited | Respect `Retry-After`; do not retry inside `Send`, surface error. |
 | Timeout | Network or provider slowness | Bump `timeout` in config; do not raise default. |
-| Silent success but no delivery | Webhook URL pointing to wrong channel | Verify URL with `--once` chat run. |
+| Silent success but no delivery | Webhook URL pointing to wrong channel | Verify URL with a one-shot `leather test-agent` run. |
 
 ---
 
@@ -177,7 +177,7 @@ contract; this section is the integration-author-facing checklist.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Queue grows unbounded | Agent slower than poll cadence | Lengthen `interval`, shorten agent run, or add `--max-queue` cap. |
+| Queue grows unbounded | Agent slower than poll cadence | Lengthen `interval`, shorten agent run, or raise `--max-concurrent-jobs` so drain rate exceeds arrival rate. |
 | Duplicate items processed | `dedup_key` missing or unstable | Use a server-issued id; never use timestamps. |
 | Auth header logged | Header value not redacted in debug logs | File a bug in `internal/worker` log scrubber; never quick-fix in your worker. |
 

@@ -136,56 +136,67 @@ Rotation: keep the file per-agent and let the operator rotate
 
 When `leather serve --api` is enabled, the mux exposes:
 
-| Endpoint | Purpose | Auth | Output |
-|---|---|---|---|
-| `GET /healthz` | Liveness — does the process answer? | none | `200 ok` |
-| `GET /readyz` | Readiness — scheduler running + config loaded? | none | `200 ready` / `503` |
-| `GET /status` | Scheduler state, next ticks, queue depths. | API auth | JSON snapshot |
-| `GET /status/agents` | Per-agent last-run, last-error, next-run. | API auth | JSON array |
-| `GET /status/queues` | Per-queue depth + oldest item age. | API auth | JSON array |
-| `GET /metrics` | Prometheus-style text exposition. | API auth (or `--metrics-public`) | text/plain |
-| `GET /debug/pprof/*` | Standard `net/http/pprof` surface. | API auth + `--debug-api` | pprof |
+| Endpoint | Purpose | Output |
+|---|---|---|
+| `GET /healthz` | Liveness **and** readiness: state-dir writable, LLM endpoint configured. | JSON `{status, checks}`; `200` ok / `503` degraded |
+| `GET /status` | Uptime, version/commit, agent count, scheduler tick, concurrency (plus replay-mode fields). | JSON snapshot |
+| `GET /metrics` | Per-agent run/token/latency summaries + tool-resilience counters (see catalog below). | JSON |
+| `GET /jobs`, `GET /jobs/{agent}` | Scheduled jobs; per-agent job detail. | JSON |
+| `GET /history` | Run-history records. | JSON |
+| `GET /queues`, `/queues/{name}…` | Queue listing and per-queue operations. | JSON |
+| `GET /workers` | Worker supervisor status. | JSON |
+| `GET /config` | Sanitized config snapshot. | JSON |
+| `GET /snapshot` | Full state snapshot (for `leather snapshot` / replay). | JSON |
+| `GET /cache/stats` | Response-cache hit/miss stats. | JSON |
 
 Rules:
 
-- `/healthz` and `/readyz` are **always** unauthenticated. They MUST
-  NOT leak agent names or counts.
-- Every other endpoint requires the API auth posture from
-  [AGENTS-SECURITY.md](AGENTS-SECURITY.md).
-- `/metrics` is text-only; no JSON variant.
-- `/debug/pprof/*` is mounted only when `--debug-api` is set; never
-  in default production posture.
+- There is no per-endpoint auth on this API. It is **off by default**
+  (`--api`) and binds loopback by default (`--api-addr`, default
+  `127.0.0.1:7749`). Exposing it beyond loopback requires the
+  reverse-proxy posture from [AGENTS-SECURITY.md](AGENTS-SECURITY.md).
+- The devtools surface (`/api/devtools/*`) is separately gated by a
+  per-launch bearer token.
+- `/healthz` must stay cheap: it never makes outbound requests (the
+  LLM endpoint is checked for *presence*, not reachability).
+- `/metrics` is JSON, not Prometheus text exposition. An external
+  Prometheus scrape needs a translation step (see
+  [AGENTS-OPERATIONS.md](AGENTS-OPERATIONS.md)).
 
 ---
 
 ## Metrics catalog
 
-Stable metric names (Prometheus exposition). Adding or renaming a
-metric requires a dashboard update note in the PR description.
+`GET /metrics` returns a single JSON object (`metricsResponse` in
+`internal/cli/cmd_serve.go`). Adding or renaming a field requires a
+dashboard update note in the PR description.
 
-| Metric | Type | Labels | Meaning |
-|---|---|---|---|
-| `leather_agent_runs_total` | counter | `agent`, `status` | Cumulative job count. |
-| `leather_agent_run_duration_seconds` | histogram | `agent` | Job wall time. |
-| `leather_agent_tokens` | counter | `agent`, `kind` (`prompt`/`completion`) | Cumulative tokens. |
-| `leather_queue_depth` | gauge | `queue` | Items currently enqueued. |
-| `leather_queue_oldest_seconds` | gauge | `queue` | Age of oldest item. |
-| `leather_tool_calls_total` | counter | `tool`, `status` | Cumulative tool calls. |
-| `leather_mcp_call_duration_seconds` | histogram | `server`, `tool` | MCP roundtrip. |
-| `leather_notify_send_total` | counter | `backend`, `status` | Notifier deliveries. |
-| `leather_cache_hits_total` | counter | `kind` | Response-cache hits. |
-| `leather_cache_misses_total` | counter | `kind` | Response-cache misses. |
-| `leather_build_info` | gauge=1 | `version`, `commit` | Build metadata. |
-| `leather_tool_retry_total` | counter | _(none)_ | Tool call attempts beyond the first; tells the operator how often transient failures occur across all tools. |
-| `leather_tool_backoff_total` | counter | _(none)_ | Times a backoff sleep was applied (retry-after or exponential); indicates rate-limiting pressure from upstream services. |
-| `leather_tool_rate_limit_wait_total` | counter | _(none)_ | Times a tool call waited for a per-host token-bucket token; nonzero means the configured rate limits are actively throttling traffic. |
-| `leather_outbound_dlq_depth` | gauge | _(none)_ | Current item count in `outbound-dlq`; nonzero means tool failures need operator attention (`leather dlq inspect`). |
+Top-level fields:
+
+| JSON field | Type | Meaning |
+|---|---|---|
+| `agents` | object | Map of agent name → per-agent summary (below). |
+| `leather_tool_retry_total` | counter | Tool call attempts beyond the first; tells the operator how often transient failures occur across all tools. |
+| `leather_tool_backoff_total` | counter | Times a backoff sleep was applied (retry-after or exponential); indicates rate-limiting pressure from upstream services. |
+| `leather_tool_rate_limit_wait_total` | counter | Times a tool call waited for a per-host token-bucket token; nonzero means the configured rate limits are actively throttling traffic. |
+| `leather_outbound_dlq_depth` | gauge | Current item count in `outbound-dlq`; nonzero means tool failures need operator attention (`leather dlq inspect`). |
+
+Per-agent summary (`agents.<name>`):
+
+| JSON field | Meaning |
+|---|---|
+| `run_count`, `error_count` | Cumulative jobs and failures. |
+| `total_prompt_tokens`, `total_completion_tokens` | Cumulative tokens. |
+| `avg_duration_ms`, `p50_ms`, `p95_ms`, `p99_ms` | Job wall-time stats. |
+| `recent_runs` | Recent run records (bounded). |
+| `lifecycle_file`, `schedule`, `model`, `tags`, … | Agent-config echo for dashboards. |
 
 Rules:
 
-- Label cardinality must stay bounded; never label with a job id,
-  replay id, or user-supplied string.
-- A new metric requires a row above and a brief "what does it tell
+- The `agents` map is keyed by agent name only; never key or label by
+  job id, replay id, or a user-supplied string (unbounded
+  cardinality).
+- A new field requires a row above and a brief "what does it tell
   the operator?" sentence in the PR.
 
 ---
@@ -199,7 +210,7 @@ Rules:
 | Logging tool argument values at debug | Log keys only; values are bound by the secret/PII rules. |
 | Adding a label like `job_id` to a counter | Unbounded cardinality — use a log line, not a metric. |
 | Editing the history JSONL after write | Append-only; if you need a correction, append a follow-up record with `status: "amend"` and link by `job_id`. |
-| Mounting `/debug/pprof` without `--debug-api` | Pprof exposes process internals; never default-on. |
+| Binding `--api-addr` beyond loopback "for the dashboard" | The API has no built-in auth; keep the default `127.0.0.1` bind or front it with an authenticated reverse proxy. |
 
 ---
 
@@ -212,9 +223,9 @@ Before opening a PR touching observability surfaces:
       logged" table above.
 - [ ] History JSONL schema unchanged, OR a schema version field
       added with backward-read support.
-- [ ] New endpoints have an auth posture matching the table above
-      and a test in `internal/cli/cmd_serve_test.go`.
-- [ ] New metrics added to the catalog above with bounded label
+- [ ] New endpoints added to the table above and covered by a test in
+      `internal/cli/cmd_serve_test.go`.
+- [ ] New metrics fields added to the catalog above with bounded
       cardinality.
 - [ ] `--log-level pkg=debug` for the changed component produces
       useful diagnosis output for a representative failure.
@@ -224,4 +235,4 @@ Before opening a PR touching observability surfaces:
 
 ---
 
-_Last reviewed: 2026-05-19_
+_Last reviewed: 2026-07-29_

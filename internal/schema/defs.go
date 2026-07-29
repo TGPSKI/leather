@@ -12,10 +12,13 @@ var AgentFrontmatterSchema = Schema{
 	"max_tokens":         {Type: TypeInteger, HasMin: true, IntMin: 1},
 	"completion_reserve": {Type: TypeInteger, HasMin: true, IntMin: 1},
 	"timeout":            {Type: TypeDuration},
+	"tool_timeout":       {Type: TypeDuration},
 	"temperature":        {Type: TypeNumber},
 	"enabled":            {Type: TypeBoolean},
+	"thinking":           {Type: TypeBoolean},
 	"queue_input":        {Type: TypeString},
 	"skills":             {IsList: true},
+	"toolsets":           {IsList: true},
 	"tags":               {IsList: true},
 }
 
@@ -90,6 +93,8 @@ var ConfigSchema = Schema{
 	"log_format":            {Type: TypeEnum, AllowedValues: []string{"text", "json"}},
 	"llm_endpoint":          {Type: TypeString},
 	"llm_api_key":           {Type: TypeString},
+	"llm_fixture":           {Type: TypeString},
+	"llm_record":            {Type: TypeString},
 	"api_addr":              {Type: TypeString},
 	"state_dir":             {Type: TypeString},
 	"max_tokens":            {Type: TypeInteger, HasMin: true, IntMin: 1},

@@ -17,7 +17,6 @@ import (
 	"github.com/TGPSKI/leather/internal/mcp"
 	"github.com/TGPSKI/leather/internal/notify"
 	"github.com/TGPSKI/leather/internal/runner"
-	"github.com/TGPSKI/leather/internal/session"
 	"github.com/TGPSKI/leather/internal/tool"
 )
 
@@ -140,8 +139,16 @@ func RunOnce(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	llmClient, llmErr := buildLLMClient(cfg)
+	if llmErr != nil {
+		fmt.Fprintf(stderr, "leather run: llm client: %v\n", llmErr)
+		return 1
+	}
+	if closer, ok := llmClient.(interface{ Close() error }); ok {
+		defer closer.Close() //nolint:errcheck
+	}
 	r := &runner.Runner{
-		Client:             session.NewHTTPClient(cfg.LLMEndpoint, cfg.LLMAPIKey, cfg.LLMTimeout),
+		Client:             llmClient,
 		Registry:           toolReg,
 		MCPRegistry:        mcpReg,
 		Log:                log,

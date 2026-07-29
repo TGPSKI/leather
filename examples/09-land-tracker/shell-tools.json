@@ -7,7 +7,7 @@
       "command": "bash",
       "args": ["-c", "grep -v '^[[:space:]]*#' -- \"$1\" | grep -v '^[[:space:]]*$' || true", "--", "{{path}}"],
       "required": ["path"],
-      "timeout": 5
+      "timeout_seconds": 5
     },
     {
       "name": "fetch_page",
@@ -15,7 +15,7 @@
       "command": "bash",
       "args": ["scripts/fetch-property.sh", "{{url}}"],
       "required": ["url"],
-      "timeout": 35
+      "timeout_seconds": 35
     },
     {
       "name": "read_state",
@@ -23,7 +23,7 @@
       "command": "bash",
       "args": ["-c", "cat -- \"$1\" 2>/dev/null || echo '{}'", "--", "{{path}}"],
       "required": ["path"],
-      "timeout": 5
+      "timeout_seconds": 5
     },
     {
       "name": "write_state",
@@ -31,7 +31,7 @@
       "command": "bash",
       "args": ["-c", "mkdir -p \"$(dirname \"$1\")\" && printf '%s' \"$2\" > \"$1\" && echo 'state saved'", "--", "{{path}}", "{{content}}"],
       "required": ["path", "content"],
-      "timeout": 5
+      "timeout_seconds": 5
     }
   ]
 }

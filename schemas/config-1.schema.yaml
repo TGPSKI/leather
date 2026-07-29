@@ -243,6 +243,41 @@ properties:
       Default: <state_dir>/runs
       CLI: --run-history-dir  Env: LEATHER_RUN_HISTORY_DIR
 
+  llm_fixture:
+    type: string
+    description: |
+      Path to a JSONL fixture replayed instead of a live LLM: each recorded
+      completion answers one model call, in order, so a full pipeline runs
+      with no model behind it. Mutually exclusive with llm_record. Run
+      fixture-backed configs with max_concurrent_jobs: 1 for deterministic
+      call order.
+      CLI: --llm-fixture  Env: LEATHER_LLM_FIXTURE
+
+  llm_record:
+    type: string
+    description: |
+      Path to a JSONL file capturing every live completion in llm_fixture
+      format, so a live run can be recorded once and replayed forever.
+      Mutually exclusive with llm_fixture.
+      CLI: --llm-record  Env: LEATHER_LLM_RECORD
+
+  persist_runs_detail:
+    type: string
+    enum: [none, tools]
+    description: |
+      Detail level for persisted RunRecords. "tools" adds per-turn tool_calls
+      traces (ToolTrace: name, redacted args, capped content, error, replay
+      flag, duration). "none" keeps byte-identical legacy output. Default: none
+      CLI: --persist-runs-detail  Env: LEATHER_PERSIST_RUNS_DETAIL
+
+  persist_runs_tool_cap:
+    type: integer
+    minimum: 0
+    description: |
+      Byte cap per persisted tool-trace field when persist_runs_detail is
+      "tools". Default: 2048
+      CLI: --persist-runs-tool-cap  Env: LEATHER_PERSIST_RUNS_TOOL_CAP
+
   run_max_bytes:
     type: integer
     minimum: 1

@@ -400,6 +400,17 @@ type Agent struct {
 	// TurnToolsets, when non-empty, declares named toolsets that become available on
 	// each user-prompt turn. Element i corresponds to UserPrompts[i].
 	TurnToolsets [][]string
+	// TurnClear, when element i is true, clears the conversation before that turn's
+	// prompt is added: the system message is preserved and every other message is
+	// dropped. Values captured by skill extract: patterns survive, because they live in
+	// turn variables rather than in the session, so a turn can distil a large tool
+	// result into {{key}} and then discard the raw blob.
+	//
+	// Without this, context only ever grows: a three-turn agent's final turn carries
+	// both earlier prompts, the tool result and its own intermediate speculation.
+	// Measured on the sig-triage eval: 1206 -> 1423 -> 2433 -> 2828 prompt tokens across
+	// turns, and the three-turn arm scored 7.2 points BELOW the two-turn one.
+	TurnClear []bool
 	// Parameters holds named template variables declared in the lifecycle file.
 	// Values are substituted for {{key}} placeholders in prompts before the first LLM call.
 	// An empty string value causes leather run to prompt the user interactively.
@@ -516,7 +527,14 @@ type Config struct {
 	ReasoningReserve   int
 	SummarizeThreshold float64
 	LLMEndpoint        string
-	LLMTimeout         time.Duration
+	// LLMFixture, when set, replaces the HTTP LLM client with a JSONL replay
+	// client (session.FixtureClient): each recorded completion answers one
+	// model call, in order, so a full pipeline runs with no model behind it.
+	LLMFixture string
+	// LLMRecord, when set, wraps the live LLM client and captures every
+	// completion to this JSONL file in the LLMFixture format.
+	LLMRecord  string
+	LLMTimeout time.Duration
 	// ToolTimeout is the global default per-tool-call timeout. Each tool call is
 	// wrapped in a child context with this deadline so one slow tool fails a
 	// single call cleanly instead of consuming the whole run budget (and, for

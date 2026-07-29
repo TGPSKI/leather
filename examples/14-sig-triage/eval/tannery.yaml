@@ -1,0 +1,25 @@
+# Eval tannery. Paths are relative to THIS file's directory (leather resolves
+# tannery hide_dir/artifact_dir/curing_dir against filepath.Dir(tannery)).
+# run-eval.sh rewrites these to absolute at runtime so the writer (workflow run)
+# and the reader (run-eval.sh) always agree regardless of cwd or checkout path.
+hide_dir: .state-eval/hides
+artifact_dir: .state-eval/artifacts
+curing_dir: curings
+
+queues:
+  analyze-in:
+    concurrency: 4
+    max_attempts: 2
+    max_depth: 1000
+  match-in:
+    concurrency: 4
+    max_attempts: 2
+    max_depth: 1000
+  # Second-pass tie-break queue. Nothing routes into it automatically: leather
+  # has no content-conditional output routing, so eval/scripts/adjudicate-pass.sh
+  # selects the uncertain rows and ingests them here itself. EXPERIMENTAL, and
+  # eval-harness-only -- see eval/README.md "Two-pass adjudication (experimental)".
+  adjudicate-in:
+    concurrency: 4
+    max_attempts: 2
+    max_depth: 1000

@@ -1,0 +1,13 @@
+name: match
+description: >
+  Arm F: single-stage control. Raw issue in, final answer out — no analyze stage.
+  Drains analyze-in directly so run-eval.sh's ingest path is unchanged, and writes to
+  artifacts/match so attribution is unchanged. Everything else in the matrix keeps the
+  two-stage split; this is the only cell that removes it.
+agent: match
+queue: analyze-in
+hide_types:
+  - github.issues
+page_size_bytes: 32000
+max_attempts: 2
+timeout_seconds: 180

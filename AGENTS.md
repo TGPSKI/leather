@@ -22,7 +22,7 @@ appropriate domain guide rather than loading the entire codebase.
 | Scheduling, queues, background HTTP poll workers | [.subagents/AGENTS-WORKER.md](.subagents/AGENTS-WORKER.md) | `internal/scheduler`, `internal/queue`, `internal/worker` |
 | **Tannery** (event-driven curing service, hides, artifacts) | [.subagents/AGENTS-TANNERY.md](.subagents/AGENTS-TANNERY.md) | `internal/curing`, `internal/artifact`, `internal/hide`, `internal/safepath` |
 | Config loading, CLI subcommands, schema validation, flag/env wiring, HTTP API | [.subagents/AGENTS-SERVE.md](.subagents/AGENTS-SERVE.md) | `internal/config`, `internal/cli`, `internal/schema`, `internal/secret`, `internal/devtools`, `cmd/leather` |
-| **`shell-mcp` companion binary** (manifest format, templating, `--no-shell`, JSON-RPC conformance) | [.subagents/AGENTS-SHELL-MCP.md](.subagents/AGENTS-SHELL-MCP.md) | `cmd/shell-mcp` |
+| **`shell-mcp` companion binary** (config format, templating, JSON-RPC conformance) | [.subagents/AGENTS-SHELL-MCP.md](.subagents/AGENTS-SHELL-MCP.md) | `cmd/shell-mcp` |
 | **Browser UI** (`ui/`) | [.subagents/AGENTS-UI.md](.subagents/AGENTS-UI.md) | `ui/` SPA, design tokens, API contract layer |
 | **Replay subsystem** (capture, storage format, action endpoints, redaction) | [.subagents/AGENTS-REPLAY.md](.subagents/AGENTS-REPLAY.md) | Replay capture + `/replay/...` API + replay UI views |
 | Tests, benchmarks, Makefile, CI, linting | [.subagents/AGENTS-QUALITY.md](.subagents/AGENTS-QUALITY.md) | `*_test.go`, `Makefile`, `.github/workflows` |
@@ -95,7 +95,7 @@ Tannery    = long-running workspace container
 Hide       = raw input material
 Cut        = scoped page/slice of a buffered hide
 Agent      = one scoped model worker
-Operation  = Leather-language name for an agent step
+Operation  = Leather-language name for an agent step (deferred vocabulary — no code referent yet; see docs/GLOSSARY.md)
 Curing     = N-agent workflow that transforms hides into artifacts
 Artifact   = stabilized output with lineage
 ```

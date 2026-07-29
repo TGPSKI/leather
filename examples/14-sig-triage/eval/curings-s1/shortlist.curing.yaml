@@ -1,0 +1,12 @@
+name: shortlist
+description: >
+  Arm S1 stage 1. Narrows an analyze note to a concern plus 2-3 candidate SIGs, with no
+  catalog and no tools. Consumes match-in because that is where run-eval.sh's ANALYZE_CACHE
+  replay ingests, and hands off to adjudicate-in (already declared in tannery.yaml).
+agent: s1-shortlist
+queue: match-in
+page_size_bytes: 32000
+max_attempts: 2
+timeout_seconds: 120
+output:
+  queue: adjudicate-in

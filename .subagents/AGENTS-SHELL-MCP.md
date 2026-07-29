@@ -7,8 +7,7 @@ client (including `leather` itself).
 Load this guide when:
 
 - Editing `cmd/shell-mcp/main.go` or its tests
-- Changing the `shell-tools.json` manifest format or templating rules
-- Adding or modifying flags / env vars for `shell-mcp`
+- Changing the `shell-tools.json` config format or templating rules
 - Reviewing the shell-injection surface (with [AGENTS-SECURITY.md](AGENTS-SECURITY.md))
 - Documenting `shell-mcp` for operators or agent authors
 
@@ -20,16 +19,18 @@ For neighbouring domains, consult the routing table in [AGENTS.md](../AGENTS.md)
 
 `shell-mcp` is a **separately-shipped binary** that:
 
-- Reads a manifest file (`shell-tools.json` by default) describing
-  callable commands.
-- Speaks stdio JSON-RPC 2.0 conformant with the Model Context Protocol.
-- Exposes each manifest entry as a tool.
-- Executes the command on each `tools/call`, returning stdout/stderr
-  as the tool result.
+- Reads a JSON config file (`shell-tools.json`) describing callable
+  commands.
+- Speaks JSON-RPC 2.0 over stdin/stdout (newline-delimited JSON),
+  conformant with the Model Context Protocol.
+- Exposes each config entry as a tool.
+- Executes the command on each `tools/call`, returning stdout as the
+  tool result.
 
 It is a thin, audited bridge between an operator's shell environment
 and any MCP-aware agent. **`shell-mcp` is not loaded by `leather`
-unless an entry in `mcp-servers.yaml` invokes it.**
+unless an entry in `mcp-servers.yaml` invokes it.** Zero third-party
+dependencies (stdlib only).
 
 ---
 
@@ -38,10 +39,9 @@ unless an entry in `mcp-servers.yaml` invokes it.**
 | In scope | Out of scope |
 |---|---|
 | `cmd/shell-mcp/main.go` and tests | The MCP **client** in `leather` (see [AGENTS-RUNTIME.md](AGENTS-RUNTIME.md)). |
-| The `shell-tools.json` manifest schema | Other MCP servers (operator-supplied). |
-| Templating, quoting, env-var resolution | `leather`'s tool registry. |
-| `--no-shell` (argv-only) mode | Hardening of arbitrary 3rd-party MCP servers. |
-| JSON-RPC conformance for tool listing / invocation | The full MCP spec surface beyond `tools/list` and `tools/call`. |
+| The `shell-tools.json` config schema | Other MCP servers (operator-supplied). |
+| `{{key}}` templating, pattern validation | `leather`'s tool registry. |
+| JSON-RPC conformance for tool listing / invocation | The full MCP spec surface beyond `initialize`, `tools/list`, and `tools/call`. |
 
 ---
 
@@ -51,52 +51,44 @@ unless an entry in `mcp-servers.yaml` invokes it.**
 entry); it is rarely run interactively except for testing.
 
 ```text
-shell-mcp [--manifest PATH] [--no-shell] [--log-level LEVEL] [--debug-log PATH]
+shell-mcp [/path/to/shell-tools.json]
+SHELL_MCP_CONFIG=/path/to/shell-tools.json shell-mcp
 ```
 
-### Flags
+There are **no flags**. Config path resolution order:
 
-| Flag | Env | Default | Description |
-|---|---|---|---|
-| `--manifest` | `SHELL_MCP_MANIFEST` | `./shell-tools.json` | Path to the manifest file. |
-| `--no-shell` | `SHELL_MCP_NO_SHELL=1` | `false` | Refuse to honor manifest entries that use a shell (`bash -c …`); only argv-form entries are exposed. |
-| `--log-level` | `SHELL_MCP_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`. |
-| `--debug-log` | `SHELL_MCP_DEBUG_LOG` | — | Optional per-process debug stream (stderr-bound by default). |
+1. First positional argument.
+2. `SHELL_MCP_CONFIG` environment variable.
+3. `~/.leather/shell-tools.json` (must exist, else startup fails).
 
 Stdout is reserved for JSON-RPC frames. **All logs go to stderr.**
 Mixing logs into stdout corrupts the JSON-RPC stream.
 
 ---
 
-## Manifest format — `shell-tools.json`
+## Config format — `shell-tools.json`
 
 ```json
 {
+  "output_cap_bytes": 4000,
   "tools": [
     {
-      "name": "git-log",
+      "name": "git_log",
       "description": "Recent git history for the given ref",
-      "args": [
-        { "name": "ref", "type": "string", "required": true,
-          "description": "branch/tag/sha; quoted on use" }
-      ],
-      "exec": {
-        "argv": ["git", "log", "--oneline", "-n", "20", "{{ref}}"]
-      },
-      "cwd": "{{env.PROJECT_ROOT}}",
-      "timeout": "5s"
+      "command": "git",
+      "args": ["log", "--oneline", "-n", "20", "{{ref}}"],
+      "required": ["ref"],
+      "patterns": { "ref": "^[A-Za-z0-9._/-]+$" },
+      "timeout_seconds": 5
     },
     {
-      "name": "find-large",
-      "description": "Find files larger than a threshold (shell form)",
-      "args": [
-        { "name": "path", "type": "string", "required": true },
-        { "name": "size_mb", "type": "int", "required": false, "default": 50 }
-      ],
-      "exec": {
-        "shell": "find {{path|shq}} -type f -size +{{size_mb}}M -print"
-      },
-      "timeout": "30s"
+      "name": "find_large",
+      "description": "Find files larger than a threshold (MB)",
+      "command": "bash",
+      "args": ["-c", "find \"$1\" -type f -size +\"$2\"M -print", "--", "{{path}}", "{{size_mb}}"],
+      "required": ["path"],
+      "defaults": { "size_mb": "50" },
+      "timeout_seconds": 30
     }
   ]
 }
@@ -106,119 +98,87 @@ Mixing logs into stdout corrupts the JSON-RPC stream.
 
 | Key | Type | Required | Description |
 |---|---|---|---|
-| `tools` | array | yes | One manifest entry per exposed tool. |
+| `output_cap_bytes` | int | no | Server-wide output cap; default 4000 bytes. |
+| `tools` | array | yes | One entry per exposed tool. |
 
 ### Tool entry
 
 | Key | Type | Required | Description |
 |---|---|---|---|
-| `name` | string | yes | Tool name; matches `^[a-z][a-z0-9_-]*$`. Becomes the MCP `tools/list` entry. |
+| `name` | string | yes | Tool name (snake_case). Becomes the MCP `tools/list` entry. |
 | `description` | string | yes | One-line description shown to the LLM. |
-| `args` | array | no | Argument schema; see Argument schema below. |
-| `exec` | object | yes | Execution config; **exactly one** of `argv:` or `shell:`. |
-| `cwd` | string | no | Working directory; templated (`{{env.X}}` and `{{argname}}` allowed). |
-| `env` | map[string]string | no | Extra env vars passed to the child. Templated. |
-| `timeout` | duration | no | Per-call timeout; default `30s`. |
-| `max_output_bytes` | int | no | Truncate combined stdout+stderr at this size; default 1 MiB. |
+| `command` | string | yes | Executable name, looked up via `PATH`. |
+| `args` | []string | no | Argument list; `{{key}}` placeholders substituted at call time. |
+| `required` | []string | no | Argument keys that must be present in every call; a missing key fails the call before execution. |
+| `patterns` | map[string]string | no | RE2 regexps the substituted value must match. A missing argument validates as the empty string, so anchored patterns also reject absent values. Advertised in the tool's `inputSchema`. |
+| `defaults` | map[string]string | no | Fallback values for optional argument keys (call args win). |
+| `optional` | bool | no | When true, a `command` not on `PATH` returns a graceful "not installed" message instead of an error. |
+| `timeout_seconds` | int | no | Per-call execution timeout; default 30 s. |
+| `output_cap_bytes` | int | no | Per-tool output cap; overrides the server-wide cap. |
 
-### Argument schema
-
-| Key | Type | Required | Description |
-|---|---|---|---|
-| `name` | string | yes | Matches `^[a-z][a-z0-9_]*$`. |
-| `type` | enum | yes | `string`, `int`, `bool`. |
-| `required` | bool | no | Default `false`. |
-| `default` | any | no | Default value used when not supplied. |
-| `description` | string | no | Surfaced to the LLM via MCP. |
-| `enum` | []string | no | Restrict allowed values (string args only). |
+All argument values are strings — there is no type/enum system. The
+advertised `inputSchema` declares every known key (from `required`,
+`defaults`, and `patterns`) as `"type": "string"`, with `pattern`
+attached where configured. `required` is always emitted as an array
+(never `null`) so schema-to-grammar backends accept it.
 
 ---
 
 ## Templating & quoting
 
-Templates use `{{name}}` syntax. Resolution order:
+Templates use `{{key}}` syntax inside `args` elements. Substitution is
+literal string replacement of the merged (defaults ∪ call args) values,
+each landing inside a single argv element.
 
-1. `{{argname}}` — substituted from the call's `args`.
-2. `{{env.NAME}}` — substituted from the **server process** environment.
-3. Anything unresolved is a hard error; the call returns an MCP error
-   without executing the command.
+- **No shell is involved** unless the operator's `command` is itself a
+  shell. Direct `command` + `args` execution needs no quoting.
+- To run a pipeline or globbing, use the `bash -c` idiom and pass
+  model-supplied values as positional parameters **after `--`**, never
+  spliced into the script string:
+  `"args": ["-c", "script using \"$1\"", "--", "{{value}}"]`.
+- Constrain any argument that reaches a sensitive position with a
+  `patterns` regexp; rejected calls fail before the command runs.
 
-### Quoting
-
-| Form | Behavior |
-|---|---|
-| `{{name}}` in `exec.argv` | Direct substitution as a single argv element. **No shell, no quoting needed.** |
-| `{{name}}` in `exec.shell` | **Implicit shell-quote.** Equivalent to `{{name|shq}}`. |
-| `{{name|shq}}` | Explicit shell-quote; safe for sh/bash. |
-| `{{name|raw}}` | **Unquoted.** Refuses to substitute unless the manifest entry has `"allow_raw": true` and `--no-shell` is off. Audit logged. |
-| `{{env.NAME|raw}}` | Same `allow_raw` rule as above. |
-
-`shq` implementation: wrap in single quotes; replace any `'` in the
-value with `'\''`. Reject any value containing a NUL byte before
-substitution.
-
-### `--no-shell` mode
-
-When `--no-shell` is active:
-
-- Any manifest entry with `exec.shell` is **dropped** from
-  `tools/list` and rejected from `tools/call` with a clear error.
-- `{{x|raw}}` is unconditionally rejected.
-- Only `exec.argv` entries are exposed.
-
-This is the recommended posture for production deployments.
-
----
-
-## Required-field enforcement
+### Call validation order
 
 For every `tools/call`:
 
-1. Validate `args` against the schema. Missing `required: true` args
-   → MCP error, no execution.
-2. Coerce `int` and `bool` types; type mismatch → error.
-3. Apply defaults for non-required, omitted args.
-4. Enforce `enum` membership where declared.
-5. Resolve templating (above).
-6. Execute via `os/exec` with the configured `cwd`, env, timeout.
+1. Merge `defaults` under the call's arguments (call args win).
+2. Enforce `required` keys — missing keys → tool error, no execution
+   (otherwise the command would run with a literal, unsubstituted
+   `{{placeholder}}`).
+3. Validate `patterns` — mismatch → tool error, no execution.
+4. Substitute `{{key}}` placeholders in each `args` element.
+5. Execute with the configured timeout.
 
 ---
 
 ## Execution model
 
-- `exec.argv`: `exec.Command(argv[0], argv[1:]...)` after templating.
-  No shell.
-- `exec.shell`: `exec.Command("sh", "-c", "<rendered shell string>")`.
-  POSIX `sh` is required; `bash`-specific syntax is the operator's
-  responsibility.
+- `exec.CommandContext(command, args...)` after templating — the child
+  is spawned directly, with the server's environment and working
+  directory.
+- Only **stdout** is captured as the result. On non-zero exit, stderr
+  is folded into the error message (`exit <code>: <stderr>`).
+- A failed execution returns an MCP result with `isError: true` and an
+  `error: …` text block — **not** a JSON-RPC error — so the client can
+  distinguish tool failure from protocol failure and stop retrying
+  deterministic errors.
+- `optional: true` tools whose `command` is missing from `PATH` return
+  a friendly "not installed" message as a successful result.
 
-### Output capture
+### Output capping
 
-- stdout and stderr are captured separately.
-- Returned to the MCP client as a single text-content block with this
-  structure:
-
-  ```text
-  --- stdout ---
-  <stdout>
-  --- stderr ---
-  <stderr>
-  --- exit ---
-  exit_code: <int>
-  duration: <ms>
-  truncated: <bool>
-  ```
-
-- Combined output is truncated at `max_output_bytes`; a trailing
-  `… [truncated]` sentinel is appended so the model can detect it.
-- Non-zero exit is **not** a JSON-RPC error; the model sees the exit
-  code in the result.
+Output is truncated at the effective cap (per-tool
+`output_cap_bytes`, else server-wide, else 4000 bytes), trimmed to the
+last complete line, with a trailing `[output capped]` sentinel so the
+model can detect truncation.
 
 ### Timeouts
 
-- Default 30 s. Override per tool with `timeout:`.
-- On timeout, send SIGTERM, wait 1 s, then SIGKILL. The result includes
-  `exit: -1, timeout: true`.
+Default 30 s per call; override per tool with `timeout_seconds`. The
+child process is killed via context cancellation when the deadline
+passes.
 
 ---
 
@@ -228,25 +188,26 @@ For every `tools/call`:
 
 | Method | Status |
 |---|---|
-| `initialize` | required; advertises `tools/list_changed: false`. |
-| `tools/list` | required; returns manifest entries (subject to `--no-shell` filter). |
+| `initialize` | required; advertises protocol `2024-11-05`, `tools` capability. |
+| `tools/list` | required; returns all config entries with generated `inputSchema`. |
 | `tools/call` | required; per-call execution as above. |
-| `ping` | optional; implement as no-op `200`. |
-| Anything else | respond with method-not-found per JSON-RPC 2.0. |
+| notifications (no `id`) | ignored (e.g. `notifications/initialized`). |
+| Anything else | `-32601` method not found per JSON-RPC 2.0. |
 
 ### Framing
 
-- LSP-style: `Content-Length: N\r\n\r\n<N bytes of JSON>` on stdio.
-- One request per frame; response framed identically.
+- **Newline-delimited JSON** on stdin/stdout: one JSON-RPC message per
+  line (max 1 MiB). Not LSP `Content-Length` framing.
+- Malformed frames are skipped silently.
 
 ### Errors
 
-- JSON-RPC `-32600` invalid request (bad JSON).
+- JSON-RPC `-32600` invalid params (params that fail to unmarshal).
 - JSON-RPC `-32601` method not found (any unrecognised method).
-- JSON-RPC `-32602` invalid params (schema mismatch on a `tools/call`).
-- JSON-RPC `-32603` internal error (template resolution, exec failure
-  pre-spawn). Spawn-time failures after fork return a normal result
-  with non-zero exit, not an error.
+- JSON-RPC `-32602` unknown tool name on a `tools/call`.
+- Execution failures (missing required args, pattern mismatch,
+  non-zero exit, spawn failure) return a **result** with
+  `isError: true`, not a JSON-RPC error.
 
 ---
 
@@ -255,14 +216,18 @@ For every `tools/call`:
 See [AGENTS-SECURITY.md § shell-mcp injection surface](AGENTS-SECURITY.md#shell-mcp-injection-surface)
 for the operator-facing summary. Implementation-side invariants:
 
-- `{{x|raw}}` requires both `allow_raw: true` in the entry **and**
-  `--no-shell` being off. Both gates must agree.
-- `exec.shell` templates are rendered **after** quoting transformations
-  run, never before.
-- Argument values containing NUL bytes are rejected pre-render.
-- The server never reads from stdin for any purpose other than
-  JSON-RPC frames; piping data through `shell-mcp` to a child is not
-  supported.
+- Every config entry is exposed as-is — there is no hardening mode
+  that filters entries. **An untrusted `shell-tools.json` must be
+  vetted before it is pointed at**; the config file is the trust
+  boundary.
+- Model-supplied values are substituted into single argv elements,
+  never into a shell string, unless the operator's own entry routes
+  them through a shell (`command: bash` + `-c`). Entries that do so
+  must pass values as positional parameters after `--`.
+- `patterns` are the per-argument guard; anchored patterns also reject
+  absent values.
+- The server never reads stdin for any purpose other than JSON-RPC
+  frames; piping data through `shell-mcp` to a child is not supported.
 
 ---
 
@@ -273,11 +238,11 @@ Operator's `mcp-servers.yaml`:
 ```yaml
 servers:
   - name: shell
-    command: ["shell-mcp", "--manifest", "/home/me/.leather/shell-tools.json", "--no-shell"]
+    command: ["shell-mcp", "/home/me/.leather/shell-tools.json"]
 ```
 
-Each manifest tool is then addressable in `leather` as
-`shell/<tool-name>` (see [AGENTS-TOOLS-SKILLS-TOOLSETS.md](AGENTS-TOOLS-SKILLS-TOOLSETS.md)
+Each config tool is then addressable in `leather` as
+`shell/<tool_name>` (see [AGENTS-TOOLS-SKILLS-TOOLSETS.md](AGENTS-TOOLS-SKILLS-TOOLSETS.md)
 for naming and collision rules).
 
 ---
@@ -287,11 +252,11 @@ for naming and collision rules).
 | Mistake | Correct approach |
 |---|---|
 | Writing log lines to stdout for "easy debugging" | Stdout is JSON-RPC only. Use stderr. |
-| Using `exec.shell` with naked `{{arg}}` (no `\|shq`) | Either switch to `argv:`, or rely on the implicit shell-quote (do not opt into `raw`). |
-| Adding a new manifest field without updating the schema audit | Update this file and the manifest validator in lockstep. |
-| Forgetting `--no-shell` in a production `mcp-servers.yaml` entry | Default to `--no-shell`; opt in to shell mode only with a documented reason. |
-| Implementing `tools/list_changed: true` | Not supported in v1; manifest is read once at startup. |
-| Returning a JSON-RPC error for a non-zero child exit | Non-zero exit is normal data; only protocol errors return JSON-RPC errors. |
+| Splicing `{{key}}` into a `bash -c` script string | Pass values as positional parameters after `--`: `["-c", "… \"$1\"", "--", "{{key}}"]`. |
+| Adding a new config field without updating the schema audit | Update this file's tables and the doclint shell-tools check in lockstep. |
+| Leaving a sensitive argument unconstrained | Add an anchored `patterns` regexp; it rejects both bad and absent values before execution. |
+| Implementing `tools/list_changed: true` | Not supported; config is read once at startup. |
+| Returning a JSON-RPC error for a failed execution | Execution failures are `isError: true` results; only protocol errors return JSON-RPC errors. |
 
 ---
 
@@ -300,15 +265,16 @@ for naming and collision rules).
 Before opening a PR that affects `shell-mcp`:
 
 - [ ] `go test ./cmd/shell-mcp/...` passes
-- [ ] Manifest schema change reflected in this file's tables
-- [ ] Templating change covered by `shq` / `raw` / unresolved-var tests
-- [ ] `--no-shell` mode exercised in tests (drops `shell:` entries; rejects `raw`)
+- [ ] Config schema change reflected in this file's tables
+- [ ] Templating change covered by substitution / missing-required /
+      pattern-mismatch tests
 - [ ] JSON-RPC conformance: `initialize`, `tools/list`, `tools/call`
       round-trip against a minimal in-process client
-- [ ] Timeout / SIGKILL fallback test still passes
+- [ ] `required` is emitted as an array for zero-argument tools
+- [ ] Timeout and output-cap overrides exercised in tests
 - [ ] [AGENTS-SECURITY.md](AGENTS-SECURITY.md) cross-references still
       describe the live behavior
 
 ---
 
-_Last reviewed: 2026-05-19_
+_Last reviewed: 2026-07-29_

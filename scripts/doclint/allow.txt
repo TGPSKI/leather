@@ -1,0 +1,58 @@
+# doclint allowlist — tokens that are intentionally documented but have no
+# leather code referent. One token per line. Keep this SHORT; everything here
+# is a deliberate exception, not a place to hide real drift.
+
+# Universal CLI flags handled outside fs.*() (cobra-style built-ins).
+--help
+--version
+
+# Naming-rule illustration in AGENTS-SERVE.md ("--flag-name -> LEATHER_FLAG_NAME").
+--flag-name
+LEATHER_FLAG_NAME
+
+# External service endpoints referenced in integration examples (not leather's API).
+/v1/chat/completions
+/v2/send
+/sendMessage
+
+# Raspberry-Pi example scripts consume these at the shell, not via the leather binary.
+LEATHER_RPI_LLM_ENDPOINT
+LEATHER_RPI_MODEL
+
+# Repo-wide dry/live convention consumed by example shell tools
+# (examples/scripts/preflight.sh), not by the leather binary.
+LEATHER_DEMO_MODE
+
+# Example-13 shell-script contract vars (docs/CONVENTIONS.md), shell-only.
+LEATHER_GIT_SIGNING_KEY
+LEATHER_GIT_DIFF_LINES
+
+# Tannery webhook routes are registered dynamically per-config, not as static mux patterns.
+/webhooks/{name}
+
+# Browser/JS global read from window in the UI, not an OS env var of the binary.
+LEATHER_API_BASE
+
+# Shorthand in prose for fuller routes that DO exist (/queues/{name}/requeue, /api/devtools/*).
+/requeue
+/devtools
+
+# UI design tokens (AGENTS-UI.md) documented as inline-code in a table; CSS custom
+# properties, not CLI flags. The linter can't distinguish these syntactically.
+--accent
+--text
+--text-muted
+--bg
+--border
+--surface
+--radius
+--mono
+--ok
+--err
+--warn
+--space-1
+--space-4
+
+# cli.md documents the ABSENCE of an --agent flag (RunOnce takes a positional
+# agent path); the token appears only in that negation sentence.
+--agent

@@ -1,0 +1,20 @@
+name: sig-lookup-v3
+system_prompt_append: |
+  You have one tool:
+    lookup_sig_v3(terms) → given a comma-separated list of components and keywords,
+    returns the full catalog entries for the candidate SIGs.
+  Call it once with the issue's COMPONENTS and KEYWORDS joined by commas, then choose
+  from the entries it returns.
+  The filtering is already done: SIGs ruled out by learned boundaries are REMOVED before
+  you see them. Every entry returned is a legitimate candidate, and anything listed under
+  PRUNED has been ruled out by measured evidence — do not reconsider it.
+  If the tool fails, fall back to your own knowledge and still produce the structured
+  output — a tool failure does not block the pipeline.
+
+tools:
+  - name: lookup_sig_v3
+    description: Return catalog entries for candidate SIGs, with excluded ones removed.
+    type: mcp
+    mcp:
+      server: shell
+      tool: lookup_sig_v3

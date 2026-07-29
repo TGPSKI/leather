@@ -1,0 +1,9 @@
+name: match
+description: Match issue signals to a SIG using the feature catalog.
+agent: match
+queue: match-in
+page_size_bytes: 6000
+max_attempts: 2
+timeout_seconds: 120
+output:
+  queue: label-in
