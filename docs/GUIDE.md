@@ -1304,4 +1304,5 @@ my-project/
 | `leather dlq` | Inspect and requeue outbound dead-letter queue items. |
 | `leather attach` | Join a running `serve` instance and stream pretty-printed runtime events. |
 | `leather replay` | Replay a snapshot or live session. |
+| `leather completion` | Print a bash/zsh/fish completion script. |
 | `leather version` / `leather help` | The obvious. |

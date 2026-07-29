@@ -32,6 +32,7 @@ HTTP API and replay endpoints, and provides testable command handlers for
 | `RunAttach` | `func RunAttach(args []string, stdout, stderr io.Writer) int` | Join a running `serve` instance and stream pretty-printed DevTools events. |
 | `RunVersion` | `func RunVersion(_ []string, stdout, _ io.Writer, version, commit string) int` | Print build metadata. |
 | `RunCompletion` | `func RunCompletion(args []string, stdout, stderr io.Writer) int` | Print a static bash/zsh/fish completion script (`leather completion <shell>`). |
+| `ResolveBuildVersion` | `func ResolveBuildVersion(version, commit string) (string, string)` | Fill in version/commit from embedded Go build info when `-ldflags` stamps are absent (`go install module@tag` builds). |
 
 ## Internal Design
 
