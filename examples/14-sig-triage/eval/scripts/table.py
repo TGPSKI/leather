@@ -54,6 +54,15 @@ if SCOPE not in md.SCOPES:
 cells = [c for c in md.load_cells(FILTER) if md.in_scope(c, SCOPE)]
 ARM_W, DRAW_W, TAG_W = md.tag_layout(cells)
 
+if os.environ.get("LEGEND", "1") == "1":
+    for line in md.legend(bool(NC)):
+        print(line)
+if os.environ.get("HELP") == "1":
+    print(f"  {B}column definitions{R}")
+    for name, text in md.COLUMN_HELP:
+        print(f"     {D}{name:<10}{R} {D}{text}{R}" if name
+              else f"     {D}{'':<10} {text}{R}")
+
 for rig in (("35b", "4b") if not ONLY else (ONLY,)):
     rc = sorted([c for c in cells if c["rig"] == rig],
                 key=SORT_KEYS[SORT], reverse=REV)
@@ -78,9 +87,9 @@ for rig in (("35b", "4b") if not ONLY else (ONLY,)):
         q = durs.index(min(durs, key=lambda x: abs(x - s))) / (len(durs) - 1)
         return BLU if q < 0.34 else (CYN if q < 0.67 else MAG)
 
-    print(f"     {D}{md.tag_header(ARM_W, DRAW_W):{TAG_W}s} {'acc':>6s} "
+    print(f"     {D}{md.tag_header(ARM_W, DRAW_W):{TAG_W}s} {'acc':>6s} {'dur':>8s} "
           f"{'no-out':>7s} {'calls/iss':>10s} {'tools':>7s} {'ktok':>7s}"
-          f"   {'started':<14s}{'ended':<9s}{'dur':>8s}{R}")
+          f"   {'started':<14s}{'ended':<9s}{R}")
     for c in rc:
         col = GRN if c["acc"] >= 84 else (YEL if c["acc"] >= 74 else RED)
         lost = f"{RED}{c['dead']:7d}{R}" if c["dead"] else f"{D}      -{R}"
@@ -89,8 +98,7 @@ for rig in (("35b", "4b") if not ONLY else (ONLY,)):
         start = c["started"][5:16].replace("T", " ") if c["started"] else "?"
         end = (time.strftime("%H:%M", time.localtime(c["ended_ts"]))
                if c["ended_ts"] else "?")
-        dur = duration(c["dur_s"]) if c["dur_s"] else "?"
-        dcol = dur_attr(c["dur_s"])
         print(f"     {md.fmt_tag(c, ARM_W, DRAW_W):{TAG_W}s} {col}{c['acc']:6.1f}{R} "
+              f"{dur_attr(c['dur_s'])}{md.fmt_duration(c['dur_s'])}{R} "
               f"{lost} {D}{c['cpi']:10.2f}{R} {tc}{c['tools']:7d}{R} {D}{ktok}{R}"
-              f"   {D}{start:<14s}{end:<9s}{R}{dcol}{dur:>8s}{R}")
+              f"   {D}{start:<14s}{end:<9s}{R}")

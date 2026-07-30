@@ -243,6 +243,47 @@ def contrasts(cells):
 
 SCOPES = ("all", "confirmatory", "exploratory")
 
+# Column glossary — one definition per column, shared by every surface so a
+# reader never has to guess what a header means or find it in a docstring.
+COLUMN_HELP = [
+    ("rig",       "which model served the cell: 4b (Qwen3-4B) or 35b (Qwen3-35B-A3B)"),
+    ("arm",       "the harness configuration under test — its row in eval/ablation/arms.json"),
+    ("draw",      "which replication: cN = registered confirmatory draw, -N = exploratory repeat,"),
+    ("",          "blank = the original single exploratory draw"),
+    ("acc",       "accept-set accuracy over all 250 issues, scored by sigeval (the only scorer)"),
+    ("dur",       "wall-clock for the cell, from the manifest's start to the last evidence-log line"),
+    ("no-out",    "rows that produced NO usable answer. For most arms this is noise; for S1 it is"),
+    ("",          "the mechanism — a fresh-session boundary makes ~11% of rows unanswerable"),
+    ("calls/iss", "LLM round-trips per issue across all stages — the honest cost of a multi-stage arm"),
+    ("tools",     "tool EXECUTIONS counted from leather's own log, not inferred from prompts"),
+    ("ktok",      "total tokens (prompt + completion) the proxy saw, in thousands"),
+    ("started",   "manifest timestamp when the cell began"),
+    ("ended",     "last timestamp INSIDE run-evidence.log.gz — file mtimes lie after a git checkout"),
+]
+
+
+def legend(nocolor=False):
+    """Two-line color key: what the accuracy and duration palettes mean."""
+    if nocolor:
+        return ["  acc   low ......... high        dur   short ......... long (ranked in view)"]
+    d, r = "\033[2m", "\033[0m"
+    acc = f"{d}acc{r}  \033[31m██ <74{r}  \033[33m██ 74-84{r}  \033[32m██ >=84{r}"
+    dur = f"{d}dur{r}  \033[34m██ short{r} \033[36m██ mid{r} \033[35m██ long{r} {d}(ranked within this view){r}"
+    return [f"  {acc}     {dur}"]
+
+
+def fmt_duration(s):
+    """Fixed-width duration with the minute and second fields column-aligned.
+
+    'compact' formats like '9m 37s' / '54m 22s' put the unit boundary in a
+    different place on every row, which is unreadable in a column.
+    """
+    if not s:
+        return "       ?"
+    if s < 3600:
+        return f"{s // 60:3d}m {s % 60:02d}s"
+    return f"{s // 3600:3d}h {(s % 3600) // 60:02d}m"
+
 
 def in_scope(c, scope):
     """Experiment scope, so a watcher can show ONE campaign.

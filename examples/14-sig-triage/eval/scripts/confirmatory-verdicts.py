@@ -40,7 +40,22 @@ pv = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pv)
 
 RIG = "4b"
-WAVES = ("c1", "c2", "c3")
+
+
+def waves_for(arm, base):
+    """Draws where BOTH sides of the contrast exist, in order.
+
+    Discovered, not hardcoded: Amendment 1 DECISION 4 adds c4/c5 for the
+    boundary-triggered contrast only, so a fixed (c1,c2,c3) silently
+    discarded exactly the draws the bump was run to produce.
+    """
+    import re
+    out = []
+    for d in sorted(os.listdir(pv.RUNS)):
+        m = re.fullmatch(rf"{RIG}-{re.escape(arm)}-(c\d+)", d)
+        if m and os.path.isdir(os.path.join(pv.RUNS, f"{RIG}-{base}-{m.group(1)}")):
+            out.append(m.group(1))
+    return sorted(out, key=lambda w: int(w[1:]))
 
 # The six registered contrasts, verbatim from preregistration.md.
 CONTRASTS = [
@@ -82,7 +97,7 @@ def main():
     for cid, arm, base, variable in CONTRASTS:
         waves_out = []
         pooled_x, pooled_y = {}, {}
-        for w in WAVES:
+        for w in waves_for(arm, base):
             xt, yt = f"{RIG}-{arm}-{w}", f"{RIG}-{base}-{w}"
             if not (os.path.isdir(os.path.join(pv.RUNS, xt))
                     and os.path.isdir(os.path.join(pv.RUNS, yt))):

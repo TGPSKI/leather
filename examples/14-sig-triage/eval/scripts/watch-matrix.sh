@@ -44,6 +44,20 @@ snapshot() {
   cd "$EX" || return
   printf '\n  %sEVAL BATTERIES%s %s%s%s\n' "$B" "$R" "$D" "$(date +%H:%M:%S)" "$R"
   rule
+  NOCOLOR="${NOCOLOR:-}" HELP="${HELP:-0}" python3 -c "
+import os, sys
+sys.path.insert(0, '$HERE')
+import matrixdata as md
+nc = bool(os.environ.get('NOCOLOR'))
+for l in md.legend(nc):
+    print(l)
+if os.environ.get('HELP') == '1':
+    d, r = ('', '') if nc else ('\033[2m', '\033[0m')
+    print(f'  {d}column definitions  [?] hides{r}')
+    for name, text in md.COLUMN_HELP:
+        print(f'     {d}{name:<10} {text}{r}')
+"
+  rule
   local grand_tok=0 grand_calls=0
   for r in ${RIG:-35b 4b}; do
     local S="eval/.state-eval-$r" livename=""
@@ -61,7 +75,7 @@ snapshot() {
     # everywhere else here, and log-driven rows went missing whenever a battery wrote to a
     # filename this script did not already know.
     RIG="$r" NOCOLOR="${NOCOLOR:-}" FILTER="${FILTER:-}" SCOPE="${SCOPE:-all}" \
-      SORT="${SORT:-acc}" SORT_REV="${SORT_REV:-0}" \
+      SORT="${SORT:-acc}" SORT_REV="${SORT_REV:-0}" LEGEND=0 \
       python3 "$HERE/table.py"
 
     local an mt tools pages err age stale tok calls other tag bar pct
@@ -120,16 +134,17 @@ if [ "${LOOP:-0}" = "1" ]; then
     printf '\033[H'
     printf '%s\n' "$out" | sed $'s/$/\033[K/'
     printf '  %s[a]cc  [t]ools  [k]tok  [d]uration  [n]o-out  [c]ell  ' "$D"
-    printf '[r]everse  [q]uit%s\033[K\n' "$R"
+    printf '[r]everse  [?] columns  [q]uit%s\033[K\n' "$R"
     printf '\033[J'
     if read -rsn1 -t "${INTERVAL:-5}" key 2>/dev/null; then
       case "$key" in
         a) SORT=acc   ;; t) SORT=tools ;; k) SORT=ktok ;;
         d) SORT=dur   ;; n) SORT=noout ;; c) SORT=tag  ;;
         r) [ "${SORT_REV:-0}" = 1 ] && SORT_REV=0 || SORT_REV=1 ;;
+        '?'|h) [ "${HELP:-0}" = 1 ] && HELP=0 || HELP=1 ;;
         q|Q) break ;;
       esac
-      export SORT SORT_REV
+      export SORT SORT_REV HELP
     fi
   done
   printf '\033[?25h\033[J\n'
