@@ -21,7 +21,9 @@
         "--",
         "{{path}}"
       ],
-      "required": ["path"],
+      "required": [
+        "path"
+      ],
       "timeout_seconds": 10,
       "output_cap_bytes": 16000
     },
@@ -36,7 +38,10 @@
         "{{path}}",
         "{{content}}"
       ],
-      "required": ["path", "content"],
+      "required": [
+        "path",
+        "content"
+      ],
       "timeout_seconds": 10
     },
     {
@@ -60,6 +65,25 @@
       ],
       "timeout_seconds": 120,
       "output_cap_bytes": 4000
+    },
+    {
+      "name": "edit_file",
+      "description": "Make one exact text replacement in one file of the repository under repair. Pass the repo-relative path, the exact text to find (must occur exactly once), and its replacement. Cheaper and safer than rewriting the whole file.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "case \"$1\" in *..*|/*) echo \"path rejected: $1\" >&2; exit 1;; esac\nf=\"${REPAIR_WORKDIR:?REPAIR_WORKDIR not set}/$1\"\n[ -f \"$f\" ] || { echo \"no such file: $1\" >&2; exit 1; }\npython3 - \"$f\" \"$2\" \"$3\" <<'PYEOF'\nimport sys\npath, find, repl = sys.argv[1], sys.argv[2], sys.argv[3]\ntext = open(path).read()\nn = text.count(find)\nif n == 0:\n    print(f\"find-text not present in {path}\", file=sys.stderr); sys.exit(1)\nif n > 1:\n    print(f\"find-text occurs {n} times in {path}; make it unique\", file=sys.stderr); sys.exit(1)\nopen(path, \"w\").write(text.replace(find, repl, 1))\nprint(f\"edited {path}: 1 replacement\")\nPYEOF",
+        "--",
+        "{{path}}",
+        "{{find}}",
+        "{{replace}}"
+      ],
+      "required": [
+        "path",
+        "find",
+        "replace"
+      ],
+      "timeout_seconds": 10
     }
   ]
 }

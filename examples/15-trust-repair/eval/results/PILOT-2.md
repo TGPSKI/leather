@@ -1,5 +1,10 @@
 # Pilot run 2 — 35B upper anchor + harness fixes (2026-07-29)
 
+> **Status: EXPLORATORY, PRE-POLICY.** Two oracle-policy decisions (below)
+> were still open when these cells ran; the grid informs those decisions
+> and is not re-scored by them. Confirmatory numbers come only from the
+> post-policy, pre-registered corpus — same discipline as ex-14's T1.
+
 Same 10 cells as PILOT-1 (arms B/R/E/V/V2 × pin/prt), model
 qwen36-35b-a3b-nvfp4 (reasoning model, vLLM, greedy). Purpose: separate
 "the floor is the model" from "the floor is the task shape" after the 4B's
