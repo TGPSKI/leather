@@ -78,7 +78,27 @@ def main():
             "eval/scripts/paired-verdicts.py",
         ))
 
-    print(f"wrote {RESULTS}/MATRIX.md and {RESULTS}/VERDICTS.md at {commit()}")
+    # The registered battery is the headline result and had no rendered page
+    # at all — a reader following a link saw only the exploratory atlas and
+    # none of the replication that makes it a claim rather than a draw.
+    confirm = run(["python3", "eval/scripts/confirmatory-verdicts.py"])
+    with open(os.path.join(RESULTS, "CONFIRMATORY.md"), "w") as f:
+        f.write(page(
+            "Confirmatory verdicts — the six registered contrasts",
+            "The pre-registered battery, executed exactly as registered at main\n"
+            "commit `96cc418` **before any confirmatory cell ran** "
+            "([registration](../ablation/preregistration.md)).\n"
+            "Eleven arms × 3 replications on the 4B, wave-ordered; McNemar exact\n"
+            "on the discordant issues per contrast, per wave and pooled;\n"
+            "Holm–Bonferroni across the six primaries at α=0.05.\n\n"
+            "Two effects shrank materially under replication (depth −9.2 → −5.2,\n"
+            "retrieval payload +6.4 → +3.0). That correction is the point of the\n"
+            "exercise and is left visible rather than restated.",
+            confirm,
+            "eval/scripts/confirmatory-verdicts.py",
+        ))
+
+    print(f"wrote MATRIX.md, VERDICTS.md and CONFIRMATORY.md at {commit()}")
 
 
 if __name__ == "__main__":

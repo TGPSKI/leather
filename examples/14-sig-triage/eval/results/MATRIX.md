@@ -1,7 +1,7 @@
 # Results matrix — every archived cell
 
 > Generated snapshot — do not hand-edit. Produced by
-> `eval/scripts/table.py` at commit `6c484d0`;
+> `eval/scripts/table.py` at commit `1c024a5`;
 > regenerate with `python3 eval/scripts/render-results-md.py`.
 
 Accuracy per archived cell (accept-set, abstention-aware — the
@@ -12,68 +12,105 @@ inference and [README.md](README.md) for how to read any number
 here (means with spread, the ±6-row null band, the failing gate).
 
 ```text
+  acc   low ......... high        dur   short ......... long (ranked in view)
 
-  35b  34 cells
-     cell           acc no-out calls/iss  tools   ktok  variable under test                   
-                                                ? = not  captured (archive predates usage log) 
-     35b-A-4       89.2      -      2.00      0    644  baseline — the committed pipeline     
-     35b-H-4       88.4      -      2.00    250   1004  does the catalog ADD to the rules     
-     35b-A-5       88.0      -      2.00      0    644  baseline — the committed pipeline     
-     35b-F2        88.0      6      2.00    250   1077  the stage split, rules AND catalog han
-     35b-A-2       87.6      -      1.00      0      ?  baseline — the committed pipeline     
-     35b-A-3       87.6      -      2.00      0    645  baseline — the committed pipeline     
-     35b-A-6       87.6      -      2.00      0    644  baseline — the committed pipeline     
-     35b-H-5       87.6      -      2.00    250   1002  does the catalog ADD to the rules     
-     35b-H         87.2      -      2.00    250      ?  does the catalog ADD to the rules     
-     35b-A-7       86.8      -      2.00      0    643  baseline — the committed pipeline     
-     35b-A         86.8      -      2.00      0      ?  baseline — the committed pipeline     
-     35b-H-3       86.8      -      2.00    250   1003  does the catalog ADD to the rules     
-     35b-H-2       86.4      -      2.00    250   1003  does the catalog ADD to the rules     
-     35b-H-6       86.4      -      2.00    250   1003  does the catalog ADD to the rules     
-     35b-A0        85.6      -      1.00      0      ?  cost of an offered-but-unused tool    
-     35b-F         85.2      -      1.00      0    853  the analyze->match STAGE SPLIT        
-     35b-T2        85.2      -      3.08    270   1686  turn decomposition (leather-native, no
-     35b-H2        83.6      1      2.00    250    902  rules + NARROWED retrieval (vs rules +
-     35b-D         82.4      1      2.00    250      ?  tool round + second forward pass, orde
-     35b-G2        80.8      1      2.00    250    724  boundaries enforced in code vs offered
-     35b-G         79.6      1      2.00    250    742  retrieval payload: entries vs labels  
-     35b-T2c-2     79.6      4      4.66    667   2640  per-turn context clearing (bounded dec
-     35b-Dn        79.2      1      2.00    250      ?  instruction WORDING, mechanism held   
-     35b-E2        78.8      -      2.00    250      ?  hand-written NOT_MATCH boundaries     
-     35b-P1        78.4      -      1.00      0    592  message ROLE (system vs user), order h
-     35b-P2        78.4      -      1.00      0    594  ORDER (before vs after the issue), rol
-     35b-S1        78.0      1      2.97    243    592  bounded context via a STAGE boundary  
-     35b-T3        78.0      -      4.03    258   2099  decomposition DEPTH (3 turns vs 2)    
-     35b-E         77.6      -      2.00    250      ?  retrieval payload: narrowed labels vs 
-     35b-C2        75.6      -      1.00      0      ?  catalog FORMAT (prose vs term index), 
-     35b-C         74.8      -      1.00      0      ?  catalog content, delivered in the syst
-     35b-T2c       74.8      3      4.82    707   2785  per-turn context clearing (bounded dec
-     35b-Eauto     70.4      -      1.00      1      ?  voluntary vs compelled tool use       
-     35b-B         68.4      -      1.00      0      ?  floor — model prior only              
+  35b  34 cells  ·  sort acc↓
+     rig   arm draw   acc▼      dur  no-out  calls/iss   tools    ktok   started       ended    
+     35b     A 4      89.2   4m 13s       -       2.00       0     644   07-28 04:48   04:53    
+     35b     H 4      88.4   4m 27s       -       2.00     250    1004   07-28 04:30   04:35    
+     35b     A 5      88.0   4m 14s       -       2.00       0     644   07-28 04:53   04:57    
+     35b    F2        88.0   4m 12s       6       2.00     250    1077   07-28 01:52   01:57    
+     35b     A 2      87.6   4m 27s       -       1.00       0       ?   07-28 00:00   00:04    
+     35b     A 3      87.6   4m 15s       -       2.00       0     645   07-28 04:44   04:48    
+     35b     A 6      87.6   4m 13s       -       2.00       0     644   07-28 04:57   05:01    
+     35b     H 5      87.6   4m 27s       -       2.00     250    1002   07-28 04:35   04:39    
+     35b     H        87.2   4m 27s       -       2.00     250       ?   07-28 00:34   00:39    
+     35b     A 7      86.8   4m 14s       -       2.00       0     643   07-28 05:01   05:06    
+     35b     A        86.8   4m 13s       -       2.00       0       ?   07-27 23:14   23:19    
+     35b     H 3      86.8   4m 28s       -       2.00     250    1003   07-28 04:26   04:30    
+     35b     H 2      86.4   4m 28s       -       2.00     250    1003   07-28 04:21   04:26    
+     35b     H 6      86.4   4m 27s       -       2.00     250    1003   07-28 04:40   04:44    
+     35b    A0        85.6   4m 27s       -       1.00       0       ?   07-27 23:55   00:00    
+     35b     F        85.2   4m 12s       -       1.00       0     853   07-28 01:31   01:35    
+     35b    T2        85.2   4m 29s       -       3.08     270    1686   07-28 01:13   01:17    
+     35b    H2        83.6   4m 28s       1       2.00     250     902   07-28 14:13   14:18    
+     35b     D        82.4   4m 27s       1       2.00     250       ?   07-27 23:46   23:50    
+     35b    G2        80.8   4m 27s       1       2.00     250     724   07-28 01:43   01:47    
+     35b     G        79.6   4m 27s       1       2.00     250     742   07-28 01:17   01:22    
+     35b   T2c 2      79.6   4m 45s       4       4.66     667    2640   07-28 06:19   06:23    
+     35b    Dn        79.2   4m 26s       1       2.00     250       ?   07-28 00:30   00:34    
+     35b    E2        78.8   4m 28s       -       2.00     250       ?   07-27 23:41   23:46    
+     35b    P1        78.4   4m 27s       -       1.00       0     592   07-28 01:22   01:26    
+     35b    P2        78.4   4m 26s       -       1.00       0     594   07-28 01:26   01:31    
+     35b    S1        78.0   4m 28s       1       2.97     243     592   07-28 01:57   02:01    
+     35b    T3        78.0   4m 33s       -       4.03     258    2099   07-28 01:38   01:43    
+     35b     E        77.6   4m 26s       -       2.00     250       ?   07-27 23:37   23:41    
+     35b    C2        75.6   4m 26s       -       1.00       0       ?   07-27 23:28   23:32    
+     35b     C        74.8   4m 26s       -       1.00       0       ?   07-27 23:23   23:28    
+     35b   T2c        74.8   5m 27s       3       4.82     707    2785   07-28 04:13   04:18    
+     35b Eauto        70.4   4m 26s       -       1.00       1       ?   07-27 23:32   23:37    
+     35b     B        68.4   4m 27s       -       1.00       0       ?   07-27 23:19   23:23    
 
-  4b  22 cells
-     cell           acc no-out calls/iss  tools   ktok  variable under test                   
-                                                ? = not  captured (archive predates usage log) 
-     4b-F2         81.6      2      1.99    248   1165  the stage split, rules AND catalog han
-     4b-F          80.4      -      1.59    148   1427  the analyze->match STAGE SPLIT        
-     4b-H          78.8      1      2.00    460   1098  does the catalog ADD to the rules     
-     4b-H2         78.0      4      1.98    272    805  rules + NARROWED retrieval (vs rules +
-     4b-A          77.6      1      3.00    250      ?  baseline — the committed pipeline     
-     4b-P2         77.6      1      1.00      0    575  ORDER (before vs after the issue), rol
-     4b-T2         77.2      4      3.04    254   1497  turn decomposition (leather-native, no
-     4b-G          75.6      2      1.99    258    645  retrieval payload: entries vs labels  
-     4b-A0         75.2      1      1.03      0    304  cost of an offered-but-unused tool    
-     4b-G2         74.8      6      1.96    273    628  boundaries enforced in code vs offered
-     4b-Dn         72.4      1      2.00    499    968  instruction WORDING, mechanism held   
-     4b-D          71.6      5      2.03    512    988  tool round + second forward pass, orde
-     4b-E          71.6      4      1.98    260      ?  retrieval payload: narrowed labels vs 
-     4b-P1         71.6      1      1.00      0    575  message ROLE (system vs user), order h
-     4b-Eauto      70.0      2      2.00    250      ?  voluntary vs compelled tool use       
-     4b-E2         69.2      3      1.98    267      ?  hand-written NOT_MATCH boundaries     
-     4b-T3         68.0      1      4.04    253   1925  decomposition DEPTH (3 turns vs 2)    
-     4b-C          67.2      1      1.00      0      ?  catalog content, delivered in the syst
-     4b-C2         66.8      1      1.00      0      ?  catalog FORMAT (prose vs term index), 
-     4b-T2c        66.0      3      4.09    516   1953  per-turn context clearing (bounded dec
-     4b-B          62.8      1      1.00      0      ?  floor — model prior only              
-     4b-S1         62.4     25      3.00    251    516  bounded context via a STAGE boundary  
+  4b  60 cells  ·  sort acc↓
+     rig   arm draw   acc▼      dur  no-out  calls/iss   tools    ktok   started       ended    
+      4b    F2        81.6  13m 12s       2       1.99     248    1165   07-28 05:01   05:14    
+      4b     F        80.4  10m 14s       -       1.59     148    1427   07-28 03:34   03:44    
+      4b     H        78.8  12m 23s       1       2.00     460    1098   07-28 01:42   01:54    
+      4b    H2        78.0  11m 39s       4       1.98     272     805   07-28 04:49   05:01    
+      4b    T2 c2     78.0  27m 06s       1       3.00     250    1724   07-30 01:28   01:55    
+      4b     A        77.6  18m 26s       1       3.00     250       ?   07-27 23:14   23:33    
+      4b    P2        77.6   9m 28s       1       1.00       0     575   07-28 03:24   03:33    
+      4b    P2 c1     77.2   9m 37s       1       1.00       0     575   07-29 21:18   21:27    
+      4b    T2        77.2  31m 41s       4       3.04     254    1497   07-28 01:54   02:26    
+      4b    P2 c3     76.4   9m 37s       1       1.00       0     575   07-30 05:18   05:28    
+      4b    T2 c1     76.4  27m 06s       1       3.00     250    1723   07-29 21:27   21:54    
+      4b     G        75.6  10m 39s       2       1.99     258     645   07-28 03:04   03:14    
+      4b    P2 c2     75.6   9m 42s       1       1.00       0     575   07-30 01:18   01:28    
+      4b    T2 c3     75.6  27m 03s       1       3.00     250    1723   07-30 05:28   05:55    
+      4b    A0 c2     75.2   7m 53s       1       1.00       0     279   07-30 00:30   00:37    
+      4b    A0        75.2  13m 10s       1       1.03       0     304   07-28 01:03   01:16    
+      4b    G2        74.8  10m 33s       6       1.96     273     628   07-28 04:10   04:20    
+      4b    A0 c1     74.4   8m 23s       1       1.00       0     280   07-29 20:42   20:50    
+      4b     G c4     74.4  10m 45s       2       2.00     264     657   07-30 11:56   12:07    
+      4b     G c3     74.0  11m 04s       3       2.00     269     662   07-30 04:46   04:57    
+      4b    A0 c3     73.6  11m 35s       1       1.02       0     291   07-30 04:28   04:40    
+      4b     G c5     73.6  10m 49s       5       1.98     266     652   07-30 12:18   12:29    
+      4b     G c1     73.2  10m 56s       3       2.00     271     660   07-29 20:57   21:08    
+      4b    Dn        72.4  12m 35s       1       2.00     499     968   07-28 01:29   01:42    
+      4b  T2cr c3     72.4  47m 58s       5       4.03     509    2794   07-30 07:31   08:19    
+      4b  T2cr c2     72.0  50m 43s       4       4.12     519    2863   07-30 03:37   04:28    
+      4b    T3 c3     72.0  42m 05s       2       4.04     253    2199   07-30 05:55   06:37    
+      4b     D        71.6  12m 45s       5       2.03     512     988   07-28 01:16   01:29    
+      4b     E        71.6  10m 29s       4       1.98     260       ?   07-28 00:17   00:27    
+      4b    P1        71.6   9m 31s       1       1.00       0     575   07-28 03:14   03:24    
+      4b  T2cr c1     71.6  54m 22s       1       4.21     530    2937   07-29 23:35   00:29    
+      4b    T3 c2     71.6  43m 59s       1       4.10     257    2229   07-30 01:55   02:39    
+      4b    E2 c4     71.2  11m 01s       4       1.98     264     618   07-30 12:07   12:18    
+      4b    E2 c5     70.8  10m 49s       4       1.98     263     614   07-30 12:29   12:39    
+      4b     G c2     70.8  11m 04s       7       1.98     274     650   07-30 00:46   00:57    
+      4b    P1 c1     70.8   9m 49s       1       1.00       0     576   07-29 21:08   21:18    
+      4b    T3 c1     70.8  48m 28s       6       4.09     257    2225   07-29 21:55   22:43    
+      4b    E2 c1     70.4  10m 46s       3       1.98     259     617   07-30 08:19   08:30    
+      4b    E2 c2     70.4  10m 43s       3       1.98     268     618   07-30 00:57   01:08    
+      4b Eauto        70.0  10m 36s       2       2.00     250       ?   07-28 00:06   00:17    
+      4b    P1 c2     69.6   9m 45s       1       1.00       0     575   07-30 01:08   01:18    
+      4b    E2        69.2  10m 57s       3       1.98     267       ?   07-28 00:28   00:39    
+      4b    P1 c3     69.2   9m 46s       1       1.00       0     576   07-30 05:08   05:18    
+      4b    E2 c3     68.4  10m 42s       6       1.96     258     608   07-30 04:58   05:08    
+      4b    T3        68.0  37m 26s       1       4.04     253    1925   07-28 02:26   03:04    
+      4b     C        67.2   7m 43s       1       1.00       0       ?   07-27 23:51   23:59    
+      4b    C2        66.8   7m 25s       1       1.00       0       ?   07-27 23:59   00:06    
+      4b   T2c c1     66.8  38m 36s       2       4.00     499    2178   07-29 22:56   23:35    
+      4b   T2c        66.0  41m 22s       3       4.09     516    1953   07-28 06:18   07:00    
+      4b   T2c c3     65.6  39m 44s       2       4.02     505    2202   07-30 06:51   07:30    
+      4b     B        62.8   8m 08s       1       1.00       0       ?   07-27 23:43   23:51    
+      4b    S1 c6     62.8  13m 10s      27       3.07     268     529   07-30 12:40   12:54    
+      4b   T2c c2     62.8  45m 14s       4       4.04     508    2227   07-30 02:52   03:37    
+      4b    S1        62.4  13m 06s      25       3.00     251     516   07-28 04:36   04:49    
+      4b     B c1     62.0   6m 29s       1       1.00       0     195   07-29 20:50   20:57    
+      4b     B c3     62.0   6m 26s       1       1.00       0     195   07-30 04:40   04:46    
+      4b    S1 c3     61.2  13m 23s      28       3.08     270     531   07-30 08:56   09:10    
+      4b     B c2     60.8   8m 25s       1       1.00       0     196   07-30 00:38   00:46    
+      4b    S1 c1     60.4  13m 01s      30       3.08     272     532   07-30 08:30   08:43    
+      4b    S1 c2     59.6  13m 03s      34       3.03     257     521   07-30 08:43   08:56    
 ```

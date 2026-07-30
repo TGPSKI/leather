@@ -1,10 +1,15 @@
 # eval — full SIG-triage evaluation harness
 
-**The result this harness produced:** the same frozen 4B spans **62.4→81.6%**
-on a 250-issue gold corpus with runtime design as the only variable — 46
-verified archives, paired per-issue verdicts, a measured noise floor. The
-findings are in the [example README](../README.md); the numbers and lessons in
-[results/](results/README.md). This document is the instrument itself.
+**The result this harness produced:** the same frozen 4B spans **59.6→81.6%**
+on a 250-issue gold corpus with runtime design as the only variable — 94
+verified archives, paired per-issue verdicts, a measured noise floor, and six
+contrasts **pre-registered at commit `96cc418` before any confirmatory cell
+ran** ([registration](ablation/preregistration.md),
+[verdicts](results/CONFIRMATORY.md)). All six survive Holm–Bonferroni at
+α=0.05; two shrank by roughly half under replication. The findings are in the
+[example README](../README.md); the numbers and lessons in
+[results/](results/README.md); how to browse the archives in
+[VIEWING.md](VIEWING.md). This document is the instrument itself.
 
 Fetches real sig-labeled `kubernetes/kubernetes` issues, caches them, **separates
 the labels from the issues** (and scrubs label leakage), runs the `analyze`->`match`
@@ -52,9 +57,11 @@ model scales (46 archived cells). The moving parts:
   battery status.
 - `results/quarantine/` — wrecked runs kept with post-mortems; do not resurrect.
 
-Headline: the same frozen 4B spans 62.4→81.6% across arms (floor: the S1
-fresh-session stage split; ceiling: the F2 single-stage split with rules and
-catalog held constant). Findings and their
+Headline: the same frozen 4B spans 59.6→81.6% across arms (floor: an S1
+fresh-session stage-split draw; ceiling: the F2 single-stage split with rules
+and catalog held constant). Those are extreme single cells — the replicated
+arm means are the numbers to bet on, and the registered contrasts between them
+are in [results/CONFIRMATORY.md](results/CONFIRMATORY.md). Findings and their
 verdicts are summarized in the example README; per-cell evidence lives in each
 archive's manifest, sigeval report, and logprob record.
 
@@ -277,7 +284,8 @@ a problem the prompt-based one provably has.
 
 (2026-07-28: the ablation has since happened — see the campaign section above.
 Measured: fetched/retrieved delivery beats pasted rules-free delivery, full
-entries beat narrowed labels (+6.4 on the 4B), and the *catalog on top of the
+entries beat narrowed labels (+3.0 replicated on the 4B; the first single
+draw said +6.4), and the *catalog on top of the
 hand-written rules* is a null at both scales (H≈A) — the retrieval design's
 scaling argument stands, but rules remain the largest single lever at today's
 taxonomy size.)

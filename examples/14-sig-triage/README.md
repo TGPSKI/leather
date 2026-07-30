@@ -6,16 +6,26 @@ This example exists to answer the question leather itself was built for: **can a
 runtime make a model that fits on a 6 GB laptop GPU worth using for real work?**
 
 On this task, the answer is measured, not asserted. The same frozen 4B model
-(Qwen3-4B-Instruct, AWQ) scores anywhere from **62.4% to 81.6%** on a 250-issue
+(Qwen3-4B-Instruct, AWQ) scores anywhere from **59.6% to 81.6%** on a 250-issue
 gold corpus depending only on what the runtime puts around it — the weights
-never change, the hardware never changes. Nearly twenty points of accuracy live
-in the runtime design. The eval under `eval/` is the instrument that measured
-it — 46 archived cells across two model scales, paired per-issue verdicts, a
-measured noise floor, and two quarantined wrecks with post-mortems. The
-numbers themselves are two clicks: the arm-by-arm
-[results matrix](eval/results/MATRIX.md) and the paired
+never change, the hardware never changes. Twenty-two points of accuracy live
+in the runtime design.
+
+And it is not one lucky sweep: six contrasts were **pre-registered at a commit
+hash before any confirmatory cell ran**, replicated three times each, and all
+six survive Holm–Bonferroni at α=0.05. Two of them shrank by roughly half under
+replication — that correction is left visible, because it is the reason the
+protocol exists.
+
+The eval under `eval/` is the instrument — 94 archived cells across two model
+scales, paired per-issue verdicts, a measured noise floor, and two quarantined
+wrecks with post-mortems. The numbers are one click each: the
+[registration](eval/ablation/preregistration.md), the
+[confirmatory verdicts](eval/results/CONFIRMATORY.md), the arm-by-arm
+[results matrix](eval/results/MATRIX.md), and the exploratory
 [verdicts](eval/results/VERDICTS.md). Start at
-[eval/README.md](eval/README.md).
+[eval/README.md](eval/README.md); to browse the archives interactively, see
+[eval/VIEWING.md](eval/VIEWING.md).
 
 The arc, in one paragraph: this example started as a demo pipeline, grew an
 eval to find out whether the demo was any good, and the eval then earned its
@@ -37,23 +47,35 @@ p-values in `eval/ablation/arms.json` and `eval/scripts/paired-verdicts.py`.
 
 What helped the 4B:
 
-- **Explicit domain rules** in the prompt — the largest single lever.
+Figures below are the **replicated** ones — three registered draws per side,
+pooled, Holm-adjusted. Where a single exploratory draw said something larger,
+the replicated number is the one quoted.
+
+- **Explicit domain rules** in the prompt — **+12.8**, the largest single lever.
+- **Task before reference** — issue first, catalog after, **+6.5**. Let the
+  model understand the question before the payload lands.
 - **Rich reference payloads** — full catalog entries beat narrowed bare labels
-  by ~6. Shrinking the candidate list is not enough; the model needs the prose
-  that explains *why* a label fits.
-- **Task before reference** — issue first, catalog after beats the reverse
-  order by ~6. Let the model understand the question before the payload lands.
-- **Short execution paths** — leather's native two-turn tool scoping beat a
-  proxy-forced tool round by ~6.
+  by **+3.0**. Shrinking the candidate list is not enough; the model needs the
+  prose that explains *why* a label fits. This is the weakest confirmed lever
+  and the one that triggered the registered 5× replication rule — the first
+  measurement said +6.4.
 
 What hurt it:
 
-- **An extra accumulating turn** — a three-turn flow lost ~9 to the two-turn
-  flow. Context grows monotonically across turns; more calls bought noise, not
-  reasoning.
-- **Aggressive context removal** — a fresh-session queue hop lost ~15; clearing
-  the conversation and carrying only a distilled shortlist lost ~11. Both
-  mechanisms replaced rich evidence with a lossy summary.
+- **An extra accumulating turn** — a three-turn flow lost **5.2** to the
+  two-turn flow. Context grows monotonically across turns; more calls bought
+  noise, not reasoning. (The single exploratory draw said 9.2. Replication
+  halved it.)
+- **Aggressive context removal** — a fresh-session queue hop lost **16.3**;
+  clearing the conversation and carrying only a distilled shortlist lost
+  **11.6**. Both mechanisms replaced rich evidence with a lossy summary, and
+  the control arm since separated the two costs: clearing itself is worth
+  about 5 points, and replacing the rich carrier with a distilled shortlist
+  costs another ~7. The carrier is the bigger half.
+- **The floor is a bad harness, not the bare model.** The fresh-session scheme
+  lands at 61.3% (5 draws) — statistically level with the bare model's 61.9%
+  (4 draws) — after paying for an extra stage and 250 tool calls it got
+  nothing for.
 - **Code-enforced candidate pruning** — no detectable accuracy gain at either
   scale. Enforcement guarantees behaviour; it did not improve this classifier.
 
