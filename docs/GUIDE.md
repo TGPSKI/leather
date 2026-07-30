@@ -4,6 +4,13 @@ Practical recipes and style rules for building agents, curings, and tannery
 pipelines with leather. Examples 01–08 in `examples/` are the canonical
 reference for every pattern described here.
 
+**Where this sits:** this is the *how-to* layer. What leather is and the
+measured claims behind it → [README](../README.md); why the design choices
+here are shaped this way (evidence, not taste) →
+[examples/14-sig-triage](../examples/14-sig-triage/); how the runtime works
+inside → [ARCHITECTURE.md](ARCHITECTURE.md); every env var →
+[CONVENTIONS.md](CONVENTIONS.md).
+
 ---
 
 ## Contents

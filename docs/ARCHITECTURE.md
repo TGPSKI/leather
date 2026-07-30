@@ -1,9 +1,11 @@
 # Architecture
 
 See [README.md](../README.md) for what leather is and how to invoke it. This
-document covers package layout, data flow, and cross-cutting design notes.
-
-Detailed per-package documentation lives in [docs/modules/](modules/).
+document covers package layout, data flow, and cross-cutting design notes —
+the *internals* layer: how-to lives in [GUIDE.md](GUIDE.md), per-package
+detail in [docs/modules/](modules/), and the measured evidence for the
+runtime-design claims in
+[examples/14-sig-triage](../examples/14-sig-triage/).
 
 ## Package Layout
 

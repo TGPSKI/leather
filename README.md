@@ -22,7 +22,7 @@ leather run summarizer.agent.md
 
 ## See it run
 
-Sixteen demos in [examples/](examples/), each one `make` target away.
+Seventeen demos in [examples/](examples/), each one `make` target away.
 
 <details open><summary><strong>Example 02: scheduled agent</strong></summary>
 <br/>
@@ -51,11 +51,24 @@ make example-06
 </details>
 <br/>
 
-Same code path also runs a profiled 100-webhook burst — 500 LLM calls,
-965K tokens, five fan-out/fan-in stages — end to end in 190s at 6.5% avg
-host CPU and no measurable IO pressure. Leather isn't the bottleneck; the
-model is. Full profile in
-[examples/11-high-volume-ci](examples/11-high-volume-ci/#measured-at-scale-100-webhook-full-system-profile).
+## Measured, not asserted
+
+Two claims carry this project, each with its evidence one click away:
+
+- **The runtime doesn't get in the way.** The same code path runs a profiled
+  100-webhook burst — 500 LLM calls, 965K tokens, five fan-out/fan-in
+  stages — end to end in 190s at 6.5% avg host CPU and no measurable IO
+  pressure. Leather isn't the bottleneck; the model is.
+  → [examples/11-high-volume-ci](examples/11-high-volume-ci/#measured-at-scale-100-webhook-full-system-profile)
+- **The runtime is where the accuracy lives.** The same frozen 4B model spans
+  **62.4% → 81.6%** on a 250-issue gold corpus depending only on the design
+  around it — a 22-arm × 2-rig ablation with paired per-issue verdicts and a
+  measured noise floor. The floor isn't the bare model; it's a bad harness.
+  → findings in plain language:
+  [examples/14-sig-triage](examples/14-sig-triage/) · every cell and verdict:
+  [matrix](examples/14-sig-triage/eval/results/MATRIX.md) /
+  [verdicts](examples/14-sig-triage/eval/results/VERDICTS.md) · raw run
+  archives committed — auditable without a GPU
 
 ## What it does
 
@@ -170,9 +183,12 @@ llm_api_key:
 
 ## Go deeper
 
-- **Implementation guide** → [docs/GUIDE.md](docs/GUIDE.md) — every file format plus recipes for each pattern above
-- **Architecture & data flow** → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- **Glossary** → [docs/GLOSSARY.md](docs/GLOSSARY.md)
-- **Per-package docs** → [docs/modules/](docs/modules)
-- **Agent contributor guide** → [AGENTS.md](AGENTS.md)
-- **Domain-specific subagent guides** → [.subagents/](.subagents)
+Pick your path by the question you're asking; each row starts approachable
+and descends as far as you want to go.
+
+| you want to… | start here | then |
+|---|---|---|
+| **build** an agent, pipeline, or tool | [docs/GUIDE.md](docs/GUIDE.md) — every file format, plus a recipe for each pattern above | [examples/](examples/) (17 runnable demos) · [docs/CONVENTIONS.md](docs/CONVENTIONS.md) (env-var reference) · [docs/TEMPLATES.md](docs/TEMPLATES.md) |
+| **check** the claims above | [examples/14-sig-triage](examples/14-sig-triage/) — findings in plain language | [matrix](examples/14-sig-triage/eval/results/MATRIX.md) / [verdicts](examples/14-sig-triage/eval/results/VERDICTS.md) → [experiment design](examples/14-sig-triage/eval/README.md) → [claim ledger](examples/14-sig-triage/eval/results/verification.md) → [raw archives](examples/14-sig-triage/eval/results/runs/) |
+| **understand** the internals | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — package layout and data flow | [docs/modules/](docs/modules) (per-package) · [docs/GLOSSARY.md](docs/GLOSSARY.md) |
+| **contribute** (human or agent) | [AGENTS.md](AGENTS.md) — the routing table | [.subagents/](.subagents) domain guides · [CHANGELOG.md](CHANGELOG.md) |
