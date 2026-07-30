@@ -96,12 +96,8 @@ except Exception: print(0)" 2>/dev/null)
     grand_tok=$(( grand_tok + ${tok:-0} )); grand_calls=$(( grand_calls + ${calls:-0} ))
     printf '\n'
   done
-  rule
-  printf '  %sprocs %s - archived %s - live cells %s calls / %s tok%s\n' \
-    "$D" "$(pgrep -f 'run-eval.sh' | grep -cv '^$')" \
-    "$(ls -d eval/results/runs/*/ 2>/dev/null | wc -l)" "$grand_calls" "$grand_tok" "$R"
-  # Glossary lives at the BOTTOM: it is reference material you consult, not
-  # a banner you read past on every redraw.
+  # Reference material sits above the closing rule, so the rule + totals
+  # stay the visual floor of the screen no matter what is toggled on.
   if [ "${HELP:-0}" = "1" ]; then
     NOCOLOR="${NOCOLOR:-}" python3 -c "
 import os, sys
@@ -120,6 +116,10 @@ import matrixdata as md
 for l in md.legend(bool(os.environ.get('NOCOLOR'))):
     print(l)
 "
+  rule
+  printf '  %sprocs %s - archived %s - live cells %s calls / %s tok%s' \
+    "$D" "$(pgrep -f 'run-eval.sh' | grep -cv '^$')" \
+    "$(ls -d eval/results/runs/*/ 2>/dev/null | wc -l)" "$grand_calls" "$grand_tok" "$R"
 }
 
 if [ "${LOOP:-0}" = "1" ]; then

@@ -312,20 +312,18 @@ def tag_widths(cells):
 
 
 def fmt_tag(c, arm_w, draw_w):
-    """'4b - T2cr - c3' with rig/arm/draw each in its own aligned column.
+    """'4b T2cr c3' — rig, arm and draw in adjacent aligned columns.
 
-    A flat tag string hides the structure that matters at a glance — which
-    rig, which arm, which draw — because the hyphens land in a different
-    place on every row. Rig is right-aligned so '35b' and ' 4b' share an
-    edge; the second separator is dropped for undrawn (exploratory) cells
-    rather than left dangling.
+    Aligned columns already separate the three fields; the hyphens that used
+    to sit between them added width without information and pushed the parts
+    far enough apart to read as unrelated. Rig stays right-aligned so '35b'
+    and ' 4b' share an edge.
     """
-    sep = "-" if c["draw"] else " "
-    return f"{c['rig']:>3} - {c['arm']:>{arm_w}} {sep} {c['draw']:<{draw_w}}"
+    return f"{c['rig']:>3} {c['arm']:>{arm_w}} {c['draw']:<{draw_w}}"
 
 
 def tag_header(arm_w, draw_w):
-    return f"{'rig':>3}   {'arm':>{arm_w}}   {'draw':<{draw_w}}"
+    return f"{'rig':>3} {'arm':>{arm_w}} {'draw':<{draw_w}}"
 
 
 def tag_layout(cells):
@@ -333,7 +331,7 @@ def tag_layout(cells):
     'draw' header even when draws are two characters, so the next column
     never clips the label."""
     aw, dw = tag_widths(cells)
-    return aw, dw, 3 + 3 + aw + 3 + max(dw, 4)
+    return aw, dw, 3 + 1 + aw + 1 + max(dw, 4)
 
 
 def draw_spark(accs):
