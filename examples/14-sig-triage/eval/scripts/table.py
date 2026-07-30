@@ -1,125 +1,117 @@
 #!/usr/bin/env python3
-"""Render the results table from ARCHIVES, not from runner logs.
+"""Lean leaderboard from ARCHIVES — the renderer behind watch-matrix.sh.
 
-The log-driven version read $TMP/<prefix>-<rig>.log for a fixed set of prefixes, so any
-battery written to a different filename was invisible — T3, G2 and F2 all completed and
-none appeared. Logs are also mutable, orphaned and duplicated across re-runs. The archive
-under results/runs/<tag>/ is the source of truth everywhere else in this project; this makes
-the display agree.
+This is a MONITOR: which cells exist, how they scored, what they cost. It
+deliberately carries no analysis columns. Arm means, deviations, spreads and
+per-arm sparklines all moved to the interactive browser (matrix-tui.py),
+because in a live view of running arms they answered a question nobody was
+asking, pushed the useful columns off the right edge, and — with a '*'
+appended to mixed-draw means — broke column alignment outright.
+
+Scoping (all three compose):
+  RIG=4b|35b            one rig
+  SCOPE=confirmatory    registered -cN draws only; exploratory = the rest
+  FILTER=<pattern>      bare prefix, glob, substring, comma-OR, '!' negates
+
+Loading and scoring live in matrixdata.py, shared with matrix-tui.py so the
+two surfaces cannot disagree about a number.
 """
-import gzip, json, os, sys, glob
+import os
+import sys
+import time
 
-EX = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-RUNS = os.path.join(EX, "eval", "results", "runs")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import matrixdata as md                       # noqa: E402
+from tui.fmt import duration                  # noqa: E402
+
 NC = os.environ.get("NOCOLOR")
 B, D, R = ("", "", "") if NC else ("\033[1m", "\033[2m", "\033[0m")
-GRN, YEL, RED, CYN = ("", "", "", "") if NC else ("\033[32m", "\033[33m", "\033[31m", "\033[36m")
+GRN, YEL, RED, CYN, BLU, MAG = (("",) * 6 if NC else
+                                ("\033[32m", "\033[33m", "\033[31m",
+                                 "\033[36m", "\033[34m", "\033[35m"))
 
-# Scoring: sigeval is the ONLY scorer (task #32). This script previously carried its own
-# accept-set membership test, which silently disagreed with sigeval wherever a model emitted
-# slash-notation labels (35b-F: 81.6 naive vs 84.4 sigeval — 7 `sig/apps` rows normSIG folds
-# and a raw string compare does not). Two scorers, two numbers; the table showed the wrong one.
-# Now: read <archive>/sigeval-rows.jsonl, generating it (plus sigeval-report.txt) on first
-# touch, so the table can never disagree with the scorer of record.
-import subprocess
-
-ROOT = os.path.normpath(os.path.join(EX, "..", ".."))
-SIGEVAL = os.environ.get("SIGEVAL")  # optional prebuilt binary; else `go run`
-
-def score(d, pred_path, rows):
-    rp = os.path.join(d, "sigeval-rows.jsonl")
-    key_mtime = max(os.path.getmtime(pred_path),
-                    os.path.getmtime(os.path.join(EX, "eval", "gold.jsonl")),
-                    os.path.getmtime(os.path.join(EX, "eval", "gold.overrides.jsonl")))
-    if not os.path.exists(rp) or os.path.getmtime(rp) < key_mtime:
-        cmd = [SIGEVAL] if SIGEVAL else ["go", "run", "./examples/14-sig-triage/eval/sigeval.go"]
-        cmd += ["-pred", os.path.abspath(pred_path),
-                "-gold", os.path.join(EX, "eval", "gold.jsonl"),
-                "-overrides", os.path.join(EX, "eval", "gold.overrides.jsonl"),
-                "-split", os.path.join(EX, "eval", "splits.jsonl"),
-                "-catalog", os.path.join(EX, "sigs.reference.yaml"),
-                "-emit-rows", os.path.abspath(rp)]
-        try:
-            rep = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=300)
-        except Exception as e:
-            print(f"  !! sigeval failed for {d}: {e} — refusing to fall back to a second scorer",
-                  file=sys.stderr)
-            return None
-        # Fail CLOSED: if no FRESH rows exist after the attempt (scorer crashed,
-        # emitted nothing), never fall back to stale rows or clobber the report.
-        if not os.path.exists(rp) or os.path.getmtime(rp) < key_mtime:
-            print(f"  !! sigeval produced no fresh rows for {d} (rc={rep.returncode}): "
-                  f"{rep.stderr.strip()[:200]}", file=sys.stderr)
-            return None
-        open(os.path.join(d, "sigeval-report.txt"), "w").write(rep.stdout)
-    verd = [json.loads(l) for l in open(rp) if l.strip()]
-    if not verd: return None
-    return 100 * sum(1 for v in verd if v["correct"]) / len(verd)
-try:
-    arms = {k: v for k, v in json.load(open(os.path.join(EX, "eval", "ablation", "arms.json"))).items()
-            if not k.startswith("_")}
-except Exception:
-    arms = {}
-
-def cell(d):
-    tag = os.path.basename(d.rstrip("/"))
-    p = os.path.join(d, "predictions.jsonl")
-    if not os.path.exists(p): return None
-    rows = [json.loads(l) for l in open(p) if l.strip()]
-    if not rows: return None
-    dead = sum(1 for r in rows if r.get("predicted") == "unknown" and r.get("confidence") == "no-output")
-    acc = score(d, p, rows)
-    if acc is None: return None
-    man = {}
-    mp = os.path.join(d, "run-manifest.json")
-    if os.path.exists(mp):
-        try: man = json.load(open(mp))
-        except Exception: pass
-    # Telemetry from the archive, not from runner-log text. Tool EXECUTIONS come from
-    # leather's own log (ground truth); calls/issue counts every LLM round the proxy saw,
-    # across all stages, which is the honest cost figure for multi-stage arms.
-    calls = issues = tools = toks = 0
-    lp = os.path.join(d, "logprobs.jsonl.gz")
-    if os.path.exists(lp):
-        seen = set()
-        for l in gzip.open(lp, "rt", errors="replace"):
-            l = l.strip()
-            if not l: continue
-            try: rec = json.loads(l)
-            except Exception: continue
-            calls += 1
-            if rec.get("issue") is not None: seen.add(rec["issue"])
-            u = rec.get("usage") or {}
-            toks += u.get("total_tokens") or 0
-        issues = len(seen)
-    ev = os.path.join(d, "run-evidence.log.gz")
-    if os.path.exists(ev):
-        with gzip.open(ev, "rt", errors="replace") as f:
-            tools = sum(1 for line in f if "executing tool" in line)
-    rig = "35b" if tag.startswith("35b") else ("4b" if tag.startswith("4b") else "?")
-    arm = tag[len(rig)+1:] if rig != "?" else tag
-    arm = arm.rsplit("-", 1)[0] if arm.rsplit("-", 1)[-1].isdigit() else arm
-    return dict(tag=tag, rig=rig, arm=arm, acc=acc, rows=len(rows), dead=dead,
-                cpi=(calls / len(rows)) if rows else 0.0, tools=tools,
-                ktok=toks / 1000.0,
-                var=arms.get(arm, {}).get("variable", ""), started=man.get("started", ""))
-
-cells = [c for c in (cell(d) for d in sorted(glob.glob(os.path.join(RUNS, "*/")))) if c]
-# a re-run supersedes an earlier archive of the same tag
-best = {}
-for c in cells: best[c["tag"]] = c
+FILTER = os.environ.get("FILTER", "")
+SCOPE = os.environ.get("SCOPE") or "all"
 ONLY = os.environ.get("RIG")
+SORT = os.environ.get("SORT") or "acc"
+REV = os.environ.get("SORT_REV") == "1"
+
+# Every sort is "most interesting first" by default; SORT_REV=1 flips it.
+SORT_KEYS = {
+    "acc":   lambda c: -c["acc"],
+    "tools": lambda c: -c["tools"],
+    "ktok":  lambda c: -c["ktok"],
+    "dur":   lambda c: -c["dur_s"],
+    "noout": lambda c: -c["dead"],
+    "tag":   lambda c: c["tag"],
+}
+if SORT not in SORT_KEYS:
+    sys.exit(f"SORT must be one of {', '.join(SORT_KEYS)} (got {SORT!r})")
+
+if SCOPE not in md.SCOPES:
+    sys.exit(f"SCOPE must be one of {', '.join(md.SCOPES)} (got {SCOPE!r})")
+
+cells = [c for c in md.load_cells(FILTER) if md.in_scope(c, SCOPE)]
+ARM_W, DRAW_W, TAG_W = md.tag_layout(cells)
+
+if os.environ.get("LEGEND", "1") == "1":
+    for line in md.legend(bool(NC)):
+        print(line)
+if os.environ.get("HELP") == "1":
+    print(f"  {B}column definitions{R}")
+    for name, text in md.COLUMN_HELP:
+        print(f"     {D}{name:<10}{R} {D}{text}{R}" if name
+              else f"     {D}{'':<10} {text}{R}")
+
 for rig in (("35b", "4b") if not ONLY else (ONLY,)):
-    rc = sorted([c for c in best.values() if c["rig"] == rig], key=lambda c: -c["acc"])
-    if not rc: continue
-    if not ONLY: print(f"\n  {B}{rig}{R}  {D}{len(rc)} cells{R}")
-    print(f"     {D}{'cell':11s} {'acc':>6s} {'no-out':>6s} {'calls/iss':>9s} {'tools':>6s} {'ktok':>6s}  {'variable under test':38s}{R}")
-    print(f"     {D}{'':11s} {'':>6s} {'':>6s} {'':>9s} {'':>6s} {'? = not':>6s}  {'captured (archive predates usage log)':38s}{R}")
+    rc = sorted([c for c in cells if c["rig"] == rig],
+                key=SORT_KEYS[SORT], reverse=REV)
+    if not rc:
+        continue
+    scoping = " · ".join(x for x in (
+        f"scope {SCOPE}" if SCOPE != "all" else "",
+        f"filter {FILTER}" if FILTER else "",
+        f"sort {SORT}{'↑' if REV else '↓'}") if x)
+    if not ONLY:
+        print(f"\n  {B}{rig}{R}  {D}{len(rc)} cells"
+              f"{'  ·  ' + scoping if scoping else ''}{R}")
+    # Duration gets its own scale, ranked WITHIN this view rather than against
+    # fixed thresholds: what counts as a slow cell depends entirely on which
+    # arms you are looking at (P2 runs 9m, T2cr 47m). Blue→magenta, so a slow
+    # cell never reads as a bad score — accuracy owns green/yellow/red.
+    durs = sorted(c["dur_s"] for c in rc if c["dur_s"])
+
+    def dur_attr(s):
+        if not s or len(durs) < 2:
+            return D
+        q = durs.index(min(durs, key=lambda x: abs(x - s))) / (len(durs) - 1)
+        return BLU if q < 0.34 else (CYN if q < 0.67 else MAG)
+
+    # Header marks the ordered column and its direction. Numeric sorts run
+    # "most first" by default (the key is negated), so their default arrow is
+    # descending; the tag sort is naturally ascending. SORT_REV flips either.
+    def hdr(label, width, key, left=False):
+        if SORT != key:
+            return f"{D}{label:<{width}}{R}" if left else f"{D}{label:>{width}}{R}"
+        desc = REV if key == "tag" else (not REV)
+        marked = f"{label}{'▼' if desc else '▲'}"
+        return (f"{B}{CYN}{marked:<{width}}{R}" if left
+                else f"{B}{CYN}{marked:>{width}}{R}")
+
+    print(f"     {hdr(md.tag_header(ARM_W, DRAW_W), TAG_W, 'tag', left=True)} "
+          f"{hdr('acc', 6, 'acc')} {hdr('dur', 8, 'dur')} "
+          f"{hdr('no-out', 7, 'noout')} {D}{'calls/iss':>10s}{R} "
+          f"{hdr('tools', 7, 'tools')} {hdr('ktok', 7, 'ktok')}"
+          f"   {D}{'started':<14s}{'ended':<9s}{R}")
     for c in rc:
         col = GRN if c["acc"] >= 84 else (YEL if c["acc"] >= 74 else RED)
-        lost = f"{RED}{c['dead']:6d}{R}" if c["dead"] else f"{D}     -{R}"
+        lost = f"{RED}{c['dead']:7d}{R}" if c["dead"] else f"{D}      -{R}"
         tc = CYN if c["tools"] else D
-        ktok = f"{c['ktok']:6.0f}" if c["ktok"] else "     ?"
-        print(f"     {c['tag']:11s} {col}{c['acc']:6.1f}{R} {lost} "
-              f"{D}{c['cpi']:9.2f}{R} {tc}{c['tools']:6d}{R} {D}{ktok}{R}  "
-              f"{D}{c['var'][:38]:38s}{R}")
+        ktok = f"{c['ktok']:7.0f}" if c["ktok"] else "      ?"
+        start = c["started"][5:16].replace("T", " ") if c["started"] else "?"
+        end = (time.strftime("%H:%M", time.localtime(c["ended_ts"]))
+               if c["ended_ts"] else "?")
+        print(f"     {md.fmt_tag(c, ARM_W, DRAW_W):{TAG_W}s} {col}{c['acc']:6.1f}{R} "
+              f"{dur_attr(c['dur_s'])}{md.fmt_duration(c['dur_s'])}{R} "
+              f"{lost} {D}{c['cpi']:10.2f}{R} {tc}{c['tools']:7d}{R} {D}{ktok}{R}"
+              f"   {D}{start:<14s}{end:<9s}{R}")

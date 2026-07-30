@@ -1,66 +1,39 @@
-# 14-sig-triage — run everything from inside the example directory.
-# The numbered targets in ../Makefile (14, 14-live, 14-eval, ...) remain the
+# 14-sig-triage — the EXAMPLE surface (the pipeline itself).
+# The numbered targets in ../Makefile (14, 14-live, ...) remain the
 # fresh-clone entry points; this file is the same surface for people working
-# in here, plus the eval-suite targets that grew out of the ablation campaign.
+# in here.
 #
-# Endpoint/model default to the values ../Makefile uses; override per-call:
-#   make eval LEATHER_LLM_ENDPOINT=http://127.0.0.1:8000 LEATHER_MODEL=my-model
+# The eval suite has its own Makefiles, split by consequence:
+#   cd eval && make            # read-only views (matrix, watch, table, verdicts)
+#   cd eval && make -f Makefile.run help    # things that spend GPU-hours
+#
+# api_addr in config.yaml is 7749, which is a common leather default and so
+# a likely collision with an already-running instance on this machine (it
+# was, once). Both demo targets bind a private port instead; override with
+# DEMO_API_ADDR= if that one is taken too.
 
-LEATHER            ?= ../../leather
-SHELLMCP           ?= ../../shell-mcp
-LEATHER_LLM_ENDPOINT ?= http://localhost:11434
-LEATHER_MODEL      ?=
+LEATHER          ?= ../../leather
+SHELLMCP         ?= ../../shell-mcp
+DEMO_API_ADDR    ?= 127.0.0.1:7769
 
-EVALENV = LEATHER="$(LEATHER)" SHELLMCP="$(SHELLMCP)" \
-          LEATHER_LLM_ENDPOINT="$(LEATHER_LLM_ENDPOINT)" LEATHER_MODEL="$(LEATHER_MODEL)"
-
-.PHONY: help demo live eval eval-fetch eval-lint eval-splits eval-test \
-        taxonomy-check preflight battery noise overnight table verdicts watch
+.PHONY: help demo live taxonomy-check eval-help
 
 help:                    ## this list
+	@printf '\n  \033[1m14-sig-triage — the example pipeline\033[0m\n\n'
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
+	@printf '\n  \033[1meval suite\033[0m (separate, split by consequence)\n'
+	@printf '  %-14s %s\n' "cd eval && make" "read-only: matrix, watch, table, verdicts"
+	@printf '  %-14s %s\n\n' "…-f Makefile.run" "runs: preflight, confirmatory, battery"
 
 demo:                    ## dry pipeline over the sample issue (no side effects)
-	@LEATHER_DEMO_MODE=dry bash scripts/run-demo.sh
+	@LEATHER_DEMO_MODE=dry LEATHER_API_ADDR=$(DEMO_API_ADDR) bash scripts/run-demo.sh
 
-live:                    ## LIVE pipeline — posts real /sig comments/labels via gh
-	@LEATHER_DEMO_MODE=live bash scripts/run-demo.sh
-
-eval:                    ## full 250-issue eval run + classification gate
-	@$(EVALENV) bash eval/run-eval.sh
-
-eval-fetch:              ## (re)build the labeled corpus from GitHub (cached)
-	@PER_SIG=15 bash eval/scripts/fetch-eval-corpus.sh
-
-eval-lint:               ## gold hygiene: content-free rows must permit abstention
-	@bash eval/scripts/gold-sanity-lint.sh
-
-eval-splits:             ## rebuild the smoke/acceptance/holdout tier manifest
-	@bash eval/scripts/make-splits.sh
-
-eval-test:               ## scorer self-test
-	@go test ./eval/
+live:                    ## LIVE — posts real /sig comments+labels via gh, on a repo you own
+	@LEATHER_DEMO_MODE=live LEATHER_API_ADDR=$(DEMO_API_ADDR) bash scripts/run-demo.sh
 
 taxonomy-check:          ## detect upstream SIG drift (exit 10 = drift)
 	@bash scripts/check-taxonomy-currency.sh
 
-preflight:               ## 26 harness checks on 5 issues — run before GPU-hours
-	@$(EVALENV) bash eval/scripts/preflight.sh
-
-battery:                 ## remaining ablation cells for one rig: make battery RIG=35b
-	@$(EVALENV) bash eval/scripts/run-battery.sh $(RIG)
-
-noise:                   ## repeat-draw noise battery: make noise RIG=35b
-	@$(EVALENV) bash eval/scripts/noise-battery.sh $(RIG)
-
-overnight:               ## optional curiosity battery, both rigs (see script header)
-	@$(EVALENV) bash eval/scripts/overnight-battery.sh both
-
-table:                   ## leaderboard rendered from archives
-	@python3 eval/scripts/table.py
-
-verdicts:                ## paired McNemar verdict for every declared comparison
-	@python3 eval/scripts/paired-verdicts.py
-
-watch:                   ## live battery status (redraws in place)
-	@LOOP=1 bash eval/scripts/watch-matrix.sh
+eval-help:               ## show both eval Makefiles' targets
+	@$(MAKE) -C eval help
+	@$(MAKE) -C eval -f Makefile.run help

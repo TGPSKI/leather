@@ -38,6 +38,7 @@ case "$RIG" in
        export CONCURRENCY=4; export LP_PORT=8021 ;;
   *)   echo "unknown rig $RIG" >&2; exit 2 ;;
 esac
+export BATTERY=noise
 export LEATHER=../../leather SHELLMCP=../../shell-mcp
 export STATE_SUFFIX="-$RIG" LOGPROB=1
 

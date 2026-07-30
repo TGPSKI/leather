@@ -209,7 +209,8 @@ loop — was built far enough to measure, and the measurement retired it
 (2026-07-28, paired per-issue, both scales):
 
 - **Index/retrieval: vindicated with a correction.** Narrowed retrieval wins
-  only when it returns the candidates' FULL entries (G vs E2: +6.4 resolved on
+  only when it returns the candidates' FULL entries (G vs E2: +3.0 replicated,
+  +6.4 on the first single draw — resolved on
   the 4B). Label-only narrowing — the original sketch — was among the worst
   delivery mechanisms measured. Compression was the bug, not the feature.
 - **Boundary store: null.** Advisory NOT_MATCH rows were offered on 57% of

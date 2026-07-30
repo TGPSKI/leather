@@ -7,6 +7,33 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **`14-sig-triage`: the ablation findings are now pre-registered and
+  replicated.** Six contrasts were frozen at main commit `96cc418` before any
+  confirmatory cell ran; the battery executed 11 arms × 3 draws (5× on the one
+  contrast that hit the registered boundary trigger), and all six survive
+  Holm–Bonferroni at α=0.05. Published figures move accordingly, and two move
+  *down*: decomposition depth from −9.2 to **−5.2**, and retrieval payload from
+  +6.4 to **+3.0**. The headline span widens to **59.6→81.6%** because a
+  registered S1 draw is now the lowest archived cell. New rendered page:
+  `eval/results/CONFIRMATORY.md`.
+- **`14-sig-triage`: "a bad harness scores below no harness at all" is
+  retired.** Across replication the fresh-session scheme (61.3%, 5 draws) and
+  the bare model (61.9%, 4 draws) are statistically level. The claim is now
+  that a bad harness *ties* the bare model while paying for an extra stage and
+  250 tool calls — which is the stronger statement anyway.
+
+### Fixed
+
+- **`14-sig-triage`: the battery's resume guard destroyed three finished
+  cells.** Completeness required ≥225 *answered* rows, but S1's mechanism is row
+  loss (~220 answered every draw), so a second invocation judged its finished
+  cells incomplete and re-ran them over their own archives. Completeness is now
+  "250 rows + a manifest"; quality remains `verify-run.sh`'s job. Only S1 was
+  affected and all six contrasts still resolve — see the incident note in the
+  example for the two draw-sets and why the correction is not conservative.
+
 ## [0.5.0] — 2026-07-29 "alligator"
 
 ### Fixed
@@ -126,8 +153,9 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   callers, so context only ever grew, and every turn inherited everything —
   including the model's own intermediate speculation (measured on the
   sig-triage eval: a three-turn agent grew 1206 → 2828 prompt tokens across
-  its turns and lost ~9 points to its two-turn sibling on paired per-issue
-  comparison). A turn may now
+  its turns and lost ~5 points to its two-turn sibling on paired per-issue
+  comparison, replicated 3× under the registered battery; the first single
+  draw said ~9). A turn may now
   declare `clear: true` alongside `tools:`/`skills:`/`toolsets:`: the
   conversation is reset before that turn's prompt is added; the system
   message and turn variables survive, because skill `extract:` captures live

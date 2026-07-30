@@ -47,6 +47,7 @@ run_rig() { # rig
          export LEATHER_MODEL=/home/tyler/llm/models/Qwen3-4B-Instruct-2507-AWQ
          export CONCURRENCY=4 LP_PORT=8021 ;;
   esac
+  export BATTERY=overnight
   export LEATHER=../../leather SHELLMCP=../../shell-mcp
   export STATE_SUFFIX="-$RIG" LOGPROB=1
 
@@ -114,7 +115,7 @@ preflight_rig() { # rig — SEQUENTIAL only; preflight.sh uses fixed shared path
     35b) EP=http://127.0.0.1:8000; MODEL=qwen36-35b-a3b-nvfp4 ;;
     4b)  EP=http://10.0.0.64:8000; MODEL=/home/tyler/llm/models/Qwen3-4B-Instruct-2507-AWQ ;;
   esac
-  LEATHER=../../leather SHELLMCP=../../shell-mcp \
+  BATTERY=overnight LEATHER=../../leather SHELLMCP=../../shell-mcp \
   PRIMARY_ENDPOINT="$EP" PRIMARY_MODEL="$MODEL" \
     bash eval/scripts/preflight.sh > "$TMP/overnight-preflight-$RIG.log" 2>&1 || {
       echo "$RIG: PREFLIGHT RED — refusing to spend the night (see $TMP/overnight-preflight-$RIG.log)" >&2

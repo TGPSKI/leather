@@ -1,0 +1,76 @@
+# 14-sig-triage eval — THINGS THAT RUN.
+#
+# Deliberately NOT the default Makefile in this directory. `make` here gets
+# you read-only views; spending GPU-hours takes an explicit flag:
+#
+#   make -f Makefile.run help
+#   make -f Makefile.run preflight
+#   make -f Makefile.run confirmatory
+#
+# Every target below either calls a model for minutes-to-hours or writes
+# archives. Run `preflight` first — it is 26 harness checks on 5 issues and
+# has caught every class of setup error this campaign has hit.
+#
+# Endpoint/model default to the repo values; override per call:
+#   make -f Makefile.run eval LEATHER_LLM_ENDPOINT=http://10.0.0.64:8000 LEATHER_MODEL=...
+
+LEATHER              ?= ../../../leather
+SHELLMCP             ?= ../../../shell-mcp
+LEATHER_LLM_ENDPOINT ?= http://localhost:11434
+LEATHER_MODEL        ?=
+RIG                  ?= 4b
+
+ENV = LEATHER="$(LEATHER)" SHELLMCP="$(SHELLMCP)" \
+      LEATHER_LLM_ENDPOINT="$(LEATHER_LLM_ENDPOINT)" LEATHER_MODEL="$(LEATHER_MODEL)"
+
+.PHONY: help preflight eval confirmatory bump battery noise overnight \
+        lint splits scorer-test fetch
+
+help:                    ##@1 this list
+	@printf '\n  \033[1m14-sig-triage eval — RUNS\033[0m  (read-only views: make help)\n'
+	@awk -F':.*##@?' ' \
+	  /^[a-z-]*:.*##@[0-9]/ { n=substr($$2,1,1); d=substr($$2,2); \
+	    g[n]=g[n] sprintf("  %-12s %s\n", $$1, d) } \
+	  END { \
+	    printf "\n  \033[1mLOCAL\033[0m — seconds, no model\n%s", g[2]; \
+	    printf "\n  \033[1mSPENDS GPU\033[0m — minutes to hours\n%s", g[3]; \
+	    printf "\n  \033[1mNETWORK\033[0m — writes outside this repo\n%s\n", g[4] }' \
+	  $(MAKEFILE_LIST)
+	@printf '  RIG=4b|35b on battery/noise. Confirmatory runs pin their own rig.\n\n'
+
+# ---- local, no model -------------------------------------------------------
+lint:                    ##@2 gold hygiene: content-free rows must permit abstention
+	@cd .. && bash eval/scripts/gold-sanity-lint.sh
+
+splits:                  ##@2 rebuild the smoke/acceptance/holdout tier manifest
+	@cd .. && bash eval/scripts/make-splits.sh
+
+scorer-test:             ##@2 sigeval self-test
+	@cd .. && go test ./eval/
+
+# ---- spends GPU ------------------------------------------------------------
+preflight:               ##@3 26 harness checks on 5 issues — ALWAYS run before a battery
+	@cd .. && $(ENV) bash eval/scripts/preflight.sh
+
+eval:                    ##@3 one full 250-issue run + classification gate
+	@cd .. && $(ENV) bash eval/run-eval.sh
+
+confirmatory:            ##@3 the registered battery: 11 arms x 3 draws (registration 96cc418)
+	@cd .. && $(ENV) bash eval/scripts/confirmatory-battery.sh 4b
+
+bump:                    ##@3 extra registered draws: make -f Makefile.run bump ARMS="G E2" REPS="4 5"
+	@cd .. && $(ENV) BUMP_ARMS="$(ARMS)" BUMP_REPS="$(REPS)" \
+	  bash eval/scripts/confirmatory-battery.sh 4b
+
+battery:                 ##@3 remaining exploratory ablation cells: RIG=35b
+	@cd .. && $(ENV) bash eval/scripts/run-battery.sh $(RIG)
+
+noise:                   ##@3 repeat-draw noise battery: RIG=35b
+	@cd .. && $(ENV) bash eval/scripts/noise-battery.sh $(RIG)
+
+overnight:               ##@3 optional curiosity battery, both rigs (see script header)
+	@cd .. && $(ENV) bash eval/scripts/overnight-battery.sh both
+
+# ---- network ---------------------------------------------------------------
+fetch:                   ##@4 (re)build the labeled corpus from the GitHub API (cached)
+	@cd .. && PER_SIG=15 bash eval/scripts/fetch-eval-corpus.sh

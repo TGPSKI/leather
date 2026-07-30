@@ -25,20 +25,24 @@ context per stage.
 | scoring | accept-sets (multi-SIG issues), abstention-aware, macro-recall with a support floor |
 | rigs | Qwen3-35B-A3B NVFP4 (MoE) and Qwen3-4B-Instruct-2507-AWQ, both local, vLLM |
 | decoding | `temperature: 0`, `thinking: false` |
-| matrix | 22 arms × 2 rigs = 44 verified cells + 2 quarantined wrecks = 46 archives |
-| replication | 56 run directories in `runs/` (the 44 cells plus repeat draws: A×7, H×6, T2c×2) |
+| matrix | 22 arms × 2 rigs exploratory + the registered confirmatory battery = 94 verified cells + 2 quarantined wrecks |
+| replication | exploratory repeats (A×7, H×6, T2c×2) plus 11 registered arms × 3 draws, and 5× on the boundary-triggered contrast |
+| registration | six contrasts frozen at main `96cc418` **before any confirmatory cell ran**; all six survive Holm at α=0.05 |
 | noise floor | ±6 rows (~2.4%) — measured pre-campaign, re-confirmed by the post-fix A-family spread |
 
 ## Headline
 
-The same frozen **4B model spans 62.4% → 81.6%** across arms — floor at the S1
-fresh-session stage split, ceiling at the F2 single-stage split — with runtime
-design as the only variable. The committed pipeline (arm A) scores **77.6%** on
-the 4B and **86.8%** on the 35B (A replicated 7×: 86.8–89.2, **mean 87.7**).
+The same frozen **4B model spans 59.6% → 81.6%** across arms — floor at an S1
+fresh-session stage-split draw, ceiling at the F2 single-stage split — with
+runtime design as the only variable. Those are extreme single cells; the
+replicated arm means are what to bet on, and the registered contrasts between
+them are in [CONFIRMATORY.md](CONFIRMATORY.md). The committed pipeline (arm A)
+scores **77.6%** on the 4B and **86.8%** on the 35B (A replicated 7×:
+86.8–89.2, **mean 87.7**).
 
-The same models handed only the bare label set (arm B) score **62.8%** (4B) and
-**68.4%** (35B) — so configuration is worth **~15 points on the 4B and ~18 on
-the 35B**. The load-bearing part: the discipline transfers *down* — a 4B running
+The same models handed only the bare label set (arm B) score **61.9%** (4B,
+mean of 4 draws) and **68.4%** (35B) — so configuration is worth **~15 points
+on the 4B and ~18 on the 35B**. The load-bearing part: the discipline transfers *down* — a 4B running
 locally, correctly configured, beats the bare 35B by 9 points on this task.
 (An earlier draft reported the delta as an identical ~16 at both scales; that
 symmetry did not survive the re-baseline and is retired.)
@@ -47,6 +51,8 @@ symmetry did not survive the re-baseline and is retired.)
 
 | file | what's in it |
 |---|---|
+| [INCIDENT-s1-overwrite.md](INCIDENT-s1-overwrite.md) | a resume guard that destroyed three finished cells, what it changed, and why the correction is *not* conservative |
+| [CONFIRMATORY.md](CONFIRMATORY.md) | **the registered battery** — six pre-registered contrasts, per wave and pooled, under Holm |
 | [MATRIX.md](MATRIX.md) | **the arm-by-arm leaderboard** — every archived cell's accuracy, rendered from the archives |
 | [VERDICTS.md](VERDICTS.md) | **every declared paired comparison** with its McNemar verdict and confound flags |
 | [`../ablation/arms.json`](../ablation/arms.json) | every arm: its parameters, the ONE variable it isolates, and the arm it is read against |

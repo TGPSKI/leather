@@ -2,6 +2,15 @@
 # Live status across every battery on both rigs, ranked by accuracy.
 #   LOOP=1 bash eval/scripts/watch-matrix.sh  # live, redraw in place
 #   NOCOLOR=1 bash eval/scripts/watch-matrix.sh    # plain, for piping
+#   RIG=4b bash eval/scripts/watch-matrix.sh              # one rig only
+#   SCOPE=confirmatory bash eval/scripts/watch-matrix.sh  # registered -cN draws only
+#   FILTER=4b-T2* bash eval/scripts/watch-matrix.sh       # arbitrary pattern
+# The three compose. SCOPE separates the registered ablation matrix from the
+# exploratory atlas — watching both at once was the thing that made this
+# screen unreadable.
+#
+# For interactive filtering, arm rankings and contrast views:
+#   python3 eval/scripts/matrix-tui.py            ([f] filters, [tab] cycles)
 #
 # Cells are RANKED, not listed in run order: the question asked of this screen is
 # always "which arm is winning", and run order buries that.
@@ -18,7 +27,50 @@
 # resolved BEFORE snapshot() cd's into $EX, or dirname "$0" points nowhere
 HERE="$(cd "$(dirname "$0")" && pwd)"
 EX="$(cd "$HERE/../.." && pwd)"
-BATTERIES="run-battery:fin noise-battery:noise overnight-battery:overnight"
+
+case "${1:-}" in
+  -h|--help|help)
+    cat <<'__HELP__'
+watch-matrix.sh — live results monitor (read-only; runs no model)
+
+USAGE
+  bash eval/scripts/watch-matrix.sh          one-shot snapshot
+  LOOP=1 bash eval/scripts/watch-matrix.sh   live, redraws in place
+  cd eval && make watch                      same, via make
+
+ENVIRONMENT
+  LOOP=1            live mode with keyboard control (default: one-shot)
+  INTERVAL=5        seconds between redraws in live mode
+  RIG=4b|35b        one rig only; also drops the other rig's section
+  SCOPE=...         confirmatory | exploratory | all   (default all)
+                    confirmatory = the registered -cN draws
+  FILTER=<pat>      prefix '4b' · glob '4b-*-c1' · substring 'T2c'
+                    comma-ORs '4b-G,4b-E2' · leading '!' negates
+  SORT=<col>        acc | tools | ktok | dur | noout | tag   (default acc)
+  SORT_REV=1        reverse the sort
+  HELP=1            start with the column glossary open
+  NOCOLOR=1         strip ANSI, for piping or pasting
+
+KEYS (live mode)
+  a t K d n c       sort by acc / tools / ktok / dur / no-out / cell
+  r                 reverse sort            ?   toggle column glossary
+  j k ↑ ↓           scroll a line           PgUp PgDn   scroll a page
+  g G               top / bottom            q   quit
+
+EXAMPLES
+  RIG=4b SCOPE=confirmatory LOOP=1 bash eval/scripts/watch-matrix.sh
+  SORT=dur NOCOLOR=1 bash eval/scripts/watch-matrix.sh | head -20
+  FILTER='4b-T2*' bash eval/scripts/watch-matrix.sh
+
+SEE ALSO
+  eval/VIEWING.md                    full guide to both viewers
+  python3 eval/scripts/matrix-tui.py --help   interactive browser
+__HELP__
+    exit 0 ;;
+esac
+# confirmatory-battery was missing here, so the registered battery — the one
+# most likely to be running — reported "idle" for its entire 12-hour run.
+BATTERIES="confirmatory-battery:confirmatory run-battery:fin noise-battery:noise overnight-battery:overnight"
 
 if [ -z "${NOCOLOR:-}" ]; then
   B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
@@ -34,7 +86,7 @@ snapshot() {
   printf '\n  %sEVAL BATTERIES%s %s%s%s\n' "$B" "$R" "$D" "$(date +%H:%M:%S)" "$R"
   rule
   local grand_tok=0 grand_calls=0
-  for r in 35b 4b; do
+  for r in ${RIG:-35b 4b}; do
     local S="eval/.state-eval-$r" livename=""
     for b in $BATTERIES; do
       local script="${b%%:*}"
@@ -45,11 +97,6 @@ snapshot() {
     else
       printf '  %s%-4s%s %sidle%s\n' "$B" "$r" "$R" "$D" "$R"
     fi
-
-    # Cells come from ARCHIVES, not runner logs: an archive is the source of truth
-    # everywhere else here, and log-driven rows went missing whenever a battery wrote to a
-    # filename this script did not already know.
-    RIG="$r" NOCOLOR="${NOCOLOR:-}" python3 "$HERE/table.py"
 
     local an mt tools pages err age stale tok calls other tag bar pct
     an=$(ls "$S/artifacts/analyze" 2>/dev/null | wc -l)
@@ -79,11 +126,39 @@ except Exception: print(0)" 2>/dev/null)
       [ "${reflect:-0}" = 0 ] && [ "${pages:-0}" -gt 0 ] && printf '       %s~ %s spurious hide-nav call(s) on single-page hides (wasted rounds)%s\n' "$YEL" "$pages" "$R"
       [ "${other:-0}" -gt 0 ] && printf '       %s! %s unattributed LLM calls (summarization is silent)%s\n' "$YEL" "$other" "$R"
     fi
+
+    printf '\n'
+    # Table LAST: the in-flight cell is the only thing on this screen that
+    # changes second to second, so it belongs where the eye lands first —
+    # not buried under 30 finished rows that will not move again.
+    RIG="$r" NOCOLOR="${NOCOLOR:-}" FILTER="${FILTER:-}" SCOPE="${SCOPE:-all}" \
+      SORT="${SORT:-acc}" SORT_REV="${SORT_REV:-0}" LEGEND=0 \
+      python3 "$HERE/table.py"
     grand_tok=$(( grand_tok + ${tok:-0} )); grand_calls=$(( grand_calls + ${calls:-0} ))
     printf '\n'
   done
+  # Reference material sits above the closing rule, so the rule + totals
+  # stay the visual floor of the screen no matter what is toggled on.
+  if [ "${HELP:-0}" = "1" ]; then
+    NOCOLOR="${NOCOLOR:-}" python3 -c "
+import os, sys
+sys.path.insert(0, '$HERE')
+import matrixdata as md
+d, r = ('', '') if os.environ.get('NOCOLOR') else ('\033[2m', '\033[0m')
+print(f'  {d}column definitions  [?] hides{r}')
+for name, text in md.COLUMN_HELP:
+    print(f'     {d}{name:<10} {text}{r}')
+"
+  fi
+  NOCOLOR="${NOCOLOR:-}" python3 -c "
+import os, sys
+sys.path.insert(0, '$HERE')
+import matrixdata as md
+for l in md.legend(bool(os.environ.get('NOCOLOR'))):
+    print(l)
+"
   rule
-  printf '  %sprocs %s - archived %s - live cells %s calls / %s tok%s\n' \
+  printf '  %sprocs %s - archived %s - live cells %s calls / %s tok%s' \
     "$D" "$(pgrep -f 'run-eval.sh' | grep -cv '^$')" \
     "$(ls -d eval/results/runs/*/ 2>/dev/null | wc -l)" "$grand_calls" "$grand_tok" "$R"
 }
@@ -98,13 +173,101 @@ if [ "${LOOP:-0}" = "1" ]; then
   # and cheaper than tracking which rows moved.
   printf '\033[?25l'                       # hide cursor
   trap 'printf "\033[?25h\033[J\n"; exit 0' INT TERM
+  # `read -t` IS the tick: one call both waits out the redraw interval and
+  # collects a keystroke, so sorting is interactive without a second thread,
+  # a curses dependency, or any change to the redraw model. A bare timeout
+  # (no key) falls through and redraws exactly as the old `sleep` did.
+  SCROLL=${SCROLL:-0}
+  NEED_SNAP=1
   while :; do
-    out="$(snapshot)"
+    # Reload ONLY when the data can have changed — a tick, or a key that
+    # alters what is rendered. Scrolling re-uses the captured frame, so it
+    # repaints instantly instead of waiting ~1s for 90 archives to re-scan,
+    # which read as a broken scrollbar rather than a slow one.
+    if [ "$NEED_SNAP" = 1 ]; then
+      mapfile -t VIEW < <(snapshot)
+      NEED_SNAP=0
+    fi
+    total=${#VIEW[@]}
+    term_rows=$(tput lines 2>/dev/null || echo 40)
+    term_cols=$(tput cols  2>/dev/null || echo 100)
+    vh=$(( term_rows - 2 ))            # one row for the key line, one spare
+    [ "$vh" -lt 5 ] && vh=5
+    max_off=0; [ "$total" -gt "$vh" ] && max_off=$(( total - vh ))
+    [ "$SCROLL" -gt "$max_off" ] && SCROLL=$max_off
+    [ "$SCROLL" -lt 0 ] && SCROLL=0
+
+    # Only pad to the full viewport when the content actually fills it —
+    # otherwise the key line gets pinned to the terminal floor with a screen
+    # of dead space above it.
+    draw=$vh; [ "$total" -lt "$vh" ] && draw=$total
     printf '\033[H'
-    printf '%s\n' "$out" | sed $'s/$/\033[K/'
+    for (( i = 0; i < draw; i++ )); do
+      printf '%s\033[K\n' "${VIEW[$(( SCROLL + i ))]:-}"
+    done
+
+    # Scrollbar only when the content actually overflows: a thumb sized to
+    # the visible fraction, positioned by scroll offset, drawn in the last
+    # column so it never collides with a row that happens to be full width.
+    if [ "$total" -gt "$vh" ]; then
+      thumb=$(( vh * vh / total )); [ "$thumb" -lt 1 ] && thumb=1
+      tpos=0; [ "$max_off" -gt 0 ] && tpos=$(( SCROLL * (vh - thumb) / max_off ))
+      for (( i = 0; i < draw; i++ )); do
+        if [ "$i" -ge "$tpos" ] && [ "$i" -lt $(( tpos + thumb )) ]; then
+          printf '\033[%d;%dH%s█%s' $(( i + 1 )) "$term_cols" "$CYN" "$R"
+        else
+          printf '\033[%d;%dH%s│%s' $(( i + 1 )) "$term_cols" "$D" "$R"
+        fi
+      done
+    fi
+
+    printf '\033[%d;1H' $(( draw + 1 ))
+    printf '  %s[a]cc [t]ools [K]tok [d]ur [n]o-out [c]ell  [r]ev  [?]cols  ' "$D"
+    if [ "$total" -gt "$vh" ]; then
+      printf '%s[jk/↑↓ PgUp/Dn g/G] %d-%d/%d%s  ' \
+             "$CYN" $(( SCROLL + 1 )) $(( SCROLL + draw )) "$total" "$D"
+    fi
+    printf '[q]uit%s\033[K' "$R"
     printf '\033[J'
-    sleep "${INTERVAL:-5}"
+
+    if read -rsn1 -t "${INTERVAL:-5}" key 2>/dev/null; then
+      # Cursor keys arrive as CSI (ESC [ A) in normal mode and SS3 (ESC O A)
+      # in application-cursor mode — which many terminals enable by default.
+      # Decoding only CSI made the arrows dead keys on exactly those.
+      if [ "$key" = $'\033' ]; then
+        read -rsn2 -t 0.05 rest 2>/dev/null
+        case "$rest" in
+          '[A'|'OA') key=k ;; '[B'|'OB') key=j ;;
+          '[5') read -rsn1 -t 0.05 _ 2>/dev/null; key=u ;;
+          '[6') read -rsn1 -t 0.05 _ 2>/dev/null; key=f ;;
+          '[H'|'OH') key=g ;; '[F'|'OF') key=G ;;
+          *) key="" ;;
+        esac
+      fi
+      case "$key" in
+        a) SORT=acc;   NEED_SNAP=1 ;;
+        t) SORT=tools; NEED_SNAP=1 ;;
+        d) SORT=dur;   NEED_SNAP=1 ;;
+        n) SORT=noout; NEED_SNAP=1 ;;
+        c) SORT=tag;   NEED_SNAP=1 ;;
+        # 'k' is scroll-up (vi), so ktok sorts on 'K'.
+        K) SORT=ktok;  NEED_SNAP=1 ;;
+        r) { [ "${SORT_REV:-0}" = 1 ] && SORT_REV=0 || SORT_REV=1; }; NEED_SNAP=1 ;;
+        '?'|h) { [ "${HELP:-0}" = 1 ] && HELP=0 || HELP=1; }; NEED_SNAP=1 ;;
+        j) SCROLL=$(( SCROLL + 1 )) ;;
+        k) SCROLL=$(( SCROLL - 1 )) ;;
+        f) SCROLL=$(( SCROLL + draw )) ;;
+        u) SCROLL=$(( SCROLL - draw )) ;;
+        g) SCROLL=0 ;;
+        G) SCROLL=$max_off ;;
+        q|Q) break ;;
+      esac
+      export SORT SORT_REV HELP
+    else
+      NEED_SNAP=1                      # tick: refresh the data
+    fi
   done
+  printf '\033[?25h\033[J\n'
 else
   snapshot
 fi

@@ -19,7 +19,7 @@ isolation from a fresh clone with **a single `make` target**.
 | [11](11-high-volume-ci/) | `11-high-volume-ci` | yes | **Advanced** — high-volume burst of CI webhooks using `queue_pattern` single-use queues |
 | [12](12-spa-maintenance/) | `12-spa-maintenance` | yes | **Advanced** — scheduled SPA health-check agent with artifact persistence |
 | [13](13-git-workflow-commit/) | `13-git-workflow-commit` | yes | **Advanced** — `leather workflow run`: concurrent fan-out; planner enqueues per-file GPG commits picked up immediately by executor workers |
-| [14](14-sig-triage/) | `14-sig-triage` | yes | **Advanced** — classify unsigged k8s issues → SIG on a small local model; ships the full eval harness (250-issue gold corpus, ablation matrix, paired verdicts) that measured a 62.4→81.6% range on one frozen 4B |
+| [14](14-sig-triage/) | `14-sig-triage` | yes | **Advanced** — classify unsigged k8s issues → SIG on a small local model; ships the full eval harness (250-issue gold corpus, ablation matrix, paired verdicts, pre-registered confirmatory battery) that measured a 59.6→81.6% range on one frozen 4B, six contrasts surviving Holm |
 | [15](15-trust-repair/) | `15-trust-repair` | pre-pilot | **Advanced** — state-changing repo repair (CI trust-boundary defects) under a conjunction oracle; fixtures + validated graders live in skeptic `testdata/repair/`, pinned by sha per run; no model runs yet |
 
 ### RPi/Hailo examples

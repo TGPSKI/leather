@@ -142,7 +142,7 @@ From the post-fix verified archives (`runs/35b-A`, `35b-B`, `4b-A`, `4b-B`;
 | | A (committed pipeline) | B (bare label set) | A − B |
 |---|---|---|---|
 | 35B | 86.8% | 68.4% | **+18.4** |
-| 4B | 77.6% | 62.8% | **+14.8** |
+| 4B | 77.6% | 61.9% | **+15.7** |
 
 Read this as the **configuration delta**: A is the bounded two-stage pipeline with
 a controlled prompt and tools; B is the same model handed only the label set.
@@ -150,11 +150,11 @@ Configuration is worth ~15 points on the 4B and ~18 on the 35B — large at both
 scales, so the discipline transfers down to the small model rather than being
 something only a large model can exploit. That is the thesis result: a 4B
 running locally reaches 77.6% on a 22-class task where the bare model gets
-62.8% — and where the bare *35B* gets 68.4%.
+61.9% (mean of 4 draws) — and where the bare *35B* gets 68.4%.
 
 Two claims from the pre-baseline draft are retired: the delta is **not** the
 identical ~16 at both scales (that symmetry was an artifact of the contaminated
 harness), and the specific hypothesis that structure would help the *smaller*
 model more is still not supported — the 35B extracts a few points more from the
-same configuration. B(4B) = 62.8% also puts a legible floor under the whole
+same configuration. B(4B) = 61.9% also puts a legible floor under the whole
 exercise.
