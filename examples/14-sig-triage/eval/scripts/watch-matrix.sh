@@ -44,20 +44,6 @@ snapshot() {
   cd "$EX" || return
   printf '\n  %sEVAL BATTERIES%s %s%s%s\n' "$B" "$R" "$D" "$(date +%H:%M:%S)" "$R"
   rule
-  NOCOLOR="${NOCOLOR:-}" HELP="${HELP:-0}" python3 -c "
-import os, sys
-sys.path.insert(0, '$HERE')
-import matrixdata as md
-nc = bool(os.environ.get('NOCOLOR'))
-for l in md.legend(nc):
-    print(l)
-if os.environ.get('HELP') == '1':
-    d, r = ('', '') if nc else ('\033[2m', '\033[0m')
-    print(f'  {d}column definitions  [?] hides{r}')
-    for name, text in md.COLUMN_HELP:
-        print(f'     {d}{name:<10} {text}{r}')
-"
-  rule
   local grand_tok=0 grand_calls=0
   for r in ${RIG:-35b 4b}; do
     local S="eval/.state-eval-$r" livename=""
@@ -100,6 +86,7 @@ except Exception: print(0)" 2>/dev/null)
       [ "${other:-0}" -gt 0 ] && printf '       %s! %s unattributed LLM calls (summarization is silent)%s\n' "$YEL" "$other" "$R"
     fi
 
+    printf '\n'
     # Table LAST: the in-flight cell is the only thing on this screen that
     # changes second to second, so it belongs where the eye lands first —
     # not buried under 30 finished rows that will not move again.
@@ -113,6 +100,26 @@ except Exception: print(0)" 2>/dev/null)
   printf '  %sprocs %s - archived %s - live cells %s calls / %s tok%s\n' \
     "$D" "$(pgrep -f 'run-eval.sh' | grep -cv '^$')" \
     "$(ls -d eval/results/runs/*/ 2>/dev/null | wc -l)" "$grand_calls" "$grand_tok" "$R"
+  # Glossary lives at the BOTTOM: it is reference material you consult, not
+  # a banner you read past on every redraw.
+  if [ "${HELP:-0}" = "1" ]; then
+    NOCOLOR="${NOCOLOR:-}" python3 -c "
+import os, sys
+sys.path.insert(0, '$HERE')
+import matrixdata as md
+d, r = ('', '') if os.environ.get('NOCOLOR') else ('\033[2m', '\033[0m')
+print(f'  {d}column definitions  [?] hides{r}')
+for name, text in md.COLUMN_HELP:
+    print(f'     {d}{name:<10} {text}{r}')
+"
+  fi
+  NOCOLOR="${NOCOLOR:-}" python3 -c "
+import os, sys
+sys.path.insert(0, '$HERE')
+import matrixdata as md
+for l in md.legend(bool(os.environ.get('NOCOLOR'))):
+    print(l)
+"
 }
 
 if [ "${LOOP:-0}" = "1" ]; then
@@ -129,19 +136,71 @@ if [ "${LOOP:-0}" = "1" ]; then
   # collects a keystroke, so sorting is interactive without a second thread,
   # a curses dependency, or any change to the redraw model. A bare timeout
   # (no key) falls through and redraws exactly as the old `sleep` did.
+  SCROLL=${SCROLL:-0}
   while :; do
-    out="$(snapshot)"
+    mapfile -t VIEW < <(snapshot)
+    total=${#VIEW[@]}
+    term_rows=$(tput lines 2>/dev/null || echo 40)
+    term_cols=$(tput cols  2>/dev/null || echo 100)
+    vh=$(( term_rows - 2 ))            # one row for the key line, one spare
+    [ "$vh" -lt 5 ] && vh=5
+    max_off=0; [ "$total" -gt "$vh" ] && max_off=$(( total - vh ))
+    [ "$SCROLL" -gt "$max_off" ] && SCROLL=$max_off
+    [ "$SCROLL" -lt 0 ] && SCROLL=0
+
     printf '\033[H'
-    printf '%s\n' "$out" | sed $'s/$/\033[K/'
-    printf '  %s[a]cc  [t]ools  [k]tok  [d]uration  [n]o-out  [c]ell  ' "$D"
-    printf '[r]everse  [?] columns  [q]uit%s\033[K\n' "$R"
+    for (( i = 0; i < vh; i++ )); do
+      printf '%s\033[K\n' "${VIEW[$(( SCROLL + i ))]:-}"
+    done
+
+    # Scrollbar only when the content actually overflows: a thumb sized to
+    # the visible fraction, positioned by scroll offset, drawn in the last
+    # column so it never collides with a row that happens to be full width.
+    if [ "$total" -gt "$vh" ]; then
+      thumb=$(( vh * vh / total )); [ "$thumb" -lt 1 ] && thumb=1
+      tpos=0; [ "$max_off" -gt 0 ] && tpos=$(( SCROLL * (vh - thumb) / max_off ))
+      for (( i = 0; i < vh; i++ )); do
+        if [ "$i" -ge "$tpos" ] && [ "$i" -lt $(( tpos + thumb )) ]; then
+          printf '\033[%d;%dH%s█%s' $(( i + 1 )) "$term_cols" "$CYN" "$R"
+        else
+          printf '\033[%d;%dH%s│%s' $(( i + 1 )) "$term_cols" "$D" "$R"
+        fi
+      done
+    fi
+
+    printf '\033[%d;1H' $(( vh + 1 ))
+    printf '  %s[a]cc [t]ools [K]tok [d]ur [n]o-out [c]ell  [r]ev  [?]cols  ' "$D"
+    if [ "$total" -gt "$vh" ]; then
+      printf '%s[jk/↑↓ PgUp/Dn g/G] %d-%d/%d%s  ' \
+             "$CYN" $(( SCROLL + 1 )) $(( SCROLL + vh )) "$total" "$D"
+    fi
+    printf '[q]uit%s\033[K' "$R"
     printf '\033[J'
+
     if read -rsn1 -t "${INTERVAL:-5}" key 2>/dev/null; then
+      # Arrow keys arrive as ESC [ A/B/5~/6~; grab the tail without blocking.
+      if [ "$key" = $'\033' ]; then
+        read -rsn2 -t 0.05 rest 2>/dev/null
+        case "$rest" in
+          '[A') key=k ;; '[B') key=j ;;
+          '[5') read -rsn1 -t 0.05 _ 2>/dev/null; key=u ;;
+          '[6') read -rsn1 -t 0.05 _ 2>/dev/null; key=f ;;
+          *) key="" ;;
+        esac
+      fi
       case "$key" in
-        a) SORT=acc   ;; t) SORT=tools ;; k) SORT=ktok ;;
-        d) SORT=dur   ;; n) SORT=noout ;; c) SORT=tag  ;;
+        a) SORT=acc ;; t) SORT=tools ;; d) SORT=dur ;;
+        n) SORT=noout ;; c) SORT=tag ;;
+        # 'k' is scroll-up (vi), so ktok sorts on 'K'.
+        K) SORT=ktok ;;
         r) [ "${SORT_REV:-0}" = 1 ] && SORT_REV=0 || SORT_REV=1 ;;
         '?'|h) [ "${HELP:-0}" = 1 ] && HELP=0 || HELP=1 ;;
+        j) SCROLL=$(( SCROLL + 1 )) ;;
+        k) SCROLL=$(( SCROLL - 1 )) ;;
+        f) SCROLL=$(( SCROLL + vh )) ;;
+        u) SCROLL=$(( SCROLL - vh )) ;;
+        g) SCROLL=0 ;;
+        G) SCROLL=$max_off ;;
         q|Q) break ;;
       esac
       export SORT SORT_REV HELP
