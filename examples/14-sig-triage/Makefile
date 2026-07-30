@@ -1,88 +1,39 @@
-# 14-sig-triage — run everything from inside the example directory.
-# The numbered targets in ../Makefile (14, 14-live, 14-eval, ...) remain the
+# 14-sig-triage — the EXAMPLE surface (the pipeline itself).
+# The numbered targets in ../Makefile (14, 14-live, ...) remain the
 # fresh-clone entry points; this file is the same surface for people working
-# in here, plus the eval-suite targets that grew out of the ablation campaign.
+# in here.
 #
-# Endpoint/model default to the values ../Makefile uses; override per-call:
-#   make eval LEATHER_LLM_ENDPOINT=http://127.0.0.1:8000 LEATHER_MODEL=my-model
+# The eval suite has its own Makefiles, split by consequence:
+#   cd eval && make            # read-only views (matrix, watch, table, verdicts)
+#   cd eval && make -f Makefile.run help    # things that spend GPU-hours
+#
+# api_addr in config.yaml is 7749, which is a common leather default and so
+# a likely collision with an already-running instance on this machine (it
+# was, once). Both demo targets bind a private port instead; override with
+# DEMO_API_ADDR= if that one is taken too.
 
-LEATHER            ?= ../../leather
-SHELLMCP           ?= ../../shell-mcp
-LEATHER_LLM_ENDPOINT ?= http://localhost:11434
-LEATHER_MODEL      ?=
+LEATHER          ?= ../../leather
+SHELLMCP         ?= ../../shell-mcp
+DEMO_API_ADDR    ?= 127.0.0.1:7769
 
-EVALENV = LEATHER="$(LEATHER)" SHELLMCP="$(SHELLMCP)" \
-          LEATHER_LLM_ENDPOINT="$(LEATHER_LLM_ENDPOINT)" LEATHER_MODEL="$(LEATHER_MODEL)"
+.PHONY: help demo live taxonomy-check eval-help
 
-.PHONY: help demo live eval eval-fetch eval-lint eval-splits eval-test \
-        taxonomy-check preflight battery noise overnight table verdicts watch \
-        matrix
+help:                    ## this list
+	@printf '\n  \033[1m14-sig-triage — the example pipeline\033[0m\n\n'
+	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
+	@printf '\n  \033[1meval suite\033[0m (separate, split by consequence)\n'
+	@printf '  %-14s %s\n' "cd eval && make" "read-only: matrix, watch, table, verdicts"
+	@printf '  %-14s %s\n\n' "…-f Makefile.run" "runs: preflight, confirmatory, battery"
 
-# Targets are grouped by CONSEQUENCE, not by topic. `make live` posts real
-# comments and `make eval` spends GPU-hours; they must not sit in the same
-# undifferentiated list as a read-only viewer, because the cost of picking
-# the wrong line is not symmetric.
-#   ##@1 read-only   ##@2 local checks   ##@3 spends GPU   ##@4 side effects
-help:                    ##@1 this list
-	@awk -F':.*##@?' ' \
-	  /^[a-z][a-z-]*:.*##@[0-9]/ { \
-	    n=substr($$2,1,1); d=substr($$2,2); \
-	    tgt[n]=tgt[n] sprintf("  %-14s %s\n", $$1, d) } \
-	  END { \
-	    printf "\n  \033[1mREAD-ONLY\033[0m — safe any time, touches nothing\n%s", tgt[1]; \
-	    printf "\n  \033[1mLOCAL CHECKS\033[0m — fast, no model calls\n%s", tgt[2]; \
-	    printf "\n  \033[1mSPENDS GPU\033[0m — model calls, minutes to hours\n%s", tgt[3]; \
-	    printf "\n  \033[1mSIDE EFFECTS\033[0m — writes outside this repo\n%s\n", tgt[4] }' \
-	  $(MAKEFILE_LIST)
+demo:                    ## dry pipeline over the sample issue (no side effects)
+	@LEATHER_DEMO_MODE=dry LEATHER_API_ADDR=$(DEMO_API_ADDR) bash scripts/run-demo.sh
 
-# ---- read-only viewers -----------------------------------------------------
-matrix:                  ##@1 INTERACTIVE browser: filter, rankings, McNemar pairs, per-draw detail
-	@python3 eval/scripts/matrix-tui.py $(FILTER)
+live:                    ## LIVE — posts real /sig comments+labels via gh, on a repo you own
+	@LEATHER_DEMO_MODE=live LEATHER_API_ADDR=$(DEMO_API_ADDR) bash scripts/run-demo.sh
 
-watch:                   ##@1 live battery status, non-interactive (FILTER=4b-*-c* narrows)
-	@LOOP=1 bash eval/scripts/watch-matrix.sh
-
-table:                   ##@1 leaderboard rendered from archives (one-shot)
-	@python3 eval/scripts/table.py
-
-verdicts:                ##@1 paired McNemar verdict for every declared comparison
-	@python3 eval/scripts/paired-verdicts.py
-
-# ---- local checks ----------------------------------------------------------
-eval-lint:               ##@2 gold hygiene: content-free rows must permit abstention
-	@bash eval/scripts/gold-sanity-lint.sh
-
-eval-splits:             ##@2 rebuild the smoke/acceptance/holdout tier manifest
-	@bash eval/scripts/make-splits.sh
-
-eval-test:               ##@2 scorer self-test
-	@go test ./eval/
-
-taxonomy-check:          ##@2 detect upstream SIG drift (exit 10 = drift)
+taxonomy-check:          ## detect upstream SIG drift (exit 10 = drift)
 	@bash scripts/check-taxonomy-currency.sh
 
-# ---- spends GPU ------------------------------------------------------------
-preflight:               ##@3 26 harness checks on 5 issues — run BEFORE any battery
-	@$(EVALENV) bash eval/scripts/preflight.sh
-
-demo:                    ##@3 dry pipeline over the sample issue (no side effects)
-	@LEATHER_DEMO_MODE=dry bash scripts/run-demo.sh
-
-eval:                    ##@3 full 250-issue eval run + classification gate
-	@$(EVALENV) bash eval/run-eval.sh
-
-battery:                 ##@3 remaining ablation cells for one rig: make battery RIG=35b
-	@$(EVALENV) bash eval/scripts/run-battery.sh $(RIG)
-
-noise:                   ##@3 repeat-draw noise battery: make noise RIG=35b
-	@$(EVALENV) bash eval/scripts/noise-battery.sh $(RIG)
-
-overnight:               ##@3 optional curiosity battery, both rigs (see script header)
-	@$(EVALENV) bash eval/scripts/overnight-battery.sh both
-
-# ---- side effects outside this repo ----------------------------------------
-live:                    ##@4 LIVE pipeline — posts real /sig comments+labels via gh
-	@LEATHER_DEMO_MODE=live bash scripts/run-demo.sh
-
-eval-fetch:              ##@4 (re)build the labeled corpus from the GitHub API (cached)
-	@PER_SIG=15 bash eval/scripts/fetch-eval-corpus.sh
+eval-help:               ## show both eval Makefiles' targets
+	@$(MAKE) -C eval help
+	@$(MAKE) -C eval -f Makefile.run help
