@@ -15,7 +15,8 @@ EVALENV = LEATHER="$(LEATHER)" SHELLMCP="$(SHELLMCP)" \
           LEATHER_LLM_ENDPOINT="$(LEATHER_LLM_ENDPOINT)" LEATHER_MODEL="$(LEATHER_MODEL)"
 
 .PHONY: help demo live eval eval-fetch eval-lint eval-splits eval-test \
-        taxonomy-check preflight battery noise overnight table verdicts watch
+        taxonomy-check preflight battery noise overnight table verdicts watch \
+        matrix
 
 help:                    ## this list
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -62,5 +63,8 @@ table:                   ## leaderboard rendered from archives
 verdicts:                ## paired McNemar verdict for every declared comparison
 	@python3 eval/scripts/paired-verdicts.py
 
-watch:                   ## live battery status (redraws in place)
+watch:                   ## live battery status, non-interactive (FILTER=4b-*-c* to narrow)
 	@LOOP=1 bash eval/scripts/watch-matrix.sh
+
+matrix:                  ## INTERACTIVE results browser: filter, rankings, McNemar pairs, per-draw detail
+	@python3 eval/scripts/matrix-tui.py $(FILTER)

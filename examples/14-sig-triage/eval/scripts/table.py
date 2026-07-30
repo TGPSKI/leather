@@ -46,10 +46,10 @@ for rig in (("35b", "4b") if not ONLY else (ONLY,)):
               f"{f' · filter {FILTER}' if FILTER else ''}{R}")
     print(f"     {D}{md.tag_header(ARM_W, DRAW_W):{TAG_W}s} {'acc':>6s} "
           f"{'no-out':>6s} {'calls/iss':>9s} {'tools':>6s} {'ktok':>6s}  "
-          f"{'draws':<10s}{'arm mean':>9s} {'Δ':>7s}{R}")
+          f"{'arm mean':>10s} {'Δ mean':>7s} {'spread':>7s}  {'variable under test':s}{R}")
     if any(fam[(c['rig'], c['arm'])]["mixed"] for c in rc):
         print(f"     {D}{'':{TAG_W}s} {'':>6s} {'':>6s} {'':>9s} {'':>6s} {'':>6s}  "
-              f"{'':<10s}{YEL}* mixes exploratory + confirmatory draws{R}")
+              f"{YEL}* arm mean mixes exploratory + confirmatory draws{R}")
     for c in rc:
         col = GRN if c["acc"] >= 84 else (YEL if c["acc"] >= 74 else RED)
         lost = f"{RED}{c['dead']:6d}{R}" if c["dead"] else f"{D}     -{R}"
@@ -57,14 +57,16 @@ for rig in (("35b", "4b") if not ONLY else (ONLY,)):
         ktok = f"{c['ktok']:6.0f}" if c["ktok"] else "     ?"
         f = fam[(c["rig"], c["arm"])]
         if f["n"] > 1:
-            spark = f"{BLU}{md.draw_spark(f['accs']):<10}{R}"
             delta = c["acc"] - f["mean"]
             dcol = GRN if delta >= 0 else RED
             mix = f"{YEL}*{R}" if f["mixed"] else " "
             meanf = f"{D}{f['mean']:5.1f}×{f['n']}{R}{mix}"
             deltaf = f"{dcol}{delta:+7.1f}{R}"
+            spreadf = f"{(RED if f['spread'] > 4.8 else YEL if f['spread'] > 2.4 else D)}" \
+                      f"{f['spread']:7.1f}{R}"
         else:
-            spark, meanf, deltaf = f"{D}{'·':<10}{R}", f"{D}{'—':>10}{R}", f"{'':>7}"
+            meanf = f"{D}{'single draw':>10}{R} "
+            deltaf, spreadf = f"{'':>7}", f"{'':>7}"
         print(f"     {md.fmt_tag(c, ARM_W, DRAW_W):{TAG_W}s} {col}{c['acc']:6.1f}{R} {lost} "
-              f"{D}{c['cpi']:9.2f}{R} {tc}{c['tools']:6d}{R} {D}{ktok}{R}  "
-              f"{spark}{meanf}{deltaf}")
+              f"{D}{c['cpi']:9.2f}{R} {tc}{c['tools']:6d}{R} {D}{ktok}{R} "
+              f"{meanf}{deltaf} {spreadf}  {D}{c['var'][:40]}{R}")
