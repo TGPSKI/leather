@@ -89,3 +89,94 @@ Second-family (T2) runs — those get their own registration addendum once the
 family passes preflight, because "same harness" needs its definition written
 per family (prompt SHAs constant; tokenizer/template vary) before anything
 runs.
+
+---
+
+# Amendment 1 — 2026-07-30 (appended; nothing above is edited)
+
+**Context.** The confirmatory battery completed 2026-07-30T08:19 (33/33
+registered cells: 11 arms × 3 replications, wave-ordered, plus the E2-c1
+makeup). All six registered contrasts resolve under Holm at α=0.05. Two
+items require registration-level decisions before any further confirmatory
+cells run.
+
+**Disclosure required in the paper.** DECISION 3 below specifies a rule that
+the original registration did NOT fix, and it is being specified *after* the
+3× results were seen. That is a genuine deviation from ideal
+pre-registration and must be stated as such in the methods section — not
+presented as if it had been registered in advance. Mitigation: both
+combination readings are computed and reported
+(`eval/scripts/confirmatory-verdicts.py`), so the alternative is auditable
+rather than hidden. The rule is being fixed now, before the DECISION 4 cells
+run, so it is at least pre-specified with respect to the remaining data.
+
+## ⚠ DECISION 3 — how the three replications combine (Tyler signs)
+
+The registration fixed the scorer (sigeval), the test (McNemar exact on
+discordant pairs), the multiplicity policy (Holm across six) and the
+replication count (3×) — but not how three paired replications combine into
+one primary p-value.
+
+This is load-bearing for exactly one contrast: **#2 (G vs E2) resolves only
+when pooled.** Its three pairings are p=0.19 / 1.0 / 0.009 individually;
+pooled p=0.010. Contrasts 1, 3, 5, 6 resolve under either reading;
+contrast 4's c3 pairing (p=0.12) misses individually but the other two hold.
+
+Options:
+
+- **Pooled (recommended).** Concatenate per-issue verdicts across the three
+  waves; McNemar exact on the pooled discordant pairs (n=750). Cannot be
+  gamed by wave selection, is the conventional combination for replicated
+  paired designs, and uses all the evidence. Per-wave tests reported as a
+  secondary consistency check.
+- **Per-wave majority.** A contrast resolves only if ≥2 of 3 wave-level
+  tests resolve. More conservative; would leave contrast #2 unresolved.
+- **Per-wave then combine (Fisher/Stouffer).** Statistically respectable,
+  but adds a second combination rule to defend and lands between the two
+  above.
+
+SIGNED: Tyler Pate, 07/30/26
+
+SELECTION: Pooled - Concatenate per-issue verdicts across the three
+  waves; McNemar exact on the pooled discordant pairs (n=750). Cannot be
+  gamed by wave selection, is the conventional combination for replicated
+  paired designs, and uses all the evidence. Per-wave tests reported as a
+  secondary consistency check.
+
+## ⚠ DECISION 4 — scope of the signed 5× boundary trigger (Tyler signs)
+
+DECISION 1 registered a bump to 5× "triggered only if a registered contrast
+lands within 1 point of its decision boundary." Measured on the completed
+battery (band = ±2.4 points):
+
+| contrast | pooled effect | distance from band edge | triggered |
+|---|---|---|---|
+| 1 A0 vs B | +12.8 | 10.4 | no |
+| 2 G vs E2 | +2.9 | **0.5** | **YES** |
+| 3 P2 vs P1 | +6.5 | 4.1 | no |
+| 4 T3 vs T2 | −5.2 | 2.8 | no |
+| 5a S1 vs T2 | −14.5 | 12.1 | no |
+| 5b T2c vs T2 | −11.6 | 9.2 | no |
+| 6 T2cr vs T2c | +6.9 | 4.5 | no |
+
+Options:
+
+- **Contrast-scoped (recommended).** Bump only the triggered contrast: G and
+  E2 to five draws each = **4 new cells** (G-c4/c5, E2-c4/c5), ~1 rig
+  evening. Matches the registered wording ("if a registered contrast
+  lands…") and spends replication where the resolution is actually in doubt.
+- **Family-wide.** All six contrasts to 5×: 20+ additional cells, no
+  inferential gain on contrasts already at p≈1e-11.
+- **No bump.** Report contrast #2 as resolved-but-marginal with its
+  per-wave spread stated. Cheapest, but declines a trigger that was signed
+  in advance specifically to handle this case — hard to defend in review.
+
+Any bumped cells are analyzed under the DECISION 3 rule, and the Holm family
+remains the same six primaries (no new tests are added by the bump).
+
+SIGNED: Tyler Pate, 07/30/26
+
+SELECTION: Contrast scoped - Bump only the triggered contrast: G and
+  E2 to five draws each = **4 new cells** (G-c4/c5, E2-c4/c5), ~1 rig
+  evening. Matches the registered wording ("if a registered contrast
+  lands…") and spends replication where the resolution is actually in doubt.
