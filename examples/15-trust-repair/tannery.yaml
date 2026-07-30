@@ -1,0 +1,9 @@
+hide_dir: .state/hides
+artifact_dir: .state/artifacts
+curing_dir: curings
+
+queues:
+  repair-in:
+    concurrency: 1        # one instance at a time; the workdir is shared state
+    max_attempts: 1
+    max_depth: 50

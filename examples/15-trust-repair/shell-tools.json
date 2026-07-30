@@ -1,0 +1,65 @@
+{
+  "tools": [
+    {
+      "name": "list_repo",
+      "description": "List every file in the repository under repair (paths relative to the repo root). Call once before exploring.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "cd \"${REPAIR_WORKDIR:?REPAIR_WORKDIR not set}\" && find . -type f -not -path './.git/*' | sed 's|^\\./||' | sort"
+      ],
+      "timeout_seconds": 10,
+      "output_cap_bytes": 4000
+    },
+    {
+      "name": "read_file",
+      "description": "Read one file from the repository under repair. Pass the repo-relative path exactly as listed by list_repo.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "case \"$1\" in *..*|/*) echo \"path rejected: $1\" >&2; exit 1;; esac; cat \"${REPAIR_WORKDIR:?REPAIR_WORKDIR not set}/$1\"",
+        "--",
+        "{{path}}"
+      ],
+      "required": ["path"],
+      "timeout_seconds": 10,
+      "output_cap_bytes": 16000
+    },
+    {
+      "name": "write_file",
+      "description": "Write the full new content of one file in the repository under repair. Pass the repo-relative path and the COMPLETE file content (this replaces the file).",
+      "command": "bash",
+      "args": [
+        "-c",
+        "case \"$1\" in *..*|/*) echo \"path rejected: $1\" >&2; exit 1;; esac; d=\"${REPAIR_WORKDIR:?REPAIR_WORKDIR not set}/$1\"; mkdir -p \"$(dirname \"$d\")\"; printf '%s' \"$2\" > \"$d\" && echo \"wrote $1 ($(wc -c < \"$d\") bytes)\"",
+        "--",
+        "{{path}}",
+        "{{content}}"
+      ],
+      "required": ["path", "content"],
+      "timeout_seconds": 10
+    },
+    {
+      "name": "scan_repo",
+      "description": "Run the skeptic security scanner over the repository under repair and return its findings. Use it to check whether the defect class is still present after your edits.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "\"${SKEPTIC_BIN:?SKEPTIC_BIN not set}\" scan --format text --mode ir \"${REPAIR_WORKDIR:?REPAIR_WORKDIR not set}\" 2>/dev/null || true"
+      ],
+      "timeout_seconds": 60,
+      "output_cap_bytes": 8000
+    },
+    {
+      "name": "run_repo_tests",
+      "description": "Run the repository's own test suite (make test) in the repository under repair and return the tail of its output.",
+      "command": "bash",
+      "args": [
+        "-c",
+        "cd \"${REPAIR_WORKDIR:?REPAIR_WORKDIR not set}\" && { make test 2>&1 || true; } | tail -c 4000"
+      ],
+      "timeout_seconds": 120,
+      "output_cap_bytes": 4000
+    }
+  ]
+}

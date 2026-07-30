@@ -1,0 +1,32 @@
+name: repo-edit
+system_prompt_append: |
+  You have three repository tools:
+    list_repo  → list every file (call once, first)
+    read_file  → read one file by repo-relative path
+    write_file → replace one file's COMPLETE content
+
+  write_file replaces the whole file — always read_file first, then write the
+  full corrected content, never a fragment. If a tool fails, report the error
+  in your output instead of guessing.
+
+tools:
+  - name: list_repo
+    description: List every file in the repository under repair.
+    type: mcp
+    mcp:
+      server: shell
+      tool: list_repo
+
+  - name: read_file
+    description: Read one file from the repository under repair.
+    type: mcp
+    mcp:
+      server: shell
+      tool: read_file
+
+  - name: write_file
+    description: Replace the complete content of one file in the repository under repair.
+    type: mcp
+    mcp:
+      server: shell
+      tool: write_file

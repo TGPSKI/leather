@@ -1,0 +1,23 @@
+agent_dir: agents
+tool_dir: tools
+state_dir: .state
+mcp_servers_file: mcp-servers.yaml
+log_level: debug
+
+# Override at runtime: LEATHER_MODEL=<your-model> make smoke
+model: llama3
+llm_timeout: 300s
+
+# Greedy decode. Set in BOTH places: here AND `temperature: 0` in every
+# agents/*.agent.md — neither alone works (see 14-sig-triage eval README,
+# "Reproducibility", and leather issue #56).
+temperature: 0
+max_tokens: 8192
+completion_reserve: 1024
+summarize_threshold: 0.85
+
+api: false
+
+scheduler_tick: 1s
+max_concurrent_jobs: 1
+persist_runs: true
