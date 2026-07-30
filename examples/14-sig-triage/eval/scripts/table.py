@@ -87,9 +87,22 @@ for rig in (("35b", "4b") if not ONLY else (ONLY,)):
         q = durs.index(min(durs, key=lambda x: abs(x - s))) / (len(durs) - 1)
         return BLU if q < 0.34 else (CYN if q < 0.67 else MAG)
 
-    print(f"     {D}{md.tag_header(ARM_W, DRAW_W):{TAG_W}s} {'acc':>6s} {'dur':>8s} "
-          f"{'no-out':>7s} {'calls/iss':>10s} {'tools':>7s} {'ktok':>7s}"
-          f"   {'started':<14s}{'ended':<9s}{R}")
+    # Header marks the ordered column and its direction. Numeric sorts run
+    # "most first" by default (the key is negated), so their default arrow is
+    # descending; the tag sort is naturally ascending. SORT_REV flips either.
+    def hdr(label, width, key, left=False):
+        if SORT != key:
+            return f"{D}{label:<{width}}{R}" if left else f"{D}{label:>{width}}{R}"
+        desc = REV if key == "tag" else (not REV)
+        marked = f"{label}{'▼' if desc else '▲'}"
+        return (f"{B}{CYN}{marked:<{width}}{R}" if left
+                else f"{B}{CYN}{marked:>{width}}{R}")
+
+    print(f"     {hdr(md.tag_header(ARM_W, DRAW_W), TAG_W, 'tag', left=True)} "
+          f"{hdr('acc', 6, 'acc')} {hdr('dur', 8, 'dur')} "
+          f"{hdr('no-out', 7, 'noout')} {D}{'calls/iss':>10s}{R} "
+          f"{hdr('tools', 7, 'tools')} {hdr('ktok', 7, 'ktok')}"
+          f"   {D}{'started':<14s}{'ended':<9s}{R}")
     for c in rc:
         col = GRN if c["acc"] >= 84 else (YEL if c["acc"] >= 74 else RED)
         lost = f"{RED}{c['dead']:7d}{R}" if c["dead"] else f"{D}      -{R}"

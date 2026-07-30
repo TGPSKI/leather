@@ -71,13 +71,6 @@ if os.environ.get('HELP') == '1':
       printf '  %s%-4s%s %sidle%s\n' "$B" "$r" "$R" "$D" "$R"
     fi
 
-    # Cells come from ARCHIVES, not runner logs: an archive is the source of truth
-    # everywhere else here, and log-driven rows went missing whenever a battery wrote to a
-    # filename this script did not already know.
-    RIG="$r" NOCOLOR="${NOCOLOR:-}" FILTER="${FILTER:-}" SCOPE="${SCOPE:-all}" \
-      SORT="${SORT:-acc}" SORT_REV="${SORT_REV:-0}" LEGEND=0 \
-      python3 "$HERE/table.py"
-
     local an mt tools pages err age stale tok calls other tag bar pct
     an=$(ls "$S/artifacts/analyze" 2>/dev/null | wc -l)
     mt=$(ls "$S/artifacts/match"   2>/dev/null | wc -l)
@@ -106,6 +99,13 @@ except Exception: print(0)" 2>/dev/null)
       [ "${reflect:-0}" = 0 ] && [ "${pages:-0}" -gt 0 ] && printf '       %s~ %s spurious hide-nav call(s) on single-page hides (wasted rounds)%s\n' "$YEL" "$pages" "$R"
       [ "${other:-0}" -gt 0 ] && printf '       %s! %s unattributed LLM calls (summarization is silent)%s\n' "$YEL" "$other" "$R"
     fi
+
+    # Table LAST: the in-flight cell is the only thing on this screen that
+    # changes second to second, so it belongs where the eye lands first —
+    # not buried under 30 finished rows that will not move again.
+    RIG="$r" NOCOLOR="${NOCOLOR:-}" FILTER="${FILTER:-}" SCOPE="${SCOPE:-all}" \
+      SORT="${SORT:-acc}" SORT_REV="${SORT_REV:-0}" LEGEND=0 \
+      python3 "$HERE/table.py"
     grand_tok=$(( grand_tok + ${tok:-0} )); grand_calls=$(( grand_calls + ${calls:-0} ))
     printf '\n'
   done
