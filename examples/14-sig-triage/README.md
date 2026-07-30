@@ -11,7 +11,10 @@ gold corpus depending only on what the runtime puts around it — the weights
 never change, the hardware never changes. Nearly twenty points of accuracy live
 in the runtime design. The eval under `eval/` is the instrument that measured
 it — 46 archived cells across two model scales, paired per-issue verdicts, a
-measured noise floor, and two quarantined wrecks with post-mortems. Start at
+measured noise floor, and two quarantined wrecks with post-mortems. The
+numbers themselves are two clicks: the arm-by-arm
+[results matrix](eval/results/MATRIX.md) and the paired
+[verdicts](eval/results/VERDICTS.md). Start at
 [eval/README.md](eval/README.md).
 
 The arc, in one paragraph: this example started as a demo pipeline, grew an

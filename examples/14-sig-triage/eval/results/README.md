@@ -47,6 +47,8 @@ symmetry did not survive the re-baseline and is retired.)
 
 | file | what's in it |
 |---|---|
+| [MATRIX.md](MATRIX.md) | **the arm-by-arm leaderboard** — every archived cell's accuracy, rendered from the archives |
+| [VERDICTS.md](VERDICTS.md) | **every declared paired comparison** with its McNemar verdict and confound flags |
 | [`../ablation/arms.json`](../ablation/arms.json) | every arm: its parameters, the ONE variable it isolates, and the arm it is read against |
 | [lessons-leather.md](lessons-leather.md) | framework findings: silent config no-ops, queue concurrency, tool-choice, routing limits |
 | [lessons-vllm-models.md](lessons-vllm-models.md) | model and server findings: uncertainty signals, `tool_choice` hangs, thinking, the scale gap |
@@ -55,9 +57,9 @@ symmetry did not survive the re-baseline and is retired.)
 | `runs/` | per-cell archives: predictions, sigeval report, logprobs, evidence log, `run-manifest.json` |
 | `quarantine/` | wrecked runs kept with post-mortems; do not resurrect |
 
-The arm-by-arm leaderboard is generated from the archives, never hand-edited:
-`python3 eval/scripts/table.py`. Paired comparisons with verdicts:
-`python3 eval/scripts/paired-verdicts.py`.
+MATRIX.md and VERDICTS.md are generated snapshots of `table.py` and
+`paired-verdicts.py` — regenerate with
+`python3 eval/scripts/render-results-md.py`, never hand-edit.
 
 ## Reading these numbers
 
