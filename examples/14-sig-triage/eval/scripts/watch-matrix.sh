@@ -27,6 +27,47 @@
 # resolved BEFORE snapshot() cd's into $EX, or dirname "$0" points nowhere
 HERE="$(cd "$(dirname "$0")" && pwd)"
 EX="$(cd "$HERE/../.." && pwd)"
+
+case "${1:-}" in
+  -h|--help|help)
+    cat <<'__HELP__'
+watch-matrix.sh — live results monitor (read-only; runs no model)
+
+USAGE
+  bash eval/scripts/watch-matrix.sh          one-shot snapshot
+  LOOP=1 bash eval/scripts/watch-matrix.sh   live, redraws in place
+  cd eval && make watch                      same, via make
+
+ENVIRONMENT
+  LOOP=1            live mode with keyboard control (default: one-shot)
+  INTERVAL=5        seconds between redraws in live mode
+  RIG=4b|35b        one rig only; also drops the other rig's section
+  SCOPE=...         confirmatory | exploratory | all   (default all)
+                    confirmatory = the registered -cN draws
+  FILTER=<pat>      prefix '4b' · glob '4b-*-c1' · substring 'T2c'
+                    comma-ORs '4b-G,4b-E2' · leading '!' negates
+  SORT=<col>        acc | tools | ktok | dur | noout | tag   (default acc)
+  SORT_REV=1        reverse the sort
+  HELP=1            start with the column glossary open
+  NOCOLOR=1         strip ANSI, for piping or pasting
+
+KEYS (live mode)
+  a t K d n c       sort by acc / tools / ktok / dur / no-out / cell
+  r                 reverse sort            ?   toggle column glossary
+  j k ↑ ↓           scroll a line           PgUp PgDn   scroll a page
+  g G               top / bottom            q   quit
+
+EXAMPLES
+  RIG=4b SCOPE=confirmatory LOOP=1 bash eval/scripts/watch-matrix.sh
+  SORT=dur NOCOLOR=1 bash eval/scripts/watch-matrix.sh | head -20
+  FILTER='4b-T2*' bash eval/scripts/watch-matrix.sh
+
+SEE ALSO
+  eval/VIEWING.md                    full guide to both viewers
+  python3 eval/scripts/matrix-tui.py --help   interactive browser
+__HELP__
+    exit 0 ;;
+esac
 # confirmatory-battery was missing here, so the registered battery — the one
 # most likely to be running — reported "idle" for its entire 12-hour run.
 BATTERIES="confirmatory-battery:confirmatory run-battery:fin noise-battery:noise overnight-battery:overnight"

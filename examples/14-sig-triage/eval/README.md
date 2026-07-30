@@ -13,6 +13,10 @@ report gated on thresholds. Reuses the exact pipeline agents — no `label` stag
 no side effects. Runs entirely on your local endpoint; cheap enough to gate every
 catalog change.
 
+> **Looking at results?** See [VIEWING.md](VIEWING.md) for the live
+> watcher and the interactive browser — scoping, keys, what each
+> column means, and which numbers mislead.
+
 ## Pipeline
 
 ```

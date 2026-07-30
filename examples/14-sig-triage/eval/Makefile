@@ -20,7 +20,8 @@ help:                    ## this list
 	@printf '\n  \033[1m14-sig-triage eval — READ-ONLY\033[0m  (runs: make -f Makefile.run help)\n\n'
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
 	@printf '\n  RIG=4b|35b  SCOPE=confirmatory|exploratory  FILTER=<pattern>\n'
-	@printf '  e.g.  RIG=4b SCOPE=confirmatory make watch\n\n'
+	@printf '  e.g.  RIG=4b SCOPE=confirmatory make watch\n'
+	@printf '  full guide: eval/VIEWING.md   ·   per-tool: watch-matrix.sh --help\n\n'
 
 matrix:                  ## INTERACTIVE browser: filter, rankings, McNemar pairs, per-draw detail
 	@cd .. && python3 eval/scripts/matrix-tui.py $(FILTER)

@@ -617,6 +617,44 @@ def _wrap(text, width):
     return out
 
 
+USAGE = """matrix-tui.py — interactive results browser (read-only; runs no model)
+
+USAGE
+  python3 eval/scripts/matrix-tui.py [pattern]
+  cd eval && make matrix [FILTER=<pattern>]
+
+  pattern: prefix '4b' · glob '4b-*-c1' · substring 'T2c' · comma-ORs
+           '4b-G,4b-E2' · leading '!' negates. Omit it and the picker opens.
+
+VIEWS  ([tab] cycles)
+  cells      every archived draw, ranked; [space] opens a detail card with
+             what was under test, why, provenance and the archive's files
+  rankings   arm means as a baselined chart + per-arm draws and spread
+  pairs      McNemar exact per declared contrast, each draw and pooled
+  cost       accuracy vs tokens with the Pareto frontier marked
+
+KEYS
+  tab   next view          p      picker (rig / battery / arm / draw)
+  f F   set / clear filter s      cycle sort (acc, tag, spread)
+  space detail card        r      reload from disk
+  ↑↓ PgUp PgDn g           q      quit
+
+PICKER
+  space tick   enter apply   a all in group   n clear group   N clear all
+  Values in a group OR; groups AND; an untouched group is unrestricted.
+
+ENVIRONMENT
+  FILTER=<pattern>   same as the positional argument
+  SIGEVAL=<path>     prebuilt scorer binary; skips `go run` per cell
+
+SEE ALSO
+  eval/VIEWING.md                      full guide to both viewers
+  bash eval/scripts/watch-matrix.sh --help    live monitor
+"""
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help", "help"):
+        print(USAGE)
+        raise SystemExit(0)
     pat = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("FILTER", "")
     curses_main(lambda scr: MatrixTui(scr, pat))
