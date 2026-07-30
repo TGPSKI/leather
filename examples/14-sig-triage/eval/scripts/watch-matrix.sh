@@ -61,6 +61,7 @@ snapshot() {
     # everywhere else here, and log-driven rows went missing whenever a battery wrote to a
     # filename this script did not already know.
     RIG="$r" NOCOLOR="${NOCOLOR:-}" FILTER="${FILTER:-}" SCOPE="${SCOPE:-all}" \
+      SORT="${SORT:-acc}" SORT_REV="${SORT_REV:-0}" \
       python3 "$HERE/table.py"
 
     local an mt tools pages err age stale tok calls other tag bar pct
@@ -110,13 +111,28 @@ if [ "${LOOP:-0}" = "1" ]; then
   # and cheaper than tracking which rows moved.
   printf '\033[?25l'                       # hide cursor
   trap 'printf "\033[?25h\033[J\n"; exit 0' INT TERM
+  # `read -t` IS the tick: one call both waits out the redraw interval and
+  # collects a keystroke, so sorting is interactive without a second thread,
+  # a curses dependency, or any change to the redraw model. A bare timeout
+  # (no key) falls through and redraws exactly as the old `sleep` did.
   while :; do
     out="$(snapshot)"
     printf '\033[H'
     printf '%s\n' "$out" | sed $'s/$/\033[K/'
+    printf '  %s[a]cc  [t]ools  [k]tok  [d]uration  [n]o-out  [c]ell  ' "$D"
+    printf '[r]everse  [q]uit%s\033[K\n' "$R"
     printf '\033[J'
-    sleep "${INTERVAL:-5}"
+    if read -rsn1 -t "${INTERVAL:-5}" key 2>/dev/null; then
+      case "$key" in
+        a) SORT=acc   ;; t) SORT=tools ;; k) SORT=ktok ;;
+        d) SORT=dur   ;; n) SORT=noout ;; c) SORT=tag  ;;
+        r) [ "${SORT_REV:-0}" = 1 ] && SORT_REV=0 || SORT_REV=1 ;;
+        q|Q) break ;;
+      esac
+      export SORT SORT_REV
+    fi
   done
+  printf '\033[?25h\033[J\n'
 else
   snapshot
 fi

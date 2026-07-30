@@ -33,6 +33,20 @@ GRN, YEL, RED, CYN, BLU, MAG = (("",) * 6 if NC else
 FILTER = os.environ.get("FILTER", "")
 SCOPE = os.environ.get("SCOPE") or "all"
 ONLY = os.environ.get("RIG")
+SORT = os.environ.get("SORT") or "acc"
+REV = os.environ.get("SORT_REV") == "1"
+
+# Every sort is "most interesting first" by default; SORT_REV=1 flips it.
+SORT_KEYS = {
+    "acc":   lambda c: -c["acc"],
+    "tools": lambda c: -c["tools"],
+    "ktok":  lambda c: -c["ktok"],
+    "dur":   lambda c: -c["dur_s"],
+    "noout": lambda c: -c["dead"],
+    "tag":   lambda c: c["tag"],
+}
+if SORT not in SORT_KEYS:
+    sys.exit(f"SORT must be one of {', '.join(SORT_KEYS)} (got {SORT!r})")
 
 if SCOPE not in md.SCOPES:
     sys.exit(f"SCOPE must be one of {', '.join(md.SCOPES)} (got {SCOPE!r})")
@@ -41,12 +55,14 @@ cells = [c for c in md.load_cells(FILTER) if md.in_scope(c, SCOPE)]
 ARM_W, DRAW_W, TAG_W = md.tag_layout(cells)
 
 for rig in (("35b", "4b") if not ONLY else (ONLY,)):
-    rc = sorted([c for c in cells if c["rig"] == rig], key=lambda c: -c["acc"])
+    rc = sorted([c for c in cells if c["rig"] == rig],
+                key=SORT_KEYS[SORT], reverse=REV)
     if not rc:
         continue
     scoping = " · ".join(x for x in (
         f"scope {SCOPE}" if SCOPE != "all" else "",
-        f"filter {FILTER}" if FILTER else "") if x)
+        f"filter {FILTER}" if FILTER else "",
+        f"sort {SORT}{'↑' if REV else '↓'}") if x)
     if not ONLY:
         print(f"\n  {B}{rig}{R}  {D}{len(rc)} cells"
               f"{'  ·  ' + scoping if scoping else ''}{R}")
