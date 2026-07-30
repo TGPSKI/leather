@@ -1,0 +1,19 @@
+{
+  "run_tag":    "4b-T2-c7",
+  "battery":    "adhoc",
+  "started":    "2026-07-30T13:35:14-07:00",
+  "model":      "/home/tyler/llm/models/Qwen3-4B-Instruct-2507-AWQ",
+  "endpoint":   "http://10.0.0.64:8000",
+  "agent_dir":  "/home/tyler/git/TGPSKI/leather/examples/14-sig-triage/eval/.battery/agents-conf-4b",
+  "agent_sha":  "d8aad9a14ed5",
+  "index":      "sigs.index.tsv",
+  "index_sha":  "2cbb419f6695",
+  "analyze_cache":     "eval/results/runs/4b-A/analyze-notes.jsonl",
+  "analyze_cache_sha": "9e128e497725",
+  "corpus":     "eval/corpus.jsonl",
+  "corpus_sha": "fc1b161d69a7",
+  "git_commit": "652d865",
+  "force_tool": "0",
+  "concurrency": "4",
+  "logprob":    "1"
+}
