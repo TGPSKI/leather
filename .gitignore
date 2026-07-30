@@ -20,3 +20,4 @@ plans/
 
 # private working notes -- never committed
 _private/
+__pycache__/
