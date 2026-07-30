@@ -1,0 +1,33 @@
+name: repo-edit-lite
+system_prompt_append: |
+  You have three repository tools:
+    list_repo  → list every file (call once, first)
+    read_file  → read one file by repo-relative path
+    edit_file  → make ONE exact find/replace edit in one file
+
+  edit_file replaces one exact occurrence: pass the precise text to find
+  (include enough surrounding lines to make it unique) and its replacement.
+  Use several small edits rather than one big one. If a tool fails, report
+  the error in your output instead of guessing.
+
+tools:
+  - name: list_repo
+    description: List every file in the repository under repair.
+    type: mcp
+    mcp:
+      server: shell
+      tool: list_repo
+
+  - name: read_file
+    description: Read one file from the repository under repair.
+    type: mcp
+    mcp:
+      server: shell
+      tool: read_file
+
+  - name: edit_file
+    description: Make one exact find/replace edit in one file of the repository under repair.
+    type: mcp
+    mcp:
+      server: shell
+      tool: edit_file

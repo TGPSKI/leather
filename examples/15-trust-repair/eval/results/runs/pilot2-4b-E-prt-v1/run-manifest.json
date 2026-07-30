@@ -1,0 +1,16 @@
+{
+  "tag": "pilot2-4b-E-prt-v1",
+  "arm": "E",
+  "instance": "gh-actions/unsafe-prt-checkout/v1",
+  "agent_mode": "model",
+  "runner_rc": 0,
+  "agent_sha": "921284714f95",
+  "task_sha": "dcd866af4c98",
+  "expected_findings_sha": "5a3e0a235015",
+  "skeptic_commit": "a020b13e1eaeb83aae10519fb743db25e3815a5e",
+  "fixture_tree_sha": "6bb7c30680f2063543797f9ff6f1b0684ca3faee",
+  "leather_commit": "8e2530fed2dcf88f4e780fc99ee0fdce1cee0a09",
+  "model": "qwen3-4b-instruct-2507-awq",
+  "endpoint": "http://127.0.0.1:8000",
+  "timestamp": "2026-07-29T23:09:27-07:00"
+}

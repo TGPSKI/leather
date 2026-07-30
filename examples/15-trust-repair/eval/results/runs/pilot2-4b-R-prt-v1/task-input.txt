@@ -1,0 +1,9 @@
+TASK: This repository's PR validation workflow runs in a privileged trigger context while checking out the pull request's proposed code, so code from an untrusted fork executes with the repository's elevated workflow token. Repair the trust-boundary defect so untrusted PR code can no longer execute in a privileged context, without disabling pull-request validation: the pipeline must still run the tests and the formatting check against each pull request's proposed change.
+RULE: every finding class listed below must have zero occurrences,
+while the repository's documented behavior is preserved:
+- CI-PRT-001: pull_request_target workflow trigger — pull_request_target workflow trigger can expose secrets to untrusted PR code when combined with unsafe checkout behavior.
+- CI-PRT-002: Workflow checks out PR head in privileged context — Checking out pull request head refs in privileged workflows can expose secrets to untrusted code.
+CONSTRAINTS:
+- Do not delete or disable the PR validation workflow.
+- Do not suppress, waive, or reconfigure the scanner.
+- The tests and formatting check must still run against pull requests.

@@ -1,0 +1,38 @@
+diff -ruN '--exclude=.git' /home/tyler/git/TGPSKI/skeptic/testdata/repair/gh-actions/mutable-action-pin/v1/repo/.github/workflows/release.yml /home/tyler/git/TGPSKI/leather-ex15/examples/15-trust-repair/.state/work/pilot-35b-R-pin-v1/.github/workflows/release.yml
+--- /home/tyler/git/TGPSKI/skeptic/testdata/repair/gh-actions/mutable-action-pin/v1/repo/.github/workflows/release.yml	2026-07-29 21:00:49.121720652 -0700
++++ /home/tyler/git/TGPSKI/leather-ex15/examples/15-trust-repair/.state/work/pilot-35b-R-pin-v1/.github/workflows/release.yml	2026-07-29 22:41:13.394719479 -0700
+@@ -8,8 +8,8 @@
+   build:
+     runs-on: ubuntu-latest
+     steps:
+-      - uses: actions/checkout@v4
+-      - uses: actions/setup-go@v5
++      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
++      - uses: actions/setup-go@f1143901dd4c2b529627d5a43f8b8e942d0ca507
+         with:
+           go-version: "1.24"
+       - name: Build
+@@ -17,7 +17,7 @@
+       - name: Test
+         run: make test
+       - name: Upload artifact
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@5d5d22a31266ced2688743886817481d4b525156
+         with:
+           name: chronodex
+           path: bin/chronodex
+@@ -28,10 +28,10 @@
+       contents: write
+     steps:
+       - name: Download artifact
+-        uses: actions/download-artifact@v4
++        uses: actions/download-artifact@9c1f37a2df1f4ba8f2803f10afc4c2e5d1c9e894
+         with:
+           name: chronodex
+       - name: Publish release
+-        uses: softprops/action-gh-release@v2
++        uses: softprops/action-gh-release@e10b491d48e5df41028f52d9df2e2d65a1755869
+         with:
+-          files: chronodex
++          files: chronodex
+\ No newline at end of file

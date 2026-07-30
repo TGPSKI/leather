@@ -1,0 +1,16 @@
+{
+  "tag": "pilot2-4b-E-pin-v1",
+  "arm": "E",
+  "instance": "gh-actions/mutable-action-pin/v1",
+  "agent_mode": "model",
+  "runner_rc": 0,
+  "agent_sha": "921284714f95",
+  "task_sha": "3b618ad65647",
+  "expected_findings_sha": "d65ca0274a62",
+  "skeptic_commit": "a020b13e1eaeb83aae10519fb743db25e3815a5e",
+  "fixture_tree_sha": "54610c6857008b0ca6809874fa4a6abb96012ec5",
+  "leather_commit": "8e2530fed2dcf88f4e780fc99ee0fdce1cee0a09",
+  "model": "qwen3-4b-instruct-2507-awq",
+  "endpoint": "http://127.0.0.1:8000",
+  "timestamp": "2026-07-29T23:08:34-07:00"
+}

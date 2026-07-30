@@ -1,0 +1,18 @@
+diff -ruN '--exclude=.git' /home/tyler/git/TGPSKI/skeptic/testdata/repair/gh-actions/unsafe-prt-checkout/v1/repo/.github/workflows/pr-validation.yml /home/tyler/git/TGPSKI/leather-ex15/examples/15-trust-repair/.state/work/pilot-35b-B-prt-v1/.github/workflows/pr-validation.yml
+--- /home/tyler/git/TGPSKI/skeptic/testdata/repair/gh-actions/unsafe-prt-checkout/v1/repo/.github/workflows/pr-validation.yml	2026-07-29 21:05:21.645098277 -0700
++++ /home/tyler/git/TGPSKI/leather-ex15/examples/15-trust-repair/.state/work/pilot-35b-B-prt-v1/.github/workflows/pr-validation.yml	2026-07-29 22:46:24.572505197 -0700
+@@ -1,6 +1,6 @@
+ name: PR Validation
+ on:
+-  pull_request_target:
++  pull_request:
+     types: [opened, synchronize]
+ permissions:
+   contents: read
+@@ -18,4 +18,4 @@
+       - name: Test
+         run: make test
+       - name: Format check
+-        run: test -z "$(gofmt -l .)"
++        run: test -z "$(gofmt -l .)"
+\ No newline at end of file

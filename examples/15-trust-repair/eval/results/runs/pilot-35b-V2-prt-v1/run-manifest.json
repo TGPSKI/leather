@@ -1,0 +1,16 @@
+{
+  "tag": "pilot-35b-V2-prt-v1",
+  "arm": "V2",
+  "instance": "gh-actions/unsafe-prt-checkout/v1",
+  "agent_mode": "model",
+  "runner_rc": 1,
+  "agent_sha": "5bc96f23b7fd",
+  "task_sha": "dcd866af4c98",
+  "expected_findings_sha": "5a3e0a235015",
+  "skeptic_commit": "5990e7bed77d40bcd758f17f18ab4f6122c8d37f",
+  "fixture_tree_sha": "d4d761b15858bbf3e434d02c66ded0dd46d2e0cb",
+  "leather_commit": "d2957ac087c64efa94fd39118bff1738248a7639",
+  "model": "qwen36-35b-a3b-nvfp4",
+  "endpoint": "http://127.0.0.1:8000",
+  "timestamp": "2026-07-29T22:49:19-07:00"
+}

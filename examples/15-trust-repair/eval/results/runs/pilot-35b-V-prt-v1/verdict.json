@@ -1,0 +1,15 @@
+{
+  "checks": {
+    "targeted_removed": false,
+    "exploit_blocked": true,
+    "behavior_kept": true,
+    "repo_tests": true,
+    "no_new_findings": true,
+    "no_suppression": true
+  },
+  "repo_tests_skipped": true,
+  "scan_ok": true,
+  "new_findings": [],
+  "suppression_files": [],
+  "pass": false
+}

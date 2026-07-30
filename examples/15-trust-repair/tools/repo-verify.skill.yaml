@@ -1,0 +1,25 @@
+name: repo-verify
+system_prompt_append: |
+  You have two verification tools:
+    scan_repo      → run the security scanner over the current repo state
+    run_repo_tests → run the repository's own test suite (make test)
+
+  These are the same public instruments anyone could run — they are not the
+  grader. A clean scan does NOT by itself mean the repair is correct: the
+  task is only done when the defect is gone AND the repository still does
+  its job.
+
+tools:
+  - name: scan_repo
+    description: Run the skeptic security scanner over the repository under repair.
+    type: mcp
+    mcp:
+      server: shell
+      tool: scan_repo
+
+  - name: run_repo_tests
+    description: Run the repository's own test suite.
+    type: mcp
+    mcp:
+      server: shell
+      tool: run_repo_tests
