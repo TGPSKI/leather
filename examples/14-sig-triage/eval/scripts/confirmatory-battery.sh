@@ -14,6 +14,14 @@
 #
 #   Usage:  bash eval/scripts/confirmatory-battery.sh 4b
 #
+#   OPERATIONAL HAZARD: do NOT switch git branches (or otherwise rewrite this
+#   file) while a battery is running. bash reads a script incrementally by file
+#   offset, so a rewrite mid-run makes it resume at a shifted position and die
+#   with a syntax error. It bit the 2026-07-30 clean-set run: every cell had
+#   already completed, so no data was lost, but the script aborted in its
+#   closing lines. Run batteries from a checkout you are not editing.
+#
+#
 # Arm configs are copied verbatim from run-battery.sh / overnight-battery.sh
 # and cross-checked against the exploratory archives' run-manifest.json.
 set -u

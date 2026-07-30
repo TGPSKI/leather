@@ -71,7 +71,8 @@ What hurt it:
   two-turn flow. Context grows monotonically across turns; more calls bought
   noise, not reasoning. (The single exploratory draw said 9.2. Replication
   halved it.)
-- **Aggressive context removal** — a fresh-session queue hop lost **16.3**;
+- **Aggressive context removal** — a fresh-session queue hop lost **14.9**
+  (six draws, including three re-run clean after the resume-guard incident);
   clearing the conversation and carrying only a distilled shortlist lost
   **11.6**. Both mechanisms replaced rich evidence with a lossy summary, and
   the control arm since separated the two costs: clearing itself is worth

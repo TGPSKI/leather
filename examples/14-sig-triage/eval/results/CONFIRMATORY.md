@@ -1,7 +1,7 @@
 # Confirmatory verdicts — the six registered contrasts
 
 > Generated snapshot — do not hand-edit. Produced by
-> `eval/scripts/confirmatory-verdicts.py` at commit `88f9599`;
+> `eval/scripts/confirmatory-verdicts.py` at commit `9e7feeb`;
 > regenerate with `python3 eval/scripts/render-results-md.py`.
 
 The pre-registered battery, executed exactly as registered at main
@@ -60,8 +60,10 @@ contrast 5a  S1 vs T2  — context bounding: fresh-session stage split
    c2       59.6 vs  78.0   d=-18.4   disc  15/ 61   p=9.843e-08
    c3       61.2 vs  75.6   d=-14.4   disc  12/ 48   p=3.184e-06
    c6       62.8 vs  75.2   d=-12.4   disc  16/ 47   p=0.0001171
-   pooled   61.0 vs  76.3   d=-15.3   disc  59/212   p=1.999e-21   (descriptive only - assumes independence it lacks)
-   CLUSTER d=-15.3   110/250 issues informative   p=5e-05   <- PRIMARY (issue-clustered permutation)
+   c7       60.8 vs  75.2   d=-14.4   disc  15/ 51   p=1.01e-05
+   c8       61.6 vs  75.2   d=-13.6   disc  15/ 49   p=2.436e-05
+   pooled   61.1 vs  75.9   d=-14.9   disc  89/312   p=3.995e-30   (descriptive only - assumes independence it lacks)
+   CLUSTER d=-14.9   125/250 issues informative   p=5e-05   <- PRIMARY (issue-clustered permutation)
 
 contrast 5b  T2c vs T2  — context bounding: per-turn clear (distilled carrier)
    c1       66.8 vs  76.4   d= -9.6   disc  16/ 40   p=0.001842
@@ -93,7 +95,7 @@ BOUNDARY TRIGGER CHECK (signed: bump to 5x if a contrast lands within
    contrast 2  G     vs E2    pooled d= +3.0  |d|-band= 0.6  TRIGGER — 5x replication called for
    contrast 3  P2    vs P1    pooled d= +6.5  |d|-band= 4.1  
    contrast 4  T3    vs T2    pooled d= -5.2  |d|-band= 2.8  
-   contrast 5a  S1    vs T2    pooled d=-15.3  |d|-band=12.9  
+   contrast 5a  S1    vs T2    pooled d=-14.9  |d|-band=12.5  
    contrast 5b  T2c   vs T2    pooled d=-11.6  |d|-band= 9.2  
    contrast 6  T2cr  vs T2c   pooled d= +6.9  |d|-band= 4.5  
 

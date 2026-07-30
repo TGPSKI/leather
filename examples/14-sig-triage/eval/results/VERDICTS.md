@@ -1,7 +1,7 @@
 # Paired verdicts — every declared comparison
 
 > Generated snapshot — do not hand-edit. Produced by
-> `eval/scripts/paired-verdicts.py` at commit `88f9599`;
+> `eval/scripts/paired-verdicts.py` at commit `9e7feeb`;
 > regenerate with `python3 eval/scripts/render-results-md.py`.
 
 McNemar's exact test on the discordant issues for each declared
