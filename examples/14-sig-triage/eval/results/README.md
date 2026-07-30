@@ -1,18 +1,7 @@
 # SIG-triage eval — results and lessons
 
-> **Provenance note (2026-07-28).** An earlier draft of this package carried
-> figures from before a set of harness fixes (`d5d8d23`, `eaf377a`, `5eeb03e`,
-> `6295cd7`) and was frozen behind a do-not-publish banner: leather's queues
-> lived in a shared `state_dir` that was never cleared between runs, so a killed
-> run could leak queue items into the *next* run's artifacts — contamination
-> that could not be bounded after the fact. (Narrower defects hit specific arms:
-> a tool schema emitting `required: null`, and a proxy misfiling match calls
-> under the wrong stage.) The full matrix was then **re-run on the fixed
-> harness**; every figure below comes from those verified archives — each
-> carries a `run-manifest.json`, its evidence under `runs/<tag>/`, and a
-> `verify-run.sh` pass. The lessons documents era-tag the few remaining
-> tuning-phase numbers as non-citable. The methodology stood throughout — it is
-> what caught the problem.
+(Every figure here comes from the post-fix verified archives in `runs/` —
+see the provenance note below for the history of how that came to matter.)
 
 Everything measured while turning `examples/14-sig-triage` from a demo into a
 gated eval: the ablation campaign, the run archives behind it, and the findings
@@ -88,6 +77,22 @@ UNRESOLVED — not "no change", but *the experiment could not tell*.
 at ≥90% is missed by 5 of the 6 core SIGs (api-machinery, apps, network, node,
 storage) in the baseline configuration. Accuracy, abstention and macro-recall
 pass. No threshold was lowered to make anything green.
+
+## Provenance
+
+> **Provenance note (2026-07-28).** An earlier draft of this package carried
+> figures from before a set of harness fixes (`d5d8d23`, `eaf377a`, `5eeb03e`,
+> `6295cd7`) and was frozen behind a do-not-publish banner: leather's queues
+> lived in a shared `state_dir` that was never cleared between runs, so a killed
+> run could leak queue items into the *next* run's artifacts — contamination
+> that could not be bounded after the fact. (Narrower defects hit specific arms:
+> a tool schema emitting `required: null`, and a proxy misfiling match calls
+> under the wrong stage.) The full matrix was then **re-run on the fixed
+> harness**; every figure in this package comes from those verified archives — each
+> carries a `run-manifest.json`, its evidence under `runs/<tag>/`, and a
+> `verify-run.sh` pass. The lessons documents era-tag the few remaining
+> tuning-phase numbers as non-citable. The methodology stood throughout — it is
+> what caught the problem.
 
 ## Reproducing
 

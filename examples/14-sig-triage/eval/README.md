@@ -1,5 +1,11 @@
 # eval — full SIG-triage evaluation harness
 
+**The result this harness produced:** the same frozen 4B spans **62.4→81.6%**
+on a 250-issue gold corpus with runtime design as the only variable — 46
+verified archives, paired per-issue verdicts, a measured noise floor. The
+findings are in the [example README](../README.md); the numbers and lessons in
+[results/](results/README.md). This document is the instrument itself.
+
 Fetches real sig-labeled `kubernetes/kubernetes` issues, caches them, **separates
 the labels from the issues** (and scrubs label leakage), runs the `analyze`->`match`
 pipeline over all of them on your local model, and emits a full classification

@@ -14,6 +14,17 @@ it — 46 archived cells across two model scales, paired per-issue verdicts, a
 measured noise floor, and two quarantined wrecks with post-mortems. Start at
 [eval/README.md](eval/README.md).
 
+The arc, in one paragraph: this example started as a demo pipeline, grew an
+eval to find out whether the demo was any good, and the eval then earned its
+keep twice over. First it caught its **own** contamination (a shared state dir
+leaking artifacts between runs) — the affected figures were frozen, the harness
+fixed, and the full 22-arm × 2-rig matrix re-run under manifests and
+verification. Then the re-baselined campaign produced the findings above — and
+two of them were runtime defects that shipped as fixes in leather v0.5.0
+(per-turn `clear: true`, recoverable out-of-scope tool refusals). The eval is
+not decoration on the example; it is where most of what this example teaches
+came from.
+
 ## What the small model actually needs
 
 Every claim below is a paired comparison on identical issues, not a leaderboard
