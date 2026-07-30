@@ -5,8 +5,9 @@ on a 250-issue gold corpus with runtime design as the only variable — 94
 verified archives, paired per-issue verdicts, a measured noise floor, and six
 contrasts **pre-registered at commit `96cc418` before any confirmatory cell
 ran** ([registration](ablation/preregistration.md),
-[verdicts](results/CONFIRMATORY.md)). All six survive Holm–Bonferroni at
-α=0.05; two shrank by roughly half under replication. The findings are in the
+[verdicts](results/CONFIRMATORY.md)). **Five of six** survive Holm–Bonferroni
+at α=0.05 under an issue-clustered permutation test; two effects halved under
+replication and a third fell to unresolved when the estimator was corrected. The findings are in the
 [example README](../README.md); the numbers and lessons in
 [results/](results/README.md); how to browse the archives in
 [VIEWING.md](VIEWING.md). This document is the instrument itself.

@@ -12,10 +12,13 @@ never change, the hardware never changes. Twenty-two points of accuracy live
 in the runtime design.
 
 And it is not one lucky sweep: six contrasts were **pre-registered at a commit
-hash before any confirmatory cell ran**, replicated three times each, and all
-six survive Holm–Bonferroni at α=0.05. Two of them shrank by roughly half under
-replication — that correction is left visible, because it is the reason the
-protocol exists.
+hash before any confirmatory cell ran**, replicated three times each, and
+**five of the six survive Holm–Bonferroni at α=0.05**. Three findings moved
+under scrutiny, every one of them against my own interest: two effects halved
+under replication, and the sixth contrast fell to *unresolved* once the
+estimator was corrected to account for re-measuring the same issues. Those
+corrections are left visible, because they are the reason the protocol
+exists.
 
 The eval under `eval/` is the instrument — 94 archived cells across two model
 scales, paired per-issue verdicts, a measured noise floor, and two quarantined
@@ -41,24 +44,26 @@ came from.
 ## What the small model actually needs
 
 Every claim below is a paired comparison on identical issues, not a leaderboard
-delta. Effects of 9+ points resolve decisively; the ~6-point delivery effects
-are credible but provisional (many comparisons, one corpus); details and
-p-values in `eval/ablation/arms.json` and `eval/scripts/paired-verdicts.py`.
+delta, and every figure is the **replicated** one: three registered draws per
+side (five where the boundary trigger fired), combined by an issue-clustered
+permutation test and Holm-adjusted across the six contrasts. Where a single
+exploratory draw said something larger, the replicated number is quoted.
+Full output: [CONFIRMATORY.md](eval/results/CONFIRMATORY.md).
 
 What helped the 4B:
-
-Figures below are the **replicated** ones — three registered draws per side,
-pooled, Holm-adjusted. Where a single exploratory draw said something larger,
-the replicated number is the one quoted.
 
 - **Explicit domain rules** in the prompt — **+12.8**, the largest single lever.
 - **Task before reference** — issue first, catalog after, **+6.5**. Let the
   model understand the question before the payload lands.
-- **Rich reference payloads** — full catalog entries beat narrowed bare labels
-  by **+3.0**. Shrinking the candidate list is not enough; the model needs the
-  prose that explains *why* a label fits. This is the weakest confirmed lever
-  and the one that triggered the registered 5× replication rule — the first
-  measurement said +6.4.
+- **Rich reference payloads — SUGGESTIVE, NOT RESOLVED.** Full catalog entries
+  beat narrowed bare labels by about **+3.0**, but this is the one registered
+  contrast that did *not* clear its bar. It halved from the first single draw
+  (+6.4), triggered the registered 5× replication rule, never resolved at any
+  individual wave, and finished unresolved under the clustered estimator
+  (Holm-adjusted p = 0.067). The mechanism is plausible — the model needs the
+  prose explaining *why* a label fits, not just a shorter list — but five draws
+  per side could not separate it from the null band. Treat it as a lead, not a
+  finding.
 
 What hurt it:
 

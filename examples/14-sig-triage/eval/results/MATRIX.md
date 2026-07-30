@@ -1,7 +1,7 @@
 # Results matrix — every archived cell
 
 > Generated snapshot — do not hand-edit. Produced by
-> `eval/scripts/table.py` at commit `1c024a5`;
+> `eval/scripts/table.py` at commit `88f9599`;
 > regenerate with `python3 eval/scripts/render-results-md.py`.
 
 Accuracy per archived cell (accept-set, abstention-aware — the
@@ -51,7 +51,7 @@ here (means with spread, the ±6-row null band, the failing gate).
      35b Eauto        70.4   4m 26s       -       1.00       1       ?   07-27 23:32   23:37    
      35b     B        68.4   4m 27s       -       1.00       0       ?   07-27 23:19   23:23    
 
-  4b  60 cells  ·  sort acc↓
+  4b  61 cells  ·  sort acc↓
      rig   arm draw   acc▼      dur  no-out  calls/iss   tools    ktok   started       ended    
       4b    F2        81.6  13m 12s       2       1.99     248    1165   07-28 05:01   05:14    
       4b     F        80.4  10m 14s       -       1.59     148    1427   07-28 03:34   03:44    
@@ -69,6 +69,7 @@ here (means with spread, the ±6-row null band, the failing gate).
       4b    T2 c3     75.6  27m 03s       1       3.00     250    1723   07-30 05:28   05:55    
       4b    A0 c2     75.2   7m 53s       1       1.00       0     279   07-30 00:30   00:37    
       4b    A0        75.2  13m 10s       1       1.03       0     304   07-28 01:03   01:16    
+      4b    T2 c6     75.2  27m 14s       1       3.00     250    1724   07-30 12:54   13:21    
       4b    G2        74.8  10m 33s       6       1.96     273     628   07-28 04:10   04:20    
       4b    A0 c1     74.4   8m 23s       1       1.00       0     280   07-29 20:42   20:50    
       4b     G c4     74.4  10m 45s       2       2.00     264     657   07-30 11:56   12:07    
