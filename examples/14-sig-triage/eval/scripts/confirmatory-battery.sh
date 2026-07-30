@@ -112,8 +112,15 @@ run_arm() { # arm rep
   esac
 }
 
-ARMS="A0 B G E2 P1 P2 T2 T3 S1 T2c T2cr"
-for rep in 1 2 3; do
+# Defaults ARE the registration: 11 registered arms x 3 replications. The two
+# overrides exist to execute Amendment 1 DECISION 4 (signed 2026-07-30) — the
+# boundary trigger fired on contrast #2, bumping G and E2 to 5 draws each:
+#   BUMP_ARMS="G E2" BUMP_REPS="4 5" bash eval/scripts/confirmatory-battery.sh 4b
+# They change nothing when unset; every cell still runs the same run_cell path,
+# completeness skip, agent-sha check, and verify-run pass.
+ARMS="${BUMP_ARMS:-A0 B G E2 P1 P2 T2 T3 S1 T2c T2cr}"
+REPS="${BUMP_REPS:-1 2 3}"
+for rep in $REPS; do
   echo "=== WAVE c$rep ($(date -Is)) ==="
   for a in $ARMS; do
     echo "--- $RIG/$a c$rep ---"
