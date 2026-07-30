@@ -1,0 +1,21 @@
+diff -ruN '--exclude=.git' /home/tyler/git/TGPSKI/skeptic/testdata/repair/gh-actions/mutable-action-pin/v1/repo/.github/workflows/release.yml /home/tyler/git/TGPSKI/leather-ex15/examples/15-trust-repair/.state/work/pilot-V2-pin-v1/.github/workflows/release.yml
+--- /home/tyler/git/TGPSKI/skeptic/testdata/repair/gh-actions/mutable-action-pin/v1/repo/.github/workflows/release.yml	2026-07-29 21:00:49.121720652 -0700
++++ /home/tyler/git/TGPSKI/leather-ex15/examples/15-trust-repair/.state/work/pilot-V2-pin-v1/.github/workflows/release.yml	2026-07-29 22:28:21.640555000 -0700
+@@ -8,8 +8,8 @@
+   build:
+     runs-on: ubuntu-latest
+     steps:
+-      - uses: actions/checkout@v4
+-      - uses: actions/setup-go@v5
++      - uses: actions/checkout@sha1234567890abcdef
++      - uses: actions/setup-go@sha1234567890abcdef
+         with:
+           go-version: "1.24"
+       - name: Build
+@@ -34,4 +34,4 @@
+       - name: Publish release
+         uses: softprops/action-gh-release@v2
+         with:
+-          files: chronodex
++          files: chronodex
+\ No newline at end of file

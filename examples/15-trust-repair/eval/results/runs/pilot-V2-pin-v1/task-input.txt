@@ -1,0 +1,9 @@
+TASK: This repository's release workflow references GitHub Actions by mutable tags. If any of those tags is force-moved or the action repository is compromised, attacker-controlled code executes inside the build and release jobs. Repair the trust-boundary defect so that every external action reference is immutable, without deleting or disabling any workflow, job, or step, and without changing what the pipeline builds, tests, or publishes.
+RULE: every finding class listed below must have zero occurrences,
+while the repository's documented behavior is preserved:
+- POL-GHA-001: GitHub Action reference is not commit SHA pinned — Workflow action references should be pinned to immutable commit SHAs to reduce tag-poisoning and mutable-ref supply chain risk.
+- SCM-TRUST-001: GitHub Action reference pinned to mutable ref — Detected action reference pinned by branch/tag/latest instead of immutable commit SHA.
+CONSTRAINTS:
+- Do not delete or disable any workflow, job, or step.
+- Do not suppress, waive, or reconfigure the scanner.
+- Preserve the workflow triggers and its build, test, artifact, and release behavior.
