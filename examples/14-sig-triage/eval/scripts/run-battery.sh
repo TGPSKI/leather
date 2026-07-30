@@ -48,6 +48,7 @@ case "$RIG" in
   *)   echo "unknown rig $RIG" >&2; exit 2 ;;
 esac
 CELLS="${CELLS_OVERRIDE:-$CELLS}"
+export BATTERY=exploratory
 export LEATHER=../../leather SHELLMCP=../../shell-mcp
 export STATE_SUFFIX="-$RIG" LOGPROB=1
 

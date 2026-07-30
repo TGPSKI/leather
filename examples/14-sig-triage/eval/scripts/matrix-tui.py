@@ -40,12 +40,14 @@ _spec = importlib.util.spec_from_file_location(
 _pv = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_pv)
 
-VIEWS = ("cells", "rankings", "pairs")
+VIEWS = ("cells", "rankings", "pairs", "cost")
 VIEW_HELP = {
     "cells": "every archived draw, ranked by accuracy — [space] opens detail",
     "rankings": "arm means (baselined chart) + each arm's draws and spread",
     "pairs": "McNemar exact on discordant issues, per wave and pooled",
+    "cost": "accuracy vs tokens — ★ marks the Pareto frontier (nothing beats it on both)",
 }
+FACETS = ("rig", "battery", "arm", "draw")
 SORTS = ("acc", "tag", "spread")
 NULL_BAND = 2.4          # measured single-run noise floor, in points
 
@@ -64,6 +66,11 @@ class MatrixTui(TuiApp):
         self.stamp = 0.0
         self.seen_mtime = 0.0
         self._pairs_cache = (None, None)
+        # Facet selection: empty set == no constraint on that facet. Values
+        # within a facet OR together; facets AND with each other.
+        self.sel = {f: set() for f in FACETS}
+        self.picking = not pattern      # open on the picker unless pre-filtered
+        self.pick_i = 0
         self.reload()
         self.curses.halfdelay(20)   # 2s tick: getch returns -1 so we refresh
 
@@ -74,8 +81,34 @@ class MatrixTui(TuiApp):
         self.seen_mtime = md.newest_mtime()
         self._pairs_cache = (None, None)
 
+    def facet_values(self):
+        """{facet: [(value, count), ...]} over ALL cells, for the picker."""
+        out = {}
+        for f in FACETS:
+            counts = {}
+            for c in self.cells:
+                counts[c[f] or "—"] = counts.get(c[f] or "—", 0) + 1
+            out[f] = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        return out
+
+    def pick_rows(self):
+        """Flattened picker list: ('head', facet) and ('item', facet, value, n)."""
+        rows = []
+        for f, vals in self.facet_values().items():
+            rows.append(("head", f, None, len(vals)))
+            for v, n in vals:
+                rows.append(("item", f, v, n))
+        return rows
+
+    def selected(self, c):
+        for f in FACETS:
+            if self.sel[f] and (c[f] or "—") not in self.sel[f]:
+                return False
+        return True
+
     def visible(self):
-        cs = [c for c in self.cells if md.matches(c["tag"], self.pattern)]
+        cs = [c for c in self.cells
+              if md.matches(c["tag"], self.pattern) and self.selected(c)]
         fam = md.families(cs)
         key = SORTS[self.sort]
         if key == "acc":
@@ -135,7 +168,10 @@ class MatrixTui(TuiApp):
         self._put(0, 1, "RESULTS MATRIX", C.A_BOLD)
         self._put(0, 16, f"▸ {view}", C.color_pair(5) | C.A_BOLD)
         self._put(0, 18 + len(view) + 2, VIEW_HELP[view][: max_x - 40], C.A_DIM)
-        right = f"filter:{self.pattern or 'all'}  sort:{SORTS[self.sort]}  {int(time.time() - self.stamp)}s"
+        picked = ",".join(f"{f}:{len(v)}" for f, v in self.sel.items() if v)
+        right = (f"{picked + '  ' if picked else ''}"
+                 f"filter:{self.pattern or 'all'}  sort:{SORTS[self.sort]}  "
+                 f"{int(time.time() - self.stamp)}s")
         self._put(0, max(20, max_x - len(right) - 2), right,
                   C.color_pair(2) if self.pattern else C.A_DIM)
 
@@ -147,14 +183,18 @@ class MatrixTui(TuiApp):
                       f"filter> {self.buf}_    (enter applies · esc cancels · "
                       f"empty = show all)", C.color_pair(3) | C.A_BOLD)
             return
-        if self.detail:
+        if self.picking:
+            keys = [("[space] tick", C.A_DIM), ("[enter] apply", C.color_pair(1)),
+                    ("[a] all in group", C.A_DIM), ("[n] none", C.A_DIM),
+                    ("[N] clear all", C.A_DIM), ("[q] quit", C.A_DIM)]
+        elif self.detail:
             keys = [("[space/esc] close card", C.A_DIM),
                     ("[↑↓] other draw", C.A_DIM), ("[q] quit", C.A_DIM)]
         else:
-            keys = [("[tab] next view", C.A_DIM), ("[f] set filter", C.A_DIM),
-                    ("[F] clear filter", C.A_DIM), ("[s] cycle sort", C.A_DIM),
-                    ("[space] detail", C.A_DIM), ("[r] reload", C.A_DIM),
-                    ("[q] quit", C.A_DIM)]
+            keys = [("[tab] next view", C.A_DIM), ("[p] pick", C.A_DIM),
+                    ("[f] filter", C.A_DIM), ("[F] clear", C.A_DIM),
+                    ("[s] sort", C.A_DIM), ("[space] detail", C.A_DIM),
+                    ("[r] reload", C.A_DIM), ("[q] quit", C.A_DIM)]
         self.render_footer_items(max_y, keys)
         if total > avail > 0:
             end = min(self.scroll + avail, total)
@@ -169,6 +209,10 @@ class MatrixTui(TuiApp):
     def render(self, max_y, max_x):
         self.header(max_x)
         body = max_y - 3
+        if self.picking:
+            total, avail = self.view_picker(body, max_y, max_x)
+            self.footer(max_y, max_x, total, avail)
+            return
         cs, fam = self.visible()
         total = avail = 0
         if not cs:
@@ -181,6 +225,8 @@ class MatrixTui(TuiApp):
             total, avail = self.view_cells(cs, fam, body, max_x)
         elif VIEWS[self.view] == "rankings":
             self.view_rankings(cs, fam, body, max_y, max_x)
+        elif VIEWS[self.view] == "cost":
+            total, avail = self.view_cost(cs, body, max_x)
         else:
             total, avail = self.view_pairs(cs, body, max_x)
         self.footer(max_y, max_x, total, avail)
@@ -308,6 +354,96 @@ class MatrixTui(TuiApp):
         except OSError:
             pass
 
+    def view_picker(self, body, max_y, max_x):
+        """Startup selector: choose any combination of rig / battery / arm / draw.
+
+        Empty facet == no constraint, so the default (nothing ticked) shows
+        everything; ticking values narrows. This exists because the archives
+        now hold four different campaigns and the interesting question is
+        almost always about one of them.
+        """
+        C = self.curses
+        rows = self.pick_rows()
+        self._put(1, 1, "SELECT WHAT TO VIEW", C.A_BOLD)
+        self._put(1, 24, "nothing ticked in a group = that group unrestricted",
+                  C.A_DIM)
+        shown = sum(1 for c in self.cells if self.selected(c))
+        self._put(2, 1, f"{shown} of {len(self.cells)} cells match", C.color_pair(2))
+        avail = body - 3
+        self.pick_i = max(0, min(self.pick_i, len(rows) - 1))
+        if self.pick_i < self.scroll:
+            self.scroll = self.pick_i
+        elif self.pick_i >= self.scroll + avail:
+            self.scroll = self.pick_i - avail + 1
+        for i, row in enumerate(rows[self.scroll:self.scroll + avail]):
+            y = 4 + i
+            kind, facet, value, n = row
+            cur = (self.scroll + i) == self.pick_i
+            if kind == "head":
+                self._put(y, 1, f"{facet.upper()}  ({n})", C.A_BOLD | C.color_pair(6))
+                continue
+            mark = "x" if value in self.sel[facet] else " "
+            attr = C.A_REVERSE if cur else 0
+            on = C.color_pair(1) if mark == "x" else C.A_DIM
+            self._put(y, 3, f"[{mark}]", on | attr)
+            self._put(y, 7, f"{value:<14}", attr)
+            self._put(y, 22, f"{n:4d} cells", C.A_DIM | attr)
+        return len(rows), avail
+
+    def view_cost(self, cs, body, max_x):
+        """Accuracy vs cost, with the Pareto frontier marked.
+
+        The campaign's sharpest practical finding is that cost and accuracy
+        are near-ORTHOGONAL here — the most expensive arms buy turns and
+        stages, which is exactly what hurts this model. A cell is on the
+        frontier when nothing else is both cheaper and more accurate.
+        """
+        C = self.curses
+        pts = [c for c in cs if c["ktok"] > 0]
+        if not pts:
+            self._put(2, 3, "no cells with token telemetry in this selection",
+                      C.A_DIM)
+            return 0, 0
+        front = set()
+        for c in pts:
+            if not any(o["ktok"] <= c["ktok"] and o["acc"] > c["acc"] for o in pts):
+                front.add(c["tag"])
+        lo_a = min(c["acc"] for c in pts); hi_a = max(c["acc"] for c in pts)
+        lo_k = min(c["ktok"] for c in pts); hi_k = max(c["ktok"] for c in pts)
+        ph = max(6, min(16, body - 6))
+        pw = max(20, min(max_x - 22, 70))
+        self._put(1, 1, f"accuracy vs tokens — {len(front)} cells on the frontier (★)",
+                  C.A_BOLD)
+        for i in range(ph):                      # axes
+            self._put(2 + i, 8, "│", C.A_DIM)
+        self._put(2 + ph, 8, "└" + "─" * pw, C.A_DIM)
+        self._put(2, 2, f"{hi_a:5.1f}", C.A_DIM)
+        self._put(2 + ph - 1, 2, f"{lo_a:5.1f}", C.A_DIM)
+        self._put(2 + ph + 1, 9, f"{lo_k:.0f}k", C.A_DIM)
+        self._put(2 + ph + 1, 9 + pw - 6, f"{hi_k:.0f}k", C.A_DIM)
+        for c in sorted(pts, key=lambda c: c["tag"] not in front):
+            ax = (c["acc"] - lo_a) / (hi_a - lo_a) if hi_a > lo_a else 0.5
+            kx = (c["ktok"] - lo_k) / (hi_k - lo_k) if hi_k > lo_k else 0.5
+            y = 2 + int((1 - ax) * (ph - 1))
+            x = 9 + int(kx * (pw - 2))
+            if c["tag"] in front:
+                self._put(y, x, "★", C.color_pair(1) | C.A_BOLD)
+            else:
+                self._put(y, x, "·", C.A_DIM)
+        y0 = 2 + ph + 2
+        self._put(y0, 1, f"{'frontier cells':<16}{'acc':>7}{'ktok':>8}{'c/iss':>7}"
+                         f"{'dur':>9}   variable", C.A_DIM)
+        best = sorted((c for c in pts if c["tag"] in front),
+                      key=lambda c: -c["acc"])
+        for i, c in enumerate(best[:max(0, body - ph - 6)]):
+            self._put(y0 + 1 + i, 1, f"{c['tag']:<16}")
+            self._put(y0 + 1 + i, 17, f"{c['acc']:6.1f}", self.acc_attr(c["acc"]))
+            self._put(y0 + 1 + i, 24, f"{c['ktok']:8.0f}", C.A_DIM)
+            self._put(y0 + 1 + i, 32, f"{c['cpi']:7.2f}", C.A_DIM)
+            self._put(y0 + 1 + i, 39, f"{md.fmt_duration(c['dur_s'])}", C.color_pair(6))
+            self._put(y0 + 1 + i, 51, c["var"][: max_x - 53], C.A_DIM)
+        return 0, 0
+
     def view_rankings(self, cs, fam, body, max_y, max_x):
         C = self.curses
         keys = sorted(fam.items(), key=lambda kv: -kv[1]["mean"])
@@ -401,6 +537,36 @@ class MatrixTui(TuiApp):
             return False
         if key in (ord("q"), ord("Q")):
             return True
+        if self.picking:
+            rows = self.pick_rows()
+            row = rows[self.pick_i] if 0 <= self.pick_i < len(rows) else None
+            if key in (10, 13):
+                self.picking, self.scroll, self.cursor = False, 0, 0
+                self._pairs_cache = (None, None)
+            elif key == ord(" ") and row and row[0] == "item":
+                _, facet, value, _ = row
+                self.sel[facet] ^= {value}
+            elif key == ord("a") and row:
+                facet = row[1]
+                self.sel[facet] = {v for v, _ in self.facet_values()[facet]}
+            elif key == ord("n") and row:
+                self.sel[row[1]] = set()
+            elif key == ord("N"):
+                self.sel = {f: set() for f in FACETS}
+            elif key == C.KEY_UP:
+                self.pick_i = max(0, self.pick_i - 1)
+            elif key == C.KEY_DOWN:
+                self.pick_i += 1
+            elif key == C.KEY_PPAGE:
+                self.pick_i = max(0, self.pick_i - 10)
+            elif key == C.KEY_NPAGE:
+                self.pick_i += 10
+            elif key == 27:
+                self.picking = False
+            return False
+        if key == ord("p"):
+            self.picking, self.scroll, self.pick_i = True, 0, 0
+            return False
         if key == ord(" "):
             self.detail = not self.detail and VIEWS[self.view] == "cells"
         elif key == 27:

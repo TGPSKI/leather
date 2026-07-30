@@ -32,6 +32,7 @@ trap 'rmdir "$LOCK" 2>/dev/null' EXIT INT TERM
 
 export LEATHER_LLM_ENDPOINT=http://10.0.0.64:8000
 export LEATHER_MODEL=/home/tyler/llm/models/Qwen3-4B-Instruct-2507-AWQ
+export BATTERY=confirmatory
 export CONCURRENCY=4 LP_PORT=8021
 export LEATHER=../../leather SHELLMCP=../../shell-mcp
 export STATE_SUFFIX="-$RIG" LOGPROB=1

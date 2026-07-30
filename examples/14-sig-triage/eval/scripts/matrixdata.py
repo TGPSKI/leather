@@ -1,6 +1,20 @@
 #!/usr/bin/env python3
 """Shared archive loader for the results table and the matrix TUI.
 
+PORTING THIS TO ANOTHER EVAL: four things here are specific to sig-triage,
+and nothing else is. Everything above them — facets, families, contrasts,
+Pareto, durations, filtering, the TUI — is generic over "cells with an
+accuracy and a cost".
+  1. score() shells out to sigeval.go and reads sigeval-rows.jsonl. Any
+     scorer works if it emits {number, correct} rows per cell.
+  2. cell() reads predictions.jsonl / logprobs.jsonl.gz / run-evidence.log.gz
+     — leather's standard archive shape, so this part already travels.
+  3. split_tag() assumes '<rig>-<arm>-<draw>' tags.
+  4. arms_registry() reads eval/ablation/arms.json for `variable` and
+     `compare_to`; without it, contrasts and the variable column go blank
+     but nothing breaks.
+Lift those four behind a small adapter and this runs on any leather eval.
+
 Extracted from table.py so the two surfaces cannot disagree: one scorer
 bridge (sigeval, per task #32), one telemetry reader, one filter grammar.
 Cells come from ARCHIVES under results/runs/<tag>/, never from runner logs.
@@ -150,6 +164,7 @@ def cell(d, arms):
             dur = 0
     rig, family, draw = split_tag(tag)
     return dict(tag=tag, rig=rig, arm=family, draw=draw, acc=acc, rows=len(rows),
+                battery=battery_of(man, draw),
                 dead=dead, cpi=(calls / len(rows)) if rows else 0.0, tools=tools,
                 ktok=toks / 1000.0,
                 var=arms.get(family, {}).get("variable", ""),
@@ -242,6 +257,27 @@ def contrasts(cells):
 
 
 SCOPES = ("all", "confirmatory", "exploratory")
+
+
+def battery_of(man, draw):
+    """Which battery produced this cell.
+
+    Read from the manifest's `battery` field where present. Archives written
+    before that field existed (everything up to 2026-07-30) fall back to the
+    tagging convention the batteries actually used, and are marked with a '~'
+    so an inferred value is never mistaken for a recorded one:
+      cN  -> confirmatory (registration 96cc418)
+      -N  -> noise (repeat-draw battery)
+      ''  -> exploratory (the single-draw atlas)
+    """
+    b = (man or {}).get("battery")
+    if b:
+        return b
+    if draw.startswith("c"):
+        return "~confirmatory"
+    if draw.isdigit():
+        return "~noise"
+    return "~exploratory"
 
 # Column glossary — one definition per column, shared by every surface so a
 # reader never has to guess what a header means or find it in a docstring.

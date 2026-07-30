@@ -56,6 +56,7 @@ sha() { [ -f "$1" ] && sha256sum "$1" 2>/dev/null | cut -c1-12 || echo none; }
 cat > "${STATE_DIR}/run-manifest.json" <<EOF
 {
   "run_tag":    "${RUN_TAG:-unnamed}",
+  "battery":    "${BATTERY:-adhoc}",
   "started":    "$(date -Iseconds)",
   "model":      "${LEATHER_MODEL:-unset}",
   "endpoint":   "${LEATHER_LLM_ENDPOINT:-unset}",
