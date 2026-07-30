@@ -54,7 +54,7 @@ symmetry did not survive the re-baseline and is retired.)
 | [lessons-vllm-models.md](lessons-vllm-models.md) | model and server findings: uncertainty signals, `tool_choice` hangs, thinking, the scale gap |
 | [lessons-eval-methodology.md](lessons-eval-methodology.md) | how to run an eval that can be trusted — null bands, tiers, replication, provenance |
 | [verification.md](verification.md) | the claim ledger: which artifact proves each load-bearing claim |
-| `runs/` | per-cell archives: predictions, sigeval report, logprobs, evidence log, `run-manifest.json` |
+| `runs/` | per-cell archives, **committed in full**: predictions, sigeval report, scored rows, logprobs, evidence log, `run-manifest.json` |
 | `quarantine/` | wrecked runs kept with post-mortems; do not resurrect |
 
 MATRIX.md and VERDICTS.md are generated snapshots of `table.py` and
@@ -108,3 +108,11 @@ bash eval/scripts/run-battery.sh <35b|4b>                                    # t
 token-level uncertainty margins and — the counter that mattered most here —
 whether each request actually carried a `tools` array. Verify any cell before
 quoting it: `bash eval/scripts/verify-run.sh`.
+
+**Auditing needs no GPU.** The archives are committed, so from a clone you can
+regenerate the leaderboard (`table.py`), re-run every paired verdict
+(`paired-verdicts.py`), re-score any cell's `predictions.jsonl` against the
+gold with `sigeval.go`, and read the evidence logs — without a model endpoint.
+Only *producing new predictions* requires one. The generated pages
+([MATRIX.md](MATRIX.md), [VERDICTS.md](VERDICTS.md)) are conveniences, not the
+evidence; the archives are the evidence.

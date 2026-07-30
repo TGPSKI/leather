@@ -1,0 +1,67 @@
+SIG-triage eval
+corpus=250  predicted=250  missing=0  gold-overrides-applied=11
+overall accuracy (accept-set, abstain-as-correct where allowed): 78.8% (197/250)
+accuracy on answered (excl. abstentions):                        78.4% (192/245)
+abstention rate:                                                 2.0% (5/250)
+
+split by tier:
+  full:         78.8% (197/250)
+  smoke:        84.9% (45/53)   tuned on -- expect the best number here
+  acceptance:   73.5% (111/151)   gate of record, not tuned on
+  holdout:      89.1% (41/46)   never tuned on <- generalization check
+
+SIG                      support precision    recall        f1  abstain
+------------------------ ------- ---------    ------        --  -------
+sig-api-machinery             21       61%       95%       75%        0 *
+sig-apps                      25       94%       76%       84%        0 *
+sig-architecture               2        0%      100%        0%        0
+sig-auth                      25      100%       72%       84%        0
+sig-autoscaling               25       95%       88%       92%        0
+sig-cli                       25       92%       84%       88%        0
+sig-cloud-provider             1        0%      100%        0%        0
+sig-cluster-lifecycle          0      100%        0%        0%        0
+sig-docs                       0        0%        0%        0%        0
+sig-etcd                       1        0%        0%        0%        0
+sig-instrumentation           24       88%       58%       70%        0
+sig-network                   24       94%       75%       83%        0 *
+sig-node                      24       68%       92%       78%        0 *
+sig-release                    0        0%        0%        0%        0
+sig-scheduling                24       94%       96%       95%        0 *
+sig-security                   0        0%        0%        0%        0
+sig-storage                   24      100%       50%       67%        0 *
+sig-testing                    0       11%        0%        0%        0
+sig-windows                    0      100%        0%        0%        0
+macro avg                              68%       76%       63%
+weighted-f1 avg              245                         80%
+(* = core SIG held to the recall gate)
+
+top confusions (gold -> predicted):
+  sig-storage -> sig-node                  x7
+  sig-instrumentation -> sig-api-machinery x4
+  sig-apps -> sig-api-machinery            x3
+  sig-auth -> sig-api-machinery            x3
+  sig-cli -> sig-testing                   x3
+  sig-instrumentation -> sig-node          x3
+  sig-storage -> sig-testing               x3
+  sig-auth -> sig-testing                  x2
+
+confidence calibration (accuracy per emitted bucket):
+  bucket           n     share  accuracy
+  high           248       99%       79%
+  medium           2        1%        0%
+  runner-up populated on 236/250 rows
+  runner-up recovery: 34/53 misses (64%) had gold as the RUNNER_UP  <- top-2 adjudicator headroom
+
+gate:
+  [FAIL] overall-accuracy             got 78.8% (threshold >=80%)
+  [PASS] abstention-rate              got 2.0% (threshold <=30%)
+  [FAIL] macro-recall                 got 79% (threshold >=85%)
+         over 10 classes with support>=20
+  [PASS] core-recall:sig-api-machinery got 95% (threshold >=90%)
+  [FAIL] core-recall:sig-apps         got 76% (threshold >=90%)
+  [FAIL] core-recall:sig-network      got 75% (threshold >=90%)
+  [PASS] core-recall:sig-node         got 92% (threshold >=90%)
+  [PASS] core-recall:sig-scheduling   got 96% (threshold >=90%)
+  [FAIL] core-recall:sig-storage      got 50% (threshold >=90%)
+
+GATE FAILED

@@ -1,0 +1,18 @@
+{
+  "run_tag":    "35b-H",
+  "started":    "2026-07-28T00:34:50-07:00",
+  "model":      "qwen36-35b-a3b-nvfp4",
+  "endpoint":   "http://127.0.0.1:8000",
+  "agent_dir":  "/home/tyler/.claude/jobs/368bb63d/tmp/agents-fu2-35b",
+  "agent_sha":  "d598ac743890",
+  "index":      "sigs.index.tsv",
+  "index_sha":  "2cbb419f6695",
+  "analyze_cache":     "eval/results/runs/35b-A/analyze-notes.jsonl",
+  "analyze_cache_sha": "e9afa2fbe398",
+  "corpus":     "eval/corpus.jsonl",
+  "corpus_sha": "fc1b161d69a7",
+  "git_commit": "a1b3f71",
+  "force_tool": "1",
+  "concurrency": "8",
+  "logprob":    "1"
+}

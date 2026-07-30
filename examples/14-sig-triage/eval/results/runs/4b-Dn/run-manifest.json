@@ -1,0 +1,18 @@
+{
+  "run_tag":    "4b-Dn",
+  "started":    "2026-07-28T01:29:38-07:00",
+  "model":      "/home/tyler/llm/models/Qwen3-4B-Instruct-2507-AWQ",
+  "endpoint":   "http://10.0.0.64:8000",
+  "agent_dir":  "/home/tyler/.claude/jobs/368bb63d/tmp/agents-fin-4b",
+  "agent_sha":  "4e9c31079a5c",
+  "index":      "sigs.index.tsv",
+  "index_sha":  "2cbb419f6695",
+  "analyze_cache":     "eval/results/runs/4b-A/analyze-notes.jsonl",
+  "analyze_cache_sha": "9e128e497725",
+  "corpus":     "eval/corpus.jsonl",
+  "corpus_sha": "fc1b161d69a7",
+  "git_commit": "1d9fce5",
+  "force_tool": "1",
+  "concurrency": "4",
+  "logprob":    "1"
+}

@@ -1,0 +1,18 @@
+{
+  "run_tag":    "35b-A-4",
+  "started":    "2026-07-28T04:48:56-07:00",
+  "model":      "qwen36-35b-a3b-nvfp4",
+  "endpoint":   "http://127.0.0.1:8000",
+  "agent_dir":  "/home/tyler/git/TGPSKI/leather/examples/14-sig-triage/eval/.battery/agents-noise-35b",
+  "agent_sha":  "d598ac743890",
+  "index":      "sigs.index.tsv",
+  "index_sha":  "2cbb419f6695",
+  "analyze_cache":     "none",
+  "analyze_cache_sha": "none",
+  "corpus":     "eval/corpus.jsonl",
+  "corpus_sha": "fc1b161d69a7",
+  "git_commit": "31a39bf",
+  "force_tool": "0",
+  "concurrency": "8",
+  "logprob":    "1"
+}
