@@ -61,6 +61,13 @@ time ~25 min for all 10 cells.
    pins file or comment), or state the structural-pin acceptance rule in
    the task prompt.
 
+> **Caveat added post-run:** 2 of the 10 cells (B-prt, E-pin) contained a
+> `finish_reason=length` round under the then-current max_tokens 8192 (found
+> by the watch-matrix TRUNC callout). The behavior pattern almost certainly
+> stands — the six untruncated narration cells behaved identically — but a
+> clean 4B re-run at the corrected ceiling is queued (post-battery, on the
+> rig). See PILOT-2.md for the ceiling fix and the 35B upper anchor.
+
 ## Next
 
 - Fix the pin-family SHA-knowability flaw (fixture or prompt).

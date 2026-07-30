@@ -12,7 +12,10 @@ llm_timeout: 300s
 # agents/*.agent.md — neither alone works (see 14-sig-triage eval README,
 # "Reproducibility", and leather issue #56).
 temperature: 0
-max_tokens: 8192
+# 24576, not 8192: the 35B is a reasoning model and burns thousands of think
+# tokens before its answer; at 8192 it truncated mid-reasoning to empty output
+# (finish_reason=length) — see eval/results/quarantine/pilot-35b-R-pin-v1.
+max_tokens: 24576
 completion_reserve: 1024
 summarize_threshold: 0.85
 

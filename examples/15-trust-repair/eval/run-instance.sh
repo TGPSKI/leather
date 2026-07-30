@@ -86,6 +86,7 @@ for f in scan['findings']:
 
 # --- run the agent (or the scripted patcher) ---------------------------------
 agent_mode="model"
+runner_rc=0
 if [ -n "${REPAIR_SCRIPTED:-}" ]; then
   agent_mode="scripted:$(basename "$REPAIR_SCRIPTED")"
   echo "scripted patcher: $REPAIR_SCRIPTED"
@@ -95,9 +96,18 @@ else
   want=$(sha256sum "$ARM_FILE" | cut -c1-12)
   got=$(sha256sum "$EX_DIR/agents/repair.agent.md" | cut -c1-12)
   [ "$want" = "$got" ] || { echo "ABORT $TAG: agent copy did not take" >&2; exit 3; }
+  # Per-run state dir: a DLQ'd item in a shared .state contaminates every later
+  # run (ex-14's contamination post-mortem, relearned here on pilot-35b-E-pin).
+  export LEATHER_STATE_DIR="$EX_DIR/.state/leather-$TAG"
+  rm -rf "$LEATHER_STATE_DIR"
+  # The oracle judges REPOSITORY STATE, not the agent's closing prose. A run
+  # that edits the repo but exhausts tool rounds without a final text response
+  # exits nonzero (DLQ) — the workdir still holds a scoreable candidate, so
+  # scoring must proceed; runner_rc lands in the manifest as the protocol
+  # outcome.
   (cd "$EX_DIR" && "$LEATHER" workflow run --config config.yaml --tannery tannery.yaml \
       --curing repair --queue repair-in --kind repair.task --source cli --settle 5s \
-      < "$input_file" 2> "$RUN_DIR/run.log")
+      < "$input_file" 2> "$RUN_DIR/run.log") || runner_rc=$?
 fi
 
 # --- score -------------------------------------------------------------------
@@ -122,6 +132,7 @@ manifest = {
     'arm': '$ARM',
     'instance': '$REL',
     'agent_mode': '$agent_mode',
+    'runner_rc': int('$runner_rc'),
     'agent_sha': sha('$ARM_FILE'),
     'task_sha': sha('$INSTANCE/task.json'),
     'expected_findings_sha': sha('$INSTANCE/expected-findings.json'),
