@@ -12,9 +12,9 @@
   and, since 2026-07-28, the full ablation campaign, which is this LEP's loop
   run by hand at scale: gold adjudication (accept-set overrides, one suspect
   deliberately left standing), a comparator error caught and re-registered, a
-  runtime defect attributed and fixed, and a 20-point range on one frozen 4B
-  demonstrating that the layers this LEP exhausts before touching weights are
-  where nearly all of the value lives.
+  runtime defect attributed and fixed, and a nearly-20-point range (62.4→81.6%)
+  on one frozen 4B demonstrating that the layers this LEP exhausts before
+  touching weights are where nearly all of the value lives.
 
 ---
 

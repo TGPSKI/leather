@@ -1,9 +1,10 @@
 # Lessons: leather
 
-> **Figures provisional.** Every number below predates the harness fixes of
-> `d5d8d23`/`eaf377a`/`5eeb03e` and is being re-baselined — see the status note in
-> [README.md](README.md). The findings and methodology stand; the specific
-> values will be replaced from verified runs.
+> **Era note.** The mechanism and performance findings below are unaffected by
+> the 2026-07-28 accuracy re-baseline (see the provenance note in
+> [README.md](README.md)) — the contamination corrupted accuracy attribution,
+> not wall-clock or protocol behaviour. Accuracy-bearing figures in this
+> package now live in README.md and the run archives.
 
 
 Carry-forward findings about the framework itself, from building and running the
@@ -24,7 +25,9 @@ leaves you at 0.7 with no warning. This one is worse than a wasted afternoon: it
 silently invalidates every measurement taken while you believed decoding was
 greedy. A committed accuracy number in this example was produced under a
 temperature the config claimed was zero. **Set it in both places, and assert it
-somewhere the eval can see.**
+somewhere the eval can see.** (Tracked as
+[leather#56](https://github.com/TGPSKI/leather/issues/56); keep double-setting
+until it closes.)
 
 **`{{env:VAR}}` is not expanded everywhere it looks like it should be** — notably
 config `model:`. The `LEATHER_MODEL` env override is the mechanism.

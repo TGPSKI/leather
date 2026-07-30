@@ -1,9 +1,12 @@
 # Lessons: eval harness, testing, and methodology
 
-> **Figures provisional.** Every number below predates the harness fixes of
-> `d5d8d23`/`eaf377a`/`5eeb03e` and is being re-baselined — see the status note in
-> [README.md](README.md). The findings and methodology stand; the specific
-> values will be replaced from verified runs.
+> **Era note.** This document mixes two measurement eras deliberately, because
+> several lessons ARE the story of correcting the instrument. Figures inside
+> process narratives (the 88.4 best-of-four, the stage-2 dilution numbers) are
+> from the pre-re-baseline tuning phase — illustrative, not citable. The
+> taxonomy-retirement section (2026-07-28) and every comparative verdict it
+> quotes come from the post-fix verified archives in `runs/`. Citable results
+> live in [README.md](README.md).
 
 
 The part with the most carry-forward value, because almost none of it is specific
@@ -48,9 +51,10 @@ Single runs are fine for steering. They are not fine for a number that goes in a
 table.
 
 The headline for one stage was recorded as **88.4%**. Replicated four times, the
-same config scored 84.8 / 86.0 / 87.6 / 88.4 — **mean 86.7, spread 3.6 points**.
-The published number was the best draw of four, and nothing in the process had
-flagged that, because it was never run twice.
+same config scored 84.8 / 86.0 / 87.6 / 88.4 — **mean 86.7, spread 3.6 points**
+(tuning-phase draws; the post-fix baseline family shows the same lesson with 7
+draws: 86.8–89.2, mean 87.7). The published number was the best draw of four,
+and nothing in the process had flagged that, because it was never run twice.
 
 Rule: iterate on single runs, **publish means with spread**, and say how many runs
 the mean is over.
@@ -154,7 +158,7 @@ sampled against the population you sampled from**, every time the corpus changes
 
 The single most valuable measurement in the project was the cheapest: strip the
 prompt to a bare label set and re-run. Nothing else answers the skeptic's
-question. A pipeline reporting 86.7% where the bare model gets 70.4% is a
+question. A pipeline reporting 86.8% where the bare model gets 68.4% is a
 different claim from one where the bare model gets 85%.
 
 The rule for constructing arms: **change exactly one thing, by deletion**.

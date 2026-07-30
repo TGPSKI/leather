@@ -139,7 +139,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 - **`examples/14-sig-triage`** — assign a Kubernetes SIG to unlabeled issues
   with a small local model, with the accuracy claims measured rather than
-  asserted: the same frozen 4B model scores 62.8%–81.6% on a 250-issue gold
+  asserted: the same frozen 4B model scores 62.4%–81.6% on a 250-issue gold
   corpus depending only on the runtime design around it. The example ships
   the eval harness that measured it (tiered corpus, ablation-arm registry,
   paired per-issue verdicts, evidence archives with replayable analysis)

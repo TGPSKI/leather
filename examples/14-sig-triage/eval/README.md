@@ -1,5 +1,11 @@
 # eval — full SIG-triage evaluation harness
 
+**The result this harness produced:** the same frozen 4B spans **62.4→81.6%**
+on a 250-issue gold corpus with runtime design as the only variable — 46
+verified archives, paired per-issue verdicts, a measured noise floor. The
+findings are in the [example README](../README.md); the numbers and lessons in
+[results/](results/README.md). This document is the instrument itself.
+
 Fetches real sig-labeled `kubernetes/kubernetes` issues, caches them, **separates
 the labels from the issues** (and scrubs label leakage), runs the `analyze`->`match`
 pipeline over all of them on your local model, and emits a full classification
@@ -42,7 +48,9 @@ model scales (46 archived cells). The moving parts:
   battery status.
 - `results/quarantine/` — wrecked runs kept with post-mortems; do not resurrect.
 
-Headline: the same frozen 4B spans 62.8→81.6% across arms. Findings and their
+Headline: the same frozen 4B spans 62.4→81.6% across arms (floor: the S1
+fresh-session stage split; ceiling: the F2 single-stage split with rules and
+catalog held constant). Findings and their
 verdicts are summarized in the example README; per-cell evidence lives in each
 archive's manifest, sigeval report, and logprob record.
 
@@ -186,13 +194,21 @@ LEATHER_MODEL=... leather workflow run ... 2>&1 | grep 'agent config'
 This is a real drift in leather, not an eval quirk; the same trap applies to any
 agent wanting greedy decode. Until it is fixed, do not remove either setting.
 
-## The catalog is a shadow: the model never reads it
+## The catalog is a shadow — for the 35B, which never reads it
 
 Measured from the request body (not from log counts) via `scripts/logprob-proxy.py`:
-`get_sig_reference` is **offered on 250/250 match requests and called on 0**. The
-tool is wired correctly; the model declines it every time, because it can already
-answer from the inline rule block in `agents/match.agent.md` plus its pretrained
-knowledge of the public Kubernetes SIG taxonomy.
+`get_sig_reference` is offered on 250/250 match requests, and **the 35B calls it
+on 0** — it declines every time, because it can already answer from the inline
+rule block in `agents/match.agent.md` plus its pretrained knowledge of the
+public Kubernetes SIG taxonomy. **The 4B is the opposite: it calls the tool on
+essentially every issue (249/249).** An earlier draft claimed "called 0" at both
+scales; that was a broken counter (the fold kept only the last match round, and
+a tool call forces a round that carries no `tool_calls`), and the corrected
+measurement is the reason arm A "measures different things per rig" in
+`ablation/arms.json`. The practical conclusion survives at both scales anyway:
+the catalog's *content* adds nothing measurable on top of the rules (H vs A:
++1.2 / +0.4, unresolved at both scales), so on this taxonomy the accuracy is
+prompt-driven whether or not the tool fires.
 
 So the accuracy number measures a **prompt-driven** classifier, not the
 read-the-catalog design. Practical consequences, learned the hard way:
@@ -217,6 +233,14 @@ hardcodes `"auto"`.
 
 This is the strongest practical argument for read-the-catalog, and it arrived
 from the data rather than from the design doc.
+
+> **Era note.** The stage-2 figures in this subsection (88.4%, 80.8%, −19 rows,
+> the 84.8–88.4 replication set) were measured during the tuning phase on the
+> **pre-re-baseline harness** and were not re-run after the fixes — treat the
+> direction as the finding and the magnitudes as illustrative, not citable.
+> The post-fix instrument's replication behaviour is the A-family in
+> `results/runs/` (7 draws, 86.8–89.2%, mean 87.7%), which re-confirms the
+> ±6-row null band.
 
 Because the model will not fetch the catalog, **every ownership rule has to live
 in the one `match` prompt**, and they compete for a finite budget. Stage 2
