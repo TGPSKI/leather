@@ -137,8 +137,16 @@ if [ "${LOOP:-0}" = "1" ]; then
   # a curses dependency, or any change to the redraw model. A bare timeout
   # (no key) falls through and redraws exactly as the old `sleep` did.
   SCROLL=${SCROLL:-0}
+  NEED_SNAP=1
   while :; do
-    mapfile -t VIEW < <(snapshot)
+    # Reload ONLY when the data can have changed — a tick, or a key that
+    # alters what is rendered. Scrolling re-uses the captured frame, so it
+    # repaints instantly instead of waiting ~1s for 90 archives to re-scan,
+    # which read as a broken scrollbar rather than a slow one.
+    if [ "$NEED_SNAP" = 1 ]; then
+      mapfile -t VIEW < <(snapshot)
+      NEED_SNAP=0
+    fi
     total=${#VIEW[@]}
     term_rows=$(tput lines 2>/dev/null || echo 40)
     term_cols=$(tput cols  2>/dev/null || echo 100)
@@ -176,38 +184,46 @@ if [ "${LOOP:-0}" = "1" ]; then
     printf '  %s[a]cc [t]ools [K]tok [d]ur [n]o-out [c]ell  [r]ev  [?]cols  ' "$D"
     if [ "$total" -gt "$vh" ]; then
       printf '%s[jk/↑↓ PgUp/Dn g/G] %d-%d/%d%s  ' \
-             "$CYN" $(( SCROLL + 1 )) $(( SCROLL + vh )) "$total" "$D"
+             "$CYN" $(( SCROLL + 1 )) $(( SCROLL + draw )) "$total" "$D"
     fi
     printf '[q]uit%s\033[K' "$R"
     printf '\033[J'
 
     if read -rsn1 -t "${INTERVAL:-5}" key 2>/dev/null; then
-      # Arrow keys arrive as ESC [ A/B/5~/6~; grab the tail without blocking.
+      # Cursor keys arrive as CSI (ESC [ A) in normal mode and SS3 (ESC O A)
+      # in application-cursor mode — which many terminals enable by default.
+      # Decoding only CSI made the arrows dead keys on exactly those.
       if [ "$key" = $'\033' ]; then
         read -rsn2 -t 0.05 rest 2>/dev/null
         case "$rest" in
-          '[A') key=k ;; '[B') key=j ;;
+          '[A'|'OA') key=k ;; '[B'|'OB') key=j ;;
           '[5') read -rsn1 -t 0.05 _ 2>/dev/null; key=u ;;
           '[6') read -rsn1 -t 0.05 _ 2>/dev/null; key=f ;;
+          '[H'|'OH') key=g ;; '[F'|'OF') key=G ;;
           *) key="" ;;
         esac
       fi
       case "$key" in
-        a) SORT=acc ;; t) SORT=tools ;; d) SORT=dur ;;
-        n) SORT=noout ;; c) SORT=tag ;;
+        a) SORT=acc;   NEED_SNAP=1 ;;
+        t) SORT=tools; NEED_SNAP=1 ;;
+        d) SORT=dur;   NEED_SNAP=1 ;;
+        n) SORT=noout; NEED_SNAP=1 ;;
+        c) SORT=tag;   NEED_SNAP=1 ;;
         # 'k' is scroll-up (vi), so ktok sorts on 'K'.
-        K) SORT=ktok ;;
-        r) [ "${SORT_REV:-0}" = 1 ] && SORT_REV=0 || SORT_REV=1 ;;
-        '?'|h) [ "${HELP:-0}" = 1 ] && HELP=0 || HELP=1 ;;
+        K) SORT=ktok;  NEED_SNAP=1 ;;
+        r) { [ "${SORT_REV:-0}" = 1 ] && SORT_REV=0 || SORT_REV=1; }; NEED_SNAP=1 ;;
+        '?'|h) { [ "${HELP:-0}" = 1 ] && HELP=0 || HELP=1; }; NEED_SNAP=1 ;;
         j) SCROLL=$(( SCROLL + 1 )) ;;
         k) SCROLL=$(( SCROLL - 1 )) ;;
-        f) SCROLL=$(( SCROLL + vh )) ;;
-        u) SCROLL=$(( SCROLL - vh )) ;;
+        f) SCROLL=$(( SCROLL + draw )) ;;
+        u) SCROLL=$(( SCROLL - draw )) ;;
         g) SCROLL=0 ;;
         G) SCROLL=$max_off ;;
         q|Q) break ;;
       esac
       export SORT SORT_REV HELP
+    else
+      NEED_SNAP=1                      # tick: refresh the data
     fi
   done
   printf '\033[?25h\033[J\n'
