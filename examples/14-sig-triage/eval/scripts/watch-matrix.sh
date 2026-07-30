@@ -2,7 +2,12 @@
 # Live status across every battery on both rigs, ranked by accuracy.
 #   LOOP=1 bash eval/scripts/watch-matrix.sh  # live, redraw in place
 #   NOCOLOR=1 bash eval/scripts/watch-matrix.sh    # plain, for piping
-#   FILTER=4b-*-c* bash eval/scripts/watch-matrix.sh   # only matching cells
+#   RIG=4b bash eval/scripts/watch-matrix.sh              # one rig only
+#   SCOPE=confirmatory bash eval/scripts/watch-matrix.sh  # registered -cN draws only
+#   FILTER=4b-T2* bash eval/scripts/watch-matrix.sh       # arbitrary pattern
+# The three compose. SCOPE separates the registered ablation matrix from the
+# exploratory atlas — watching both at once was the thing that made this
+# screen unreadable.
 #
 # For interactive filtering, arm rankings and contrast views:
 #   python3 eval/scripts/matrix-tui.py            ([f] filters, [tab] cycles)
@@ -22,7 +27,9 @@
 # resolved BEFORE snapshot() cd's into $EX, or dirname "$0" points nowhere
 HERE="$(cd "$(dirname "$0")" && pwd)"
 EX="$(cd "$HERE/../.." && pwd)"
-BATTERIES="run-battery:fin noise-battery:noise overnight-battery:overnight"
+# confirmatory-battery was missing here, so the registered battery — the one
+# most likely to be running — reported "idle" for its entire 12-hour run.
+BATTERIES="confirmatory-battery:confirmatory run-battery:fin noise-battery:noise overnight-battery:overnight"
 
 if [ -z "${NOCOLOR:-}" ]; then
   B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
@@ -38,7 +45,7 @@ snapshot() {
   printf '\n  %sEVAL BATTERIES%s %s%s%s\n' "$B" "$R" "$D" "$(date +%H:%M:%S)" "$R"
   rule
   local grand_tok=0 grand_calls=0
-  for r in 35b 4b; do
+  for r in ${RIG:-35b 4b}; do
     local S="eval/.state-eval-$r" livename=""
     for b in $BATTERIES; do
       local script="${b%%:*}"
@@ -53,7 +60,8 @@ snapshot() {
     # Cells come from ARCHIVES, not runner logs: an archive is the source of truth
     # everywhere else here, and log-driven rows went missing whenever a battery wrote to a
     # filename this script did not already know.
-    RIG="$r" NOCOLOR="${NOCOLOR:-}" FILTER="${FILTER:-}" python3 "$HERE/table.py"
+    RIG="$r" NOCOLOR="${NOCOLOR:-}" FILTER="${FILTER:-}" SCOPE="${SCOPE:-all}" \
+      python3 "$HERE/table.py"
 
     local an mt tools pages err age stale tok calls other tag bar pct
     an=$(ls "$S/artifacts/analyze" 2>/dev/null | wc -l)

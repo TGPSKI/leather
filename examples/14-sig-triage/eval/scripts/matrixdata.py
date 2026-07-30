@@ -116,17 +116,45 @@ def cell(d, arms):
                 continue
             calls += 1
             toks += (rec.get("usage") or {}).get("total_tokens") or 0
+    # Last log timestamp = when the cell actually finished. File mtimes are
+    # NOT usable for this: any git checkout/stash rewrites them, which made
+    # every archive report the same bogus end time and 10h+ durations.
+    last_log_ts = ""
     ev = os.path.join(d, "run-evidence.log.gz")
     if os.path.exists(ev):
         with gzip.open(ev, "rt", errors="replace") as f:
-            tools = sum(1 for line in f if "executing tool" in line)
+            for line in f:
+                if "executing tool" in line:
+                    tools += 1
+                if line.startswith("time="):
+                    last_log_ts = line[5:].split(None, 1)[0]
+    # Wall-clock: `started` is the manifest's own stamp; the end is when the
+    # archive's predictions landed. Both come from the archive, so a cell's
+    # duration survives long after the runner log is gone.
+    import datetime
+    started = man.get("started", "")
+    ended_ts, dur = 0.0, 0
+    for src in (last_log_ts, None):
+        if not src:
+            continue
+        try:
+            ended_ts = datetime.datetime.fromisoformat(src).timestamp()
+            break
+        except (ValueError, TypeError):
+            ended_ts = 0.0
+    if started and ended_ts:
+        try:
+            t0 = datetime.datetime.fromisoformat(started).timestamp()
+            dur = max(0, int(ended_ts - t0))
+        except (ValueError, TypeError):
+            dur = 0
     rig, family, draw = split_tag(tag)
     return dict(tag=tag, rig=rig, arm=family, draw=draw, acc=acc, rows=len(rows),
                 dead=dead, cpi=(calls / len(rows)) if rows else 0.0, tools=tools,
                 ktok=toks / 1000.0,
                 var=arms.get(family, {}).get("variable", ""),
                 compare_to=arms.get(family, {}).get("compare_to", ""),
-                started=man.get("started", ""))
+                started=started, ended_ts=ended_ts, dur_s=dur)
 
 
 def load_cells(pattern=None):
@@ -211,6 +239,27 @@ def contrasts(cells):
                          variable=arms.get(arm, {}).get("variable", "")))
     rows.sort(key=lambda r: -abs(r["effect"]))
     return rows
+
+
+SCOPES = ("all", "confirmatory", "exploratory")
+
+
+def in_scope(c, scope):
+    """Experiment scope, so a watcher can show ONE campaign.
+
+    confirmatory = the registered draws (-c1, -c2, ... under registration
+    96cc418). exploratory = everything else: the original single-draw atlas
+    and the -2..-7 repeat cells. Mixing them in one live view is what made
+    the watcher unreadable — they answer different questions.
+    """
+    if not scope or scope == "all":
+        return True
+    conf = c["draw"].startswith("c")
+    if scope == "confirmatory":
+        return conf
+    if scope == "exploratory":
+        return not conf
+    return True
 
 
 def tag_widths(cells):

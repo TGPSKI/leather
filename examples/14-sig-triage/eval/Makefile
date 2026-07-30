@@ -8,24 +8,30 @@
 # Things that RUN live in Makefile.run and take a deliberate flag:
 #   make -f Makefile.run help
 #
-# FILTER accepts a bare prefix ('4b'), a glob ('4b-*-c1'), a substring
-# ('T2c'), comma-OR, or a leading '!' to negate.
+# Three scoping knobs, all composable:
+#   RIG=4b|35b          one rig
+#   SCOPE=confirmatory  registered -cN draws only ('exploratory' = the rest)
+#   FILTER=<pattern>    bare prefix, glob, substring, comma-OR, '!' negates
+# e.g.  RIG=4b SCOPE=confirmatory make watch
 
 .PHONY: help matrix watch table verdicts confirm
 
 help:                    ## this list
 	@printf '\n  \033[1m14-sig-triage eval — READ-ONLY\033[0m  (runs: make -f Makefile.run help)\n\n'
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
-	@printf '\n  FILTER=<pattern> narrows matrix/watch/table, e.g. FILTER=4b-*-c*\n\n'
+	@printf '\n  RIG=4b|35b  SCOPE=confirmatory|exploratory  FILTER=<pattern>\n'
+	@printf '  e.g.  RIG=4b SCOPE=confirmatory make watch\n\n'
 
 matrix:                  ## INTERACTIVE browser: filter, rankings, McNemar pairs, per-draw detail
 	@cd .. && python3 eval/scripts/matrix-tui.py $(FILTER)
 
 watch:                   ## live status, redraws in place, no keys
-	@cd .. && LOOP=1 FILTER="$(FILTER)" bash eval/scripts/watch-matrix.sh
+	@cd .. && LOOP=1 RIG="$(RIG)" SCOPE="$(SCOPE)" FILTER="$(FILTER)" \
+	  bash eval/scripts/watch-matrix.sh
 
 table:                   ## one-shot leaderboard from archives
-	@cd .. && FILTER="$(FILTER)" python3 eval/scripts/table.py
+	@cd .. && RIG="$(RIG)" SCOPE="$(SCOPE)" FILTER="$(FILTER)" \
+	  python3 eval/scripts/table.py
 
 verdicts:                ## paired McNemar for every arms.json comparison
 	@cd .. && python3 eval/scripts/paired-verdicts.py
