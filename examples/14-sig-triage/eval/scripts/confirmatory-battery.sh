@@ -67,13 +67,21 @@ PY
 PCACHE1="$(build_pcache P1 | tail -1)"
 PCACHE2="$(build_pcache P2 | tail -1)"
 
+# Completeness = DID THIS CELL RUN, not did it run WELL. Quality is
+# verify-run.sh's job and is reported per cell; conflating the two destroyed
+# data on 2026-07-30: the previous test also required >=225 answered rows,
+# which S1 can never satisfy because ~11% unanswerable rows ARE its measured
+# mechanism (25-34 no-output, every draw). A second invocation therefore
+# judged all three finished S1 cells "incomplete" and silently re-ran them
+# over their own archives. A completeness gate must never encode a quality
+# threshold that a legitimate arm fails by design.
 complete() {
   [ -f "eval/results/runs/$1/predictions.jsonl" ] || return 1
+  [ -f "eval/results/runs/$1/run-manifest.json" ] || return 1   # run reached archiving
   python3 -c "
 import json,sys
 rows=[json.loads(l) for l in open('eval/results/runs/$1/predictions.jsonl') if l.strip()]
-ok=sum(1 for r in rows if not (r.get('predicted')=='unknown' and r.get('confidence')=='no-output'))
-sys.exit(0 if len(rows)==250 and ok >= 225 else 1)" 2>/dev/null
+sys.exit(0 if len(rows)==250 else 1)" 2>/dev/null
 }
 
 run_cell() { # tag file force idx curings cache
