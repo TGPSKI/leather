@@ -46,7 +46,10 @@ for rig in (("35b", "4b") if not ONLY else (ONLY,)):
               f"{f' · filter {FILTER}' if FILTER else ''}{R}")
     print(f"     {D}{md.tag_header(ARM_W, DRAW_W):{TAG_W}s} {'acc':>6s} "
           f"{'no-out':>6s} {'calls/iss':>9s} {'tools':>6s} {'ktok':>6s}  "
-          f"{'draws':<10s}{'arm mean':>10s}{'Δ':>7s}{R}")
+          f"{'draws':<10s}{'arm mean':>9s} {'Δ':>7s}{R}")
+    if any(fam[(c['rig'], c['arm'])]["mixed"] for c in rc):
+        print(f"     {D}{'':{TAG_W}s} {'':>6s} {'':>6s} {'':>9s} {'':>6s} {'':>6s}  "
+              f"{'':<10s}{YEL}* mixes exploratory + confirmatory draws{R}")
     for c in rc:
         col = GRN if c["acc"] >= 84 else (YEL if c["acc"] >= 74 else RED)
         lost = f"{RED}{c['dead']:6d}{R}" if c["dead"] else f"{D}     -{R}"
@@ -57,7 +60,8 @@ for rig in (("35b", "4b") if not ONLY else (ONLY,)):
             spark = f"{BLU}{md.draw_spark(f['accs']):<10}{R}"
             delta = c["acc"] - f["mean"]
             dcol = GRN if delta >= 0 else RED
-            meanf = f"{D}{f['mean']:6.1f}×{f['n']}{R}"
+            mix = f"{YEL}*{R}" if f["mixed"] else " "
+            meanf = f"{D}{f['mean']:5.1f}×{f['n']}{R}{mix}"
             deltaf = f"{dcol}{delta:+7.1f}{R}"
         else:
             spark, meanf, deltaf = f"{D}{'·':<10}{R}", f"{D}{'—':>10}{R}", f"{'':>7}"

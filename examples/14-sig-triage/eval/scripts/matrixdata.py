@@ -175,7 +175,15 @@ def families(cells):
         cs.sort(key=lambda c: c["tag"])
         accs = [c["acc"] for c in cs]
         mean = sum(accs) / len(accs)
+        # A family that mixes confirmatory draws (c1..cN, run under the frozen
+        # registration) with exploratory ones (no draw, or a bare -2 repeat)
+        # has a mean that is NOT any registered quantity. Displays flag it so
+        # a screenshot of this table can't be quoted as the registered figure:
+        # 4b-S1 reads 60.9×4 here, 60.4×3 in the registered analysis.
+        conf = any(c["draw"].startswith("c") for c in cs)
+        expl = any(not c["draw"].startswith("c") for c in cs)
         fam[key] = dict(cells=cs, accs=accs, n=len(accs), mean=mean,
+                        mixed=(conf and expl),
                         spread=(max(accs) - min(accs)) if len(accs) > 1 else 0.0)
     return fam
 

@@ -151,6 +151,8 @@ class MatrixTui(TuiApp):
             if f["n"] > 1:
                 self._put(y, x_spark, f"{md.draw_spark(f['accs']):<9}", C.color_pair(6))
                 self._put(y, x_mean, f"{f['mean']:5.1f}×{f['n']}", C.A_DIM)
+                if f["mixed"]:
+                    self._put(y, x_mean + 8, "*", C.color_pair(3))
                 delta = c["acc"] - f["mean"]
                 self._put(y, x_delta, f"{delta:+6.1f}",
                           C.color_pair(1) if delta >= 0 else C.color_pair(4))
