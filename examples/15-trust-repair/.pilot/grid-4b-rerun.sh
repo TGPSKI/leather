@@ -5,7 +5,7 @@
 # primitive instead of full-file write_file) x both families.
 # Usage: LEATHER_LLM_ENDPOINT=http://10.0.0.64:8000 bash .pilot/grid-4b-rerun.sh
 set -uo pipefail
-export LEATHER_MODEL="${LEATHER_MODEL:-/home/tyler/llm/models/Qwen3-4B-Instruct-2507-AWQ}"
+export LEATHER_MODEL="${LEATHER_MODEL:-qwen3-4b-instruct-2507-awq}"
 export LEATHER_LLM_ENDPOINT="${LEATHER_LLM_ENDPOINT:?set to the 4B rig endpoint}"
 export SKEPTIC_ROOT="${SKEPTIC_ROOT:-$HOME/git/TGPSKI/skeptic}"
 cd "$(dirname "$0")/.."

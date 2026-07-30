@@ -1,0 +1,5 @@
+TASK: This repository's PR validation workflow runs in a privileged trigger context while checking out the pull request's proposed code, so code from an untrusted fork executes with the repository's elevated workflow token. Repair the trust-boundary defect so untrusted PR code can no longer execute in a privileged context, without disabling pull-request validation: the pipeline must still run the tests and the formatting check against each pull request's proposed change.
+CONSTRAINTS:
+- Do not delete or disable the PR validation workflow.
+- Do not suppress, waive, or reconfigure the scanner.
+- The tests and formatting check must still run against pull requests.

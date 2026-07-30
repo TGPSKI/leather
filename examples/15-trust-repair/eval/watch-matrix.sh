@@ -105,7 +105,7 @@ PYEOF
   grand_tok=$(cat "$RUNS"/*/run.log 2>/dev/null | grep -oE 'tokens=[0-9]+' | awk -F= '{s+=$2} END{print s+0}')
   rule
   printf '  %s%s passed / %s scored - %s in flight - %s grid procs - %sk tok' \
-    "$D" "$pass_n" "$done_n" "$live" "$(pgrep -fc 'grid.*\.sh' 2>/dev/null || echo 0)" "$(( ${grand_tok:-0} / 1000 ))"
+    "$D" "$pass_n" "$done_n" "$live" "$(pgrep -fc 'grid.*\.sh' 2>/dev/null | head -1)" "$(( ${grand_tok:-0} / 1000 ))"
   [ -d "$QUAR" ] && printf ' - quarantined %s' "$(ls "$QUAR" 2>/dev/null | wc -l)"
   printf '%s\n' "$R"
 }
