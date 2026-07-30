@@ -12,12 +12,20 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - **`14-sig-triage`: the ablation findings are now pre-registered and
   replicated.** Six contrasts were frozen at main commit `96cc418` before any
   confirmatory cell ran; the battery executed 11 arms × 3 draws (5× on the one
-  contrast that hit the registered boundary trigger), and all six survive
-  Holm–Bonferroni at α=0.05. Published figures move accordingly, and two move
-  *down*: decomposition depth from −9.2 to **−5.2**, and retrieval payload from
-  +6.4 to **+3.0**. The headline span widens to **59.6→81.6%** because a
-  registered S1 draw is now the lowest archived cell. New rendered page:
-  `eval/results/CONFIRMATORY.md`.
+  contrast that hit the registered boundary trigger), and **five of six**
+  survive Holm–Bonferroni at α=0.05. Published figures move accordingly, and
+  every movement is against the author's interest: decomposition depth from
+  −9.2 to **−5.2**, retrieval payload from +6.4 to **+3.0**, and retrieval
+  payload further from RESOLVED to **UNRESOLVED** under Amendment 2. The
+  headline span widens to **59.6→81.6%** because a registered S1 draw is now
+  the lowest archived cell. New rendered page: `eval/results/CONFIRMATORY.md`.
+- **`14-sig-triage`: the confirmatory estimator is now issue-clustered.**
+  Amendment 2 replaces pooled McNemar as the primary test. Pooling concatenated
+  repeated measurements of the same 250 issues and treated them as independent
+  trials, which overstates significance; the primary is now a sign-flip
+  permutation test over whole issues. Effect sizes are unchanged — only the
+  uncertainty was wrong. Cost: contrast 2 (retrieval payload) drops to
+  unresolved. Pooled McNemar remains in the output, labelled descriptive.
 - **`14-sig-triage`: "a bad harness scores below no harness at all" is
   retired.** Across replication the fresh-session scheme (61.3%, 5 draws) and
   the bare model (61.9%, 4 draws) are statistically level. The claim is now
@@ -31,8 +39,9 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   loss (~220 answered every draw), so a second invocation judged its finished
   cells incomplete and re-ran them over their own archives. Completeness is now
   "250 rows + a manifest"; quality remains `verify-run.sh`'s job. Only S1 was
-  affected and all six contrasts still resolve — see the incident note in the
-  example for the two draw-sets and why the correction is not conservative.
+  affected and its contrast still resolves — see
+  `eval/results/INCIDENT-s1-overwrite.md` for the two draw-sets and why the
+  correction is explicitly not conservative.
 
 ## [0.5.0] — 2026-07-29 "alligator"
 

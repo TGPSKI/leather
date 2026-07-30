@@ -27,7 +27,7 @@ context per stage.
 | decoding | `temperature: 0`, `thinking: false` |
 | matrix | 22 arms × 2 rigs exploratory + the registered confirmatory battery = 94 verified cells + 2 quarantined wrecks |
 | replication | exploratory repeats (A×7, H×6, T2c×2) plus 11 registered arms × 3 draws, and 5× on the boundary-triggered contrast |
-| registration | six contrasts frozen at main `96cc418` **before any confirmatory cell ran**; all six survive Holm at α=0.05 |
+| registration | six contrasts frozen at main `96cc418` **before any confirmatory cell ran**; **five of six** survive Holm at α=0.05 (issue-clustered permutation, Amendment 2) |
 | noise floor | ±6 rows (~2.4%) — measured pre-campaign, re-confirmed by the post-fix A-family spread |
 
 ## Headline

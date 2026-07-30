@@ -74,6 +74,44 @@ CONTRASTS = [
 HOLM_FAMILY = ["1", "2", "3", "4", "5", "6"]
 
 
+def cluster_permutation(pairs, n_perm=20000, seed=0):
+    """Issue-clustered sign-flip permutation test.
+
+    WHY NOT POOLED McNEMAR: concatenating cN:issue across waves treats three
+    observations of the SAME issue as three independent trials. They are not —
+    a systematically hard issue contributes a discordant pair in every wave, so
+    pooling inflates the effective n and understates uncertainty. (An earlier
+    version of this file called pooling "conservative". That is true against
+    wave-SELECTION gaming and false statistically; the two senses were
+    conflated. Caught in review 2026-07-30.)
+
+    The clustered analog: per issue, take the mean correctness of each arm over
+    its repeats, form the paired difference, and permute by flipping the sign
+    of WHOLE ISSUES — which is exactly the exchangeability the null asserts.
+
+    pairs: {issue: (arm_correct_list, base_correct_list)}
+    Returns (effect, n_issues, n_informative, p).
+    """
+    import random
+    d = []
+    for _, (a, b) in sorted(pairs.items()):
+        if a and b:
+            d.append(sum(a) / len(a) - sum(b) / len(b))
+    if not d:
+        return 0.0, 0, 0, 1.0
+    obs = sum(d) / len(d)
+    informative = sum(1 for x in d if x != 0)
+    rng = random.Random(seed)
+    hits = 0
+    for _ in range(n_perm):
+        s = 0.0
+        for x in d:
+            s += x if rng.random() < 0.5 else -x
+        if abs(s / len(d)) >= abs(obs) - 1e-12:
+            hits += 1
+    return 100 * obs, len(d), informative, (hits + 1) / (n_perm + 1)
+
+
 def holm(pvals):
     """Holm-Bonferroni: returns {key: (adjusted_p, reject)} at alpha=0.05."""
     alpha = 0.05
@@ -97,6 +135,7 @@ def main():
     for cid, arm, base, variable in CONTRASTS:
         waves_out = []
         pooled_x, pooled_y = {}, {}
+        clustered = {}          # issue -> ([arm correct per wave], [base ...])
         for w in waves_for(arm, base):
             xt, yt = f"{RIG}-{arm}-{w}", f"{RIG}-{base}-{w}"
             if not (os.path.isdir(os.path.join(pv.RUNS, xt))
@@ -115,6 +154,10 @@ def main():
                 pooled_x[f"{w}:{k}"] = v
             for k, v in b.items():
                 pooled_y[f"{w}:{k}"] = v
+            for k in a.keys() & b.keys():
+                slot = clustered.setdefault(k, ([], []))
+                slot[0].append(1 if a[k] else 0)
+                slot[1].append(1 if b[k] else 0)
 
         if not waves_out:
             print(f"\ncontrast {cid}  {arm} vs {base}: NO CELLS")
@@ -123,16 +166,21 @@ def main():
         pn01, pn10, pp = pv.mcnemar_exact(pooled_x, pooled_y)
         pax = 100 * sum(pooled_x.values()) / len(pooled_x)
         pay = 100 * sum(pooled_y.values()) / len(pooled_y)
+        ceff, cn, cinf, cp = cluster_permutation(clustered)
         per_contrast[cid] = dict(arm=arm, base=base, variable=variable,
                                  waves=waves_out, pooled=(pax, pay, pn01, pn10, pp),
+                                 clustered=(ceff, cn, cinf, cp),
                                  n_waves=len(waves_out))
 
         print(f"\ncontrast {cid}  {arm} vs {base}  — {variable}")
         for w, ax, ay, n01, n10, p in waves_out:
             print(f"   {w}      {ax:5.1f} vs {ay:5.1f}   d={ax-ay:+5.1f}   "
                   f"disc {n01:3d}/{n10:3d}   p={p:.4g}")
-        print(f"   POOLED  {pax:5.1f} vs {pay:5.1f}   d={pax-pay:+5.1f}   "
-              f"disc {pn01:3d}/{pn10:3d}   p={pp:.4g}   (n={len(pooled_x)} paired)")
+        print(f"   pooled  {pax:5.1f} vs {pay:5.1f}   d={pax-pay:+5.1f}   "
+              f"disc {pn01:3d}/{pn10:3d}   p={pp:.4g}   "
+              f"(descriptive only - assumes independence it lacks)")
+        print(f"   CLUSTER d={ceff:+5.1f}   {cinf}/{cn} issues informative   "
+              f"p={cp:.4g}   <- PRIMARY (issue-clustered permutation)")
 
     # --- Holm across the six primaries ---------------------------------------
     fam = {}
@@ -141,12 +189,12 @@ def main():
             a5, b5 = per_contrast.get("5a"), per_contrast.get("5b")
             if not (a5 and b5):
                 continue
-            fam["5"] = max(a5["pooled"][4], b5["pooled"][4])  # conservative
+            fam["5"] = max(a5["clustered"][3], b5["clustered"][3])  # conservative
         elif cid in per_contrast:
-            fam[cid] = per_contrast[cid]["pooled"][4]
+            fam[cid] = per_contrast[cid]["clustered"][3]
 
     print("\n" + "=" * 78)
-    print("HOLM-BONFERRONI across the six registered primaries (alpha=0.05, pooled p)")
+    print("HOLM-BONFERRONI across the six registered primaries (alpha=0.05, clustered p)")
     adj = holm(fam)
     for cid in HOLM_FAMILY:
         if cid not in adj:
@@ -164,7 +212,7 @@ def main():
     print("BOUNDARY TRIGGER CHECK (signed: bump to 5x if a contrast lands within")
     print("1 point of its decision boundary; measured null band = +-2.4 points)")
     for cid, d in sorted(per_contrast.items()):
-        eff = d["pooled"][0] - d["pooled"][1]
+        eff = d["clustered"][0]
         dist = abs(abs(eff) - 2.4)
         flag = "TRIGGER — 5x replication called for" if dist <= 1.0 else ""
         print(f"   contrast {cid}  {d['arm']:5s} vs {d['base']:4s}  "
@@ -176,8 +224,9 @@ def main():
         for m in missing:
             print(f"   {m}")
 
-    print("\nNOTE: pooled p is the primary per this script's stated judgment call;")
-    print("per-wave p is printed so the alternative combination is auditable.")
+    print("\nPRIMARY = issue-clustered permutation (Amendment 2). Pooled McNemar is")
+    print("printed for continuity but is NOT the verdict: it treats repeats of one")
+    print("issue as independent trials and so overstates significance.")
 
 
 if __name__ == "__main__":

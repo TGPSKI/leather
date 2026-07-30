@@ -180,3 +180,64 @@ SELECTION: Contrast scoped - Bump only the triggered contrast: G and
   E2 to five draws each = **4 new cells** (G-c4/c5, E2-c4/c5), ~1 rig
   evening. Matches the registered wording ("if a registered contrast
   lands…") and spends replication where the resolution is actually in doubt.
+
+---
+
+# Amendment 2 — 2026-07-30 (appended; nothing above is edited)
+
+**Context.** Amendment 1 fixed the replication-combination rule as *pooled*
+McNemar and disclosed that the rule was specified after the 3× results were
+seen. External review then identified an error in that choice, and the error
+is real.
+
+**The error.** Pooling concatenates `cN:issue` across waves and runs McNemar
+as if each row were an independent trial. It is not: the same 250 issues are
+re-measured every wave, so a systematically hard issue contributes a
+discordant pair in *every* wave. Repeats do not manufacture independent
+issues. Amendment 1 called pooling "conservative" — true against
+wave-**selection** gaming, false statistically. Two senses of the word were
+conflated, and the consequence is that pooled p-values **overstate**
+significance.
+
+**The correction (DECISION 5).** The primary estimator becomes an
+**issue-clustered sign-flip permutation test**: per issue, take each arm's
+mean correctness over its repeats, form the paired difference, and permute by
+flipping the sign of whole issues — the exchangeability the null actually
+asserts. 20 000 permutations, fixed seed, two-sided. Holm across the six
+primaries is unchanged. Pooled McNemar is retained in the output as a
+descriptive continuity figure and explicitly labelled not-the-verdict;
+per-wave McNemar remains the robustness table.
+
+**Disclosure.** This is the second post-hoc change to the analysis rule, and
+like the first it is recorded rather than folded in silently. It differs from
+Amendment 1 in an important way: it can only *weaken* results, and it did.
+
+**What it costs.** Under the clustered estimator, **five of six contrasts
+resolve; contrast 2 (retrieval payload, G vs E2) does not** — Holm-adjusted
+p = 0.067 against 0.0008 pooled. Effect sizes are unchanged; only the
+uncertainty was wrong. Contrast 2 is now reported as **UNRESOLVED**: a
+positive point estimate of about +3 points that five draws per side could not
+separate from the null band. That is also the contrast the registered
+boundary trigger flagged and the only one that never resolved at any single
+wave — three independent signals agreeing.
+
+**Not re-registered:** the contrasts, arms, corpus, scorer and replication
+counts are untouched. Only the combination rule changes.
+
+## ⚠ DECISION 5 — adopt the clustered estimator as primary (Tyler signs)
+
+Options:
+
+- **Adopt (recommended).** Primary = issue-clustered permutation; contrast 2
+  becomes unresolved; the paper reports five resolved contrasts and one
+  suggestive-but-unresolved lever. Defensible to any reviewer who checks.
+- **Retain pooled.** Keeps six resolved contrasts, but the independence
+  assumption is indefensible if a reviewer looks, and one of them looks.
+- **Report both as co-primary.** Honest but muddy; a reader cannot tell which
+  number to cite.
+
+SIGNED: Tyler Pate, 07/30/26
+
+SELECTION: Adopt - Primary = issue-clustered permutation; contrast 2
+  becomes unresolved; the paper reports five resolved contrasts and one
+  suggestive-but-unresolved lever

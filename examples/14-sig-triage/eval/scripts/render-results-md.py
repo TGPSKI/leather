@@ -91,9 +91,15 @@ def main():
             "Eleven arms × 3 replications on the 4B, wave-ordered; McNemar exact\n"
             "on the discordant issues per contrast, per wave and pooled;\n"
             "Holm–Bonferroni across the six primaries at α=0.05.\n\n"
-            "Two effects shrank materially under replication (depth −9.2 → −5.2,\n"
-            "retrieval payload +6.4 → +3.0). That correction is the point of the\n"
-            "exercise and is left visible rather than restated.",
+            "**Five of six resolve.** The primary estimator is an issue-clustered\n"
+            "permutation test (Amendment 2): repeats of the same 250 issues are not\n"
+            "independent trials, so the pooled McNemar shown below for continuity\n"
+            "overstates significance and is *not* the verdict.\n\n"
+            "Three effects moved under scrutiny, all against the author's interest:\n"
+            "depth −9.2 → −5.2 and retrieval payload +6.4 → +3.0 under replication,\n"
+            "and retrieval payload from RESOLVED to **UNRESOLVED** under the\n"
+            "clustered estimator. Those corrections are the point of the exercise\n"
+            "and are left visible rather than restated.",
             confirm,
             "eval/scripts/confirmatory-verdicts.py",
         ))
