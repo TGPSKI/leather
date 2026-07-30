@@ -1,0 +1,268 @@
+#!/usr/bin/env python3
+"""Shared archive loader for the results table and the matrix TUI.
+
+Extracted from table.py so the two surfaces cannot disagree: one scorer
+bridge (sigeval, per task #32), one telemetry reader, one filter grammar.
+Cells come from ARCHIVES under results/runs/<tag>/, never from runner logs.
+
+Stdlib only.
+"""
+from __future__ import annotations
+
+import fnmatch
+import glob
+import gzip
+import json
+import os
+import re
+import subprocess
+import sys
+
+EX = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+ROOT = os.path.normpath(os.path.join(EX, "..", ".."))
+RUNS = os.path.join(EX, "eval", "results", "runs")
+SIGEVAL = os.environ.get("SIGEVAL")  # optional prebuilt binary; else `go run`
+
+# tag -> (rig, family, draw). "4b-A0-c1" -> ("4b", "A0", "c1");
+# "35b-A-2" -> ("35b", "A", "2"); "4b-T2cr" -> ("4b", "T2cr", "").
+_DRAW = re.compile(r"-(c\d+|\d+)$")
+
+
+def split_tag(tag):
+    rig = "35b" if tag.startswith("35b") else ("4b" if tag.startswith("4b") else "?")
+    rest = tag[len(rig) + 1:] if rig != "?" else tag
+    m = _DRAW.search(rest)
+    if m:
+        return rig, rest[: m.start()], m.group(1)
+    return rig, rest, ""
+
+
+def score(d, pred_path):
+    """Accuracy via sigeval — the ONLY scorer. Returns None on failure.
+
+    Fails CLOSED: a crashed scorer never falls back to stale rows and never
+    clobbers a good report with empty stdout.
+    """
+    rp = os.path.join(d, "sigeval-rows.jsonl")
+    key_mtime = max(os.path.getmtime(pred_path),
+                    os.path.getmtime(os.path.join(EX, "eval", "gold.jsonl")),
+                    os.path.getmtime(os.path.join(EX, "eval", "gold.overrides.jsonl")))
+    if not os.path.exists(rp) or os.path.getmtime(rp) < key_mtime:
+        cmd = [SIGEVAL] if SIGEVAL else ["go", "run", "./examples/14-sig-triage/eval/sigeval.go"]
+        cmd += ["-pred", os.path.abspath(pred_path),
+                "-gold", os.path.join(EX, "eval", "gold.jsonl"),
+                "-overrides", os.path.join(EX, "eval", "gold.overrides.jsonl"),
+                "-split", os.path.join(EX, "eval", "splits.jsonl"),
+                "-catalog", os.path.join(EX, "sigs.reference.yaml"),
+                "-emit-rows", os.path.abspath(rp)]
+        try:
+            rep = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=300)
+        except Exception as e:
+            print(f"  !! sigeval failed for {d}: {e}", file=sys.stderr)
+            return None
+        if not os.path.exists(rp) or os.path.getmtime(rp) < key_mtime:
+            print(f"  !! sigeval produced no fresh rows for {d} (rc={rep.returncode}): "
+                  f"{rep.stderr.strip()[:200]}", file=sys.stderr)
+            return None
+        open(os.path.join(d, "sigeval-report.txt"), "w").write(rep.stdout)
+    verd = [json.loads(l) for l in open(rp) if l.strip()]
+    if not verd:
+        return None
+    return 100 * sum(1 for v in verd if v["correct"]) / len(verd)
+
+
+def arms_registry():
+    try:
+        return {k: v for k, v in
+                json.load(open(os.path.join(EX, "eval", "ablation", "arms.json"))).items()
+                if not k.startswith("_")}
+    except Exception:
+        return {}
+
+
+def cell(d, arms):
+    tag = os.path.basename(d.rstrip("/"))
+    p = os.path.join(d, "predictions.jsonl")
+    if not os.path.exists(p):
+        return None
+    rows = [json.loads(l) for l in open(p) if l.strip()]
+    if not rows:
+        return None
+    dead = sum(1 for r in rows
+               if r.get("predicted") == "unknown" and r.get("confidence") == "no-output")
+    acc = score(d, p)
+    if acc is None:
+        return None
+    man = {}
+    mp = os.path.join(d, "run-manifest.json")
+    if os.path.exists(mp):
+        try:
+            man = json.load(open(mp))
+        except Exception:
+            pass
+    # Telemetry from the archive, not from runner-log text. Tool EXECUTIONS come
+    # from leather's own log (ground truth); calls/issue counts every LLM round
+    # the proxy saw across all stages — the honest cost figure for multi-stage arms.
+    calls = tools = toks = 0
+    lp = os.path.join(d, "logprobs.jsonl.gz")
+    if os.path.exists(lp):
+        for l in gzip.open(lp, "rt", errors="replace"):
+            l = l.strip()
+            if not l:
+                continue
+            try:
+                rec = json.loads(l)
+            except Exception:
+                continue
+            calls += 1
+            toks += (rec.get("usage") or {}).get("total_tokens") or 0
+    ev = os.path.join(d, "run-evidence.log.gz")
+    if os.path.exists(ev):
+        with gzip.open(ev, "rt", errors="replace") as f:
+            tools = sum(1 for line in f if "executing tool" in line)
+    rig, family, draw = split_tag(tag)
+    return dict(tag=tag, rig=rig, arm=family, draw=draw, acc=acc, rows=len(rows),
+                dead=dead, cpi=(calls / len(rows)) if rows else 0.0, tools=tools,
+                ktok=toks / 1000.0,
+                var=arms.get(family, {}).get("variable", ""),
+                compare_to=arms.get(family, {}).get("compare_to", ""),
+                started=man.get("started", ""))
+
+
+def load_cells(pattern=None):
+    """All scoreable cells, newest archive per tag, optionally filtered."""
+    arms = arms_registry()
+    best = {}
+    for d in sorted(glob.glob(os.path.join(RUNS, "*/"))):
+        c = cell(d, arms)
+        if c:
+            best[c["tag"]] = c
+    cells = list(best.values())
+    if pattern:
+        cells = [c for c in cells if matches(c["tag"], pattern)]
+    return cells
+
+
+def matches(tag, pattern):
+    """Filter grammar, deliberately forgiving.
+
+    A bare prefix works ('4b', '4b-G'), globs work ('4b-*-c1', '*c[23]'),
+    and a substring works ('T2c'). Comma-separated patterns OR together;
+    a leading '!' negates the whole expression.
+    """
+    if not pattern:
+        return True
+    pattern = pattern.strip()
+    neg = pattern.startswith("!")
+    if neg:
+        pattern = pattern[1:].strip()
+    hit = False
+    for pat in (p.strip() for p in pattern.split(",") if p.strip()):
+        if (fnmatch.fnmatch(tag, pat) or fnmatch.fnmatch(tag, pat + "*")
+                or pat.lower() in tag.lower()):
+            hit = True
+            break
+    return (not hit) if neg else hit
+
+
+def families(cells):
+    """(rig, arm) -> {'cells': [...], 'mean', 'spread', 'accs', 'n'} — draws ordered."""
+    out = {}
+    for c in cells:
+        out.setdefault((c["rig"], c["arm"]), []).append(c)
+    fam = {}
+    for key, cs in out.items():
+        cs.sort(key=lambda c: c["tag"])
+        accs = [c["acc"] for c in cs]
+        mean = sum(accs) / len(accs)
+        fam[key] = dict(cells=cs, accs=accs, n=len(accs), mean=mean,
+                        spread=(max(accs) - min(accs)) if len(accs) > 1 else 0.0)
+    return fam
+
+
+def contrasts(cells):
+    """Registered contrasts from arms.json `compare_to`, evaluated on family means.
+
+    Returns rows sorted by |effect| descending: dict(rig, arm, base, effect,
+    n_arm, n_base, variable).
+    """
+    fam = families(cells)
+    arms = arms_registry()
+    rows = []
+    for (rig, arm), f in fam.items():
+        base = arms.get(arm, {}).get("compare_to")
+        if not base:
+            continue
+        b = fam.get((rig, base))
+        if not b:
+            continue
+        rows.append(dict(rig=rig, arm=arm, base=base,
+                         effect=f["mean"] - b["mean"],
+                         arm_mean=f["mean"], base_mean=b["mean"],
+                         n_arm=f["n"], n_base=b["n"],
+                         variable=arms.get(arm, {}).get("variable", "")))
+    rows.sort(key=lambda r: -abs(r["effect"]))
+    return rows
+
+
+def tag_widths(cells):
+    """(arm_w, draw_w) so tags can be rendered in aligned segment columns."""
+    if not cells:
+        return 4, 2
+    return (max(len(c["arm"]) for c in cells),
+            max((len(c["draw"]) for c in cells), default=0))
+
+
+def fmt_tag(c, arm_w, draw_w):
+    """'4b - T2cr - c3' with rig/arm/draw each in its own aligned column.
+
+    A flat tag string hides the structure that matters at a glance — which
+    rig, which arm, which draw — because the hyphens land in a different
+    place on every row. Rig is right-aligned so '35b' and ' 4b' share an
+    edge; the second separator is dropped for undrawn (exploratory) cells
+    rather than left dangling.
+    """
+    sep = "-" if c["draw"] else " "
+    return f"{c['rig']:>3} - {c['arm']:>{arm_w}} {sep} {c['draw']:<{draw_w}}"
+
+
+def tag_header(arm_w, draw_w):
+    return f"{'rig':>3}   {'arm':>{arm_w}}   {'draw':<{draw_w}}"
+
+
+def tag_layout(cells):
+    """(arm_w, draw_w, tag_column_width) — width reserves room for the
+    'draw' header even when draws are two characters, so the next column
+    never clips the label."""
+    aw, dw = tag_widths(cells)
+    return aw, dw, 3 + 3 + aw + 3 + max(dw, 4)
+
+
+def draw_spark(accs):
+    """Sparkline of an arm's draws, scaled to ITS OWN range.
+
+    The stock sparkline normalizes against zero, which renders every draw of
+    a 3-point spread as a full block — exactly the variation a replicated
+    campaign exists to show. Rescaling to [min, max] makes shape visible;
+    the magnitude lives in the adjacent spread/mean columns.
+    """
+    from tui.fmt import sparkline
+    if not accs:
+        return ""
+    if len(accs) < 2:
+        return "·"
+    lo, hi = min(accs), max(accs)
+    if hi - lo < 1e-9:
+        return "▄" * len(accs)
+    return sparkline([(a - lo) / (hi - lo) * 7 + 1 for a in accs], max_value=8)
+
+
+def newest_mtime():
+    """Cheap change detector for live refresh: newest predictions.jsonl mtime."""
+    newest = 0.0
+    for p in glob.glob(os.path.join(RUNS, "*", "predictions.jsonl")):
+        try:
+            newest = max(newest, os.path.getmtime(p))
+        except OSError:
+            pass
+    return newest

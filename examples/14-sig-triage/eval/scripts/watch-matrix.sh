@@ -2,6 +2,10 @@
 # Live status across every battery on both rigs, ranked by accuracy.
 #   LOOP=1 bash eval/scripts/watch-matrix.sh  # live, redraw in place
 #   NOCOLOR=1 bash eval/scripts/watch-matrix.sh    # plain, for piping
+#   FILTER=4b-*-c* bash eval/scripts/watch-matrix.sh   # only matching cells
+#
+# For interactive filtering, arm rankings and contrast views:
+#   python3 eval/scripts/matrix-tui.py            ([f] filters, [tab] cycles)
 #
 # Cells are RANKED, not listed in run order: the question asked of this screen is
 # always "which arm is winning", and run order buries that.
@@ -49,7 +53,7 @@ snapshot() {
     # Cells come from ARCHIVES, not runner logs: an archive is the source of truth
     # everywhere else here, and log-driven rows went missing whenever a battery wrote to a
     # filename this script did not already know.
-    RIG="$r" NOCOLOR="${NOCOLOR:-}" python3 "$HERE/table.py"
+    RIG="$r" NOCOLOR="${NOCOLOR:-}" FILTER="${FILTER:-}" python3 "$HERE/table.py"
 
     local an mt tools pages err age stale tok calls other tag bar pct
     an=$(ls "$S/artifacts/analyze" 2>/dev/null | wc -l)
