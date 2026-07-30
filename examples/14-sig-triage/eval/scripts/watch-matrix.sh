@@ -148,8 +148,12 @@ if [ "${LOOP:-0}" = "1" ]; then
     [ "$SCROLL" -gt "$max_off" ] && SCROLL=$max_off
     [ "$SCROLL" -lt 0 ] && SCROLL=0
 
+    # Only pad to the full viewport when the content actually fills it —
+    # otherwise the key line gets pinned to the terminal floor with a screen
+    # of dead space above it.
+    draw=$vh; [ "$total" -lt "$vh" ] && draw=$total
     printf '\033[H'
-    for (( i = 0; i < vh; i++ )); do
+    for (( i = 0; i < draw; i++ )); do
       printf '%s\033[K\n' "${VIEW[$(( SCROLL + i ))]:-}"
     done
 
@@ -159,7 +163,7 @@ if [ "${LOOP:-0}" = "1" ]; then
     if [ "$total" -gt "$vh" ]; then
       thumb=$(( vh * vh / total )); [ "$thumb" -lt 1 ] && thumb=1
       tpos=0; [ "$max_off" -gt 0 ] && tpos=$(( SCROLL * (vh - thumb) / max_off ))
-      for (( i = 0; i < vh; i++ )); do
+      for (( i = 0; i < draw; i++ )); do
         if [ "$i" -ge "$tpos" ] && [ "$i" -lt $(( tpos + thumb )) ]; then
           printf '\033[%d;%dH%s█%s' $(( i + 1 )) "$term_cols" "$CYN" "$R"
         else
@@ -168,7 +172,7 @@ if [ "${LOOP:-0}" = "1" ]; then
       done
     fi
 
-    printf '\033[%d;1H' $(( vh + 1 ))
+    printf '\033[%d;1H' $(( draw + 1 ))
     printf '  %s[a]cc [t]ools [K]tok [d]ur [n]o-out [c]ell  [r]ev  [?]cols  ' "$D"
     if [ "$total" -gt "$vh" ]; then
       printf '%s[jk/↑↓ PgUp/Dn g/G] %d-%d/%d%s  ' \
