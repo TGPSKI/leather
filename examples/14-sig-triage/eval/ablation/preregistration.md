@@ -241,3 +241,51 @@ SIGNED: Tyler Pate, 07/30/26
 SELECTION: Adopt - Primary = issue-clustered permutation; contrast 2
   becomes unresolved; the paper reports five resolved contrasts and one
   suggestive-but-unresolved lever
+
+---
+
+# Amendment 3 — 2026-07-30 (appended; nothing above is edited)
+
+**Contrast 2 (G vs E2, retrieval payload) is closed as UNRESOLVED.**
+
+The contrast exhausted its registered budget: 3× per arm-side, then the
+signed boundary trigger of DECISION 1 fired and took it to 5×. Under the
+DECISION 5 clustered estimator the result is a point estimate of **+3.0
+points with Holm-adjusted p = 0.067**, and it cleared its bar at no
+individual wave (0.19 / 1.0 / 0.009 / 0.15 / 0.23).
+
+**No further draws were run.** Adding replications after observing p = 0.067,
+with no pre-declared stopping rule, is optional stopping — the failure mode
+this registration exists to prevent, and one that would be plainly visible
+here because every archive carries its own timestamp. The registered design
+answered the question it was built to answer, and the answer is *could not
+tell*.
+
+## DECISION 6 — disposition of contrast 2 · SIGNED
+
+**Registered: accept unresolved.** (Signed: Tyler Pate, 2026-07-30.)
+
+Contrast 2 is reported as a positive point estimate of about +3 points that
+the registered design could not separate from the measured ±2.4-point null
+band. The campaign reports **five resolved contrasts of six**. The contrast
+is neither retired nor extended: it stands as a stated open question.
+
+Rejected alternatives, for the record: a pre-declared extension to 10× per
+side (legitimate, but spends ~7 rig-hours on the campaign's weakest lever and
+a reader still sees an extension made after an unfavourable result); and
+retiring the contrast from the registered six (which would conceal that the
+design ran and came back ambiguous).
+
+## The named follow-up
+
+Contrast 2 is **not** to be settled by more draws on this task and this
+model. The per-wave spread (+0.4 to +5.6 across five draws) is wide relative
+to the effect, which is itself evidence that the mechanism is unstable at
+this scale rather than merely under-measured. It is carried forward as a
+registered contrast in the **second model family** (DAG T2) and, if built,
+the second workload — where a consistent sign across families would be
+informative in a way another 4B draw would not be.
+
+Until then the honest sentence is: *richer retrieval payloads appear to help
+by roughly three points, but five replications could not separate that from
+noise.*
