@@ -1,9 +1,12 @@
 # Lessons: vLLM, Qwen3-35B-A3B and Qwen3-4B-Instruct
 
-> **Figures provisional.** Every number below predates the harness fixes of
-> `d5d8d23`/`eaf377a`/`5eeb03e` and is being re-baselined — see the status note in
-> [README.md](README.md). The findings and methodology stand; the specific
-> values will be replaced from verified runs.
+> **Era note.** Comparative accuracy figures below are from the post-fix
+> verified archives in `runs/` (see the provenance note in
+> [README.md](README.md)). Two clearly-marked exceptions were measured during
+> the tuning phase and not re-run: the uncertainty AUROC table (updated below
+> with post-fix replication) and the thinking A/B. Mechanism findings
+> (`tool_choice` hangs, token budgets, format compliance) are unaffected by the
+> re-baseline.
 
 
 Model- and server-level findings. Scope is stated on each one, because most were
@@ -29,6 +32,12 @@ Measured over 250 issues, the same forward pass, both signals side by side:
 
 AUROC 0.5 is a coin flip. The self-report carries **no** signal, and escalating on
 it can make things worse. The model answered `high` on 97% of rows.
+
+(The table's margin ranges are two tuning-phase draws. Post-fix, six repeat
+draws of one identical config put `sig_margin` AUROC at 0.55–0.68, **mean
+≈0.62** — budget routing decisions at 0.62 ± 0.05, not the upper tail. The
+margin-vs-self-report gap survives; the margin's absolute strength was
+overstated by single-draw estimates.)
 
 **Prompting harder does not fix it.** An explicit calibration protocol — name a
 `RUNNER_UP`, justify `high` with a `WHY_NOT_RUNNER_UP` fact, hedge when the top
@@ -84,7 +93,8 @@ emitted before theorizing.**
 This was already settled in `examples/11-high-volume-ci`, where disabling thinking
 took a run from 323s to 70s and eliminated intermittent `max tool rounds` failures
 and empty final answers. The SIG-triage A/B is a **replication on a different
-task**, not a new finding, and it agrees:
+task**, not a new finding, and it agrees (tuning-phase measurement, not re-run
+post-fix; direction consistent with example 11):
 
 `thinking: true` on the match stage: 87.6% -> 85.2%, net -6 rows (inside the +-6
 null band, so not a significant accuracy change) at ~2.5-3x wall clock. The
@@ -126,20 +136,25 @@ the model.**
 
 ## Scale gap, measured
 
-| | A (rules) | B (bare label set) | A − B |
+From the post-fix verified archives (`runs/35b-A`, `35b-B`, `4b-A`, `4b-B`;
+35B A additionally replicated 7×, mean 87.7):
+
+| | A (committed pipeline) | B (bare label set) | A − B |
 |---|---|---|---|
-| 35B | 86.7% | 70.4% | **+16.3** |
-| 4B | 78.0% | 62.0% | **+16.0** |
+| 35B | 86.8% | 68.4% | **+18.4** |
+| 4B | 77.6% | 62.8% | **+14.8** |
 
 Read this as the **configuration delta**: A is the bounded two-stage pipeline with
 a controlled prompt and tools; B is the same model handed only the label set.
-Configuration is worth ~16 points, and — the part worth noting — it is worth the
-*same* ~16 points at both scales, so the discipline transfers down to the small
-model rather than being something only a large model can exploit. That is the
-thesis result: a 4B running locally reaches 78.0% on a 22-class task where the
-bare model gets 62.0%.
+Configuration is worth ~15 points on the 4B and ~18 on the 35B — large at both
+scales, so the discipline transfers down to the small model rather than being
+something only a large model can exploit. That is the thesis result: a 4B
+running locally reaches 77.6% on a 22-class task where the bare model gets
+62.8% — and where the bare *35B* gets 68.4%.
 
-The specific hypothesis that structure would help the *smaller* model more is
-**not supported**: the 4B's deficit is a roughly constant ~8.7-point offset that
-configuration does not close. B(4B) = 62% also puts a legible floor under the
-whole exercise.
+Two claims from the pre-baseline draft are retired: the delta is **not** the
+identical ~16 at both scales (that symmetry was an artifact of the contaminated
+harness), and the specific hypothesis that structure would help the *smaller*
+model more is still not supported — the 35B extracts a few points more from the
+same configuration. B(4B) = 62.8% also puts a legible floor under the whole
+exercise.

@@ -6,7 +6,7 @@ This example exists to answer the question leather itself was built for: **can a
 runtime make a model that fits on a 6 GB laptop GPU worth using for real work?**
 
 On this task, the answer is measured, not asserted. The same frozen 4B model
-(Qwen3-4B-Instruct, AWQ) scores anywhere from **62.8% to 81.6%** on a 250-issue
+(Qwen3-4B-Instruct, AWQ) scores anywhere from **62.4% to 81.6%** on a 250-issue
 gold corpus depending only on what the runtime puts around it — the weights
 never change, the hardware never changes. Nearly twenty points of accuracy live
 in the runtime design. The eval under `eval/` is the instrument that measured

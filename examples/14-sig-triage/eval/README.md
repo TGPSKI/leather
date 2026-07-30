@@ -42,7 +42,9 @@ model scales (46 archived cells). The moving parts:
   battery status.
 - `results/quarantine/` — wrecked runs kept with post-mortems; do not resurrect.
 
-Headline: the same frozen 4B spans 62.8→81.6% across arms. Findings and their
+Headline: the same frozen 4B spans 62.4→81.6% across arms (floor: the S1
+fresh-session stage split; ceiling: the F2 single-stage split with rules and
+catalog held constant). Findings and their
 verdicts are summarized in the example README; per-cell evidence lives in each
 archive's manifest, sigeval report, and logprob record.
 
@@ -217,6 +219,14 @@ hardcodes `"auto"`.
 
 This is the strongest practical argument for read-the-catalog, and it arrived
 from the data rather than from the design doc.
+
+> **Era note.** The stage-2 figures in this subsection (88.4%, 80.8%, −19 rows,
+> the 84.8–88.4 replication set) were measured during the tuning phase on the
+> **pre-re-baseline harness** and were not re-run after the fixes — treat the
+> direction as the finding and the magnitudes as illustrative, not citable.
+> The post-fix instrument's replication behaviour is the A-family in
+> `results/runs/` (7 draws, 86.8–89.2%, mean 87.7%), which re-confirms the
+> ±6-row null band.
 
 Because the model will not fetch the catalog, **every ownership rule has to live
 in the one `match` prompt**, and they compete for a finite budget. Stage 2
