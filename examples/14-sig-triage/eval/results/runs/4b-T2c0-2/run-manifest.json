@@ -1,0 +1,19 @@
+{
+  "run_tag":    "4b-T2c0-2",
+  "battery":    "exploratory",
+  "started":    "2026-07-30T16:57:11-07:00",
+  "model":      "/home/tyler/llm/models/Qwen3-4B-Instruct-2507-AWQ",
+  "endpoint":   "http://10.0.0.64:8000",
+  "agent_dir":  "eval/.battery/agents-t2c0-4b",
+  "agent_sha":  "2e8d637072f8",
+  "index":      "sigs.index.tsv",
+  "index_sha":  "2cbb419f6695",
+  "analyze_cache":     "eval/results/runs/4b-A/analyze-notes.jsonl",
+  "analyze_cache_sha": "9e128e497725",
+  "corpus":     "eval/corpus.jsonl",
+  "corpus_sha": "fc1b161d69a7",
+  "git_commit": "a89ce3c",
+  "force_tool": "0",
+  "concurrency": "4",
+  "logprob":    "1"
+}
