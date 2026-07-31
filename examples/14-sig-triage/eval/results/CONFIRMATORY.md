@@ -1,7 +1,7 @@
 # Confirmatory verdicts — the six registered contrasts
 
 > Generated snapshot — do not hand-edit. Produced by
-> `eval/scripts/confirmatory-verdicts.py` at commit `9e7feeb`;
+> `eval/scripts/confirmatory-verdicts.py` at commit `a89ce3c`;
 > regenerate with `python3 eval/scripts/render-results-md.py`.
 
 The pre-registered battery, executed exactly as registered at main

@@ -59,7 +59,15 @@ def main():
             "Cells are read against their declared comparison arm, never against\n"
             "the leaderboard: see [VERDICTS.md](VERDICTS.md) for the paired\n"
             "inference and [README.md](README.md) for how to read any number\n"
-            "here (means with spread, the ±6-row null band, the failing gate).",
+            "here (means with spread, the ±6-row null band, the failing gate).\n\n"
+            "**The two rigs are separate machines with different serving\n"
+            "stacks** (context window, tool-call parser, prefix caching,\n"
+            "concurrent sequences). A `35b-*` row next to a `4b-*` row differs\n"
+            "by model *and* by serving profile, so the gap between them is not\n"
+            "a scale coefficient. Every registered contrast is within-rig on\n"
+            "4B. Durations are comparable within a rig only — the 4B serves one\n"
+            "sequence at a time, the 35B eight. See\n"
+            "[eval/README.md](../README.md#what-is-serving-that-endpoint).",
             matrix,
             "eval/scripts/table.py",
         ))
