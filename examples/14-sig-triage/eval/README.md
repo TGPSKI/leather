@@ -126,6 +126,88 @@ prints the classification report + gate. Tune the gate:
 MIN_ACCURACY=0.80 MAX_ABSTAIN=0.20 MIN_CORE_RECALL=0.80 bash eval/run-eval.sh
 ```
 
+### What is serving that endpoint
+
+`LEATHER_LLM_ENDPOINT` says where the model is; it does not say how it is
+served, and on this task several serving flags are part of the result. The 4B
+rig ran vLLM under systemd:
+
+```
+vllm serve /home/tyler/llm/models/Qwen3-4B-Instruct-2507-AWQ \
+  --served-model-name qwen3-4b \
+  --host 0.0.0.0 --port 8000 \
+  --quantization compressed-tensors \
+  --gpu-memory-utilization 0.94 \
+  --max-model-len 12288 \
+  --max-num-batched-tokens 12288 \
+  --max-num-seqs 1 \
+  --kv-cache-dtype fp8 \
+  --enforce-eager \
+  --stream-interval 1 \
+  --generation-config vllm \
+  --enable-auto-tool-choice \
+  --tool-call-parser hermes
+```
+
+Three of those change what the numbers mean if you deviate:
+
+- **`--max-model-len 12288`** is a deliberate cap, not a default — vLLM would
+  otherwise serve this model's full native context. 12288 is what leaves room
+  for the KV cache alongside the weights on a 6 GB card, which is the entire
+  premise of the example. Replicating on a larger card at the default context
+  is a *different* experiment, and the arms most likely to move are the ones
+  that push context hardest (`T3`, `T2c`, `T2cr`).
+- **`--max-num-seqs 1`** means the server processes one sequence at a time.
+  The eval drives it at `CONCURRENCY=4`, so those requests queue rather than
+  run in parallel. Every wall-clock duration in a `4b-*` archive is therefore
+  **serialized** per-issue work. Compare durations across 4B arms freely; do
+  not read them as throughput, and do not compare them to the 35B rig (below),
+  which serves eight sequences at once.
+- **`--enable-auto-tool-choice --tool-call-parser hermes`** is what makes tool
+  calls parse at all. Several arms are *about* tool-calling behaviour, so a
+  different parser is a confound, not a detail.
+
+`--kv-cache-dtype fp8` and `--enforce-eager` are recorded for completeness:
+the first quantizes the KV cache, the second disables CUDA graphs (slower,
+lower memory). Both were held fixed across every `4b-*` cell.
+
+The 35B rig is a separate machine with its own serving profile:
+
+```
+VLLM_MARLIN_USE_ATOMIC_ADD=1 \
+vllm serve /home/tyler/models/library/qwen36-35b-a3b-nvfp4 \
+  --served-model-name qwen36-35b-a3b-nvfp4 \
+  --quantization modelopt \
+  --kv-cache-dtype fp8 \
+  --attention-backend flashinfer \
+  --moe-backend marlin \
+  --gpu-memory-utilization 0.90 \
+  --max-model-len 228000 \
+  --max-num-seqs 8 \
+  --max-num-batched-tokens 8192 \
+  --enable-chunked-prefill \
+  --enable-prefix-caching \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_xml \
+  --enable-auto-tool-choice \
+  --host 0.0.0.0
+```
+
+**The two rigs are not a controlled scale contrast, and nothing in this
+example claims they are.** They differ in far more than parameter count:
+context window (228000 vs 12288), tool-call parser (`qwen3_xml` vs `hermes`),
+reasoning parser (present vs absent), prefix caching and chunked prefill (on
+vs off), CUDA graphs (on vs `--enforce-eager`), and concurrent sequences (8 vs
+1). A `35b-*` cell and a `4b-*` cell placed side by side in
+[MATRIX.md](results/MATRIX.md) differ by model *and* by serving stack.
+
+This does not touch the registered findings. **Every pre-registered contrast
+is within-rig on 4B**, holding the serving profile fixed and varying only the
+harness — that is what makes those comparisons paired. The 35B archives are
+context: they establish that the task is solvable at a larger scale and that
+the pipeline is not 4B-specific. Read them as an upper reference point, not as
+a measured scale coefficient.
+
 ## The report
 
 - overall accuracy (accept-set aware), accuracy on *answered* (excl. abstentions),

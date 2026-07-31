@@ -1,7 +1,7 @@
 # Results matrix — every archived cell
 
 > Generated snapshot — do not hand-edit. Produced by
-> `eval/scripts/table.py` at commit `9e7feeb`;
+> `eval/scripts/table.py` at commit `a89ce3c`;
 > regenerate with `python3 eval/scripts/render-results-md.py`.
 
 Accuracy per archived cell (accept-set, abstention-aware — the
@@ -10,6 +10,15 @@ Cells are read against their declared comparison arm, never against
 the leaderboard: see [VERDICTS.md](VERDICTS.md) for the paired
 inference and [README.md](README.md) for how to read any number
 here (means with spread, the ±6-row null band, the failing gate).
+
+**The two rigs are separate machines with different serving
+stacks** (context window, tool-call parser, prefix caching,
+concurrent sequences). A `35b-*` row next to a `4b-*` row differs
+by model *and* by serving profile, so the gap between them is not
+a scale coefficient. Every registered contrast is within-rig on
+4B. Durations are comparable within a rig only — the 4B serves one
+sequence at a time, the 35B eight. See
+[eval/README.md](../README.md#what-is-serving-that-endpoint).
 
 ```text
   acc   low ......... high        dur   short ......... long (ranked in view)
@@ -51,7 +60,7 @@ here (means with spread, the ±6-row null band, the failing gate).
      35b Eauto        70.4   4m 26s       -       1.00       1       ?   07-27 23:32   23:37    
      35b     B        68.4   4m 27s       -       1.00       0       ?   07-27 23:19   23:23    
 
-  4b  65 cells  ·  sort acc↓
+  4b  68 cells  ·  sort acc↓
      rig   arm draw   acc▼      dur  no-out  calls/iss   tools    ktok   started       ended    
       4b    F2        81.6  13m 12s       2       1.99     248    1165   07-28 05:01   05:14    
       4b     F        80.4  10m 14s       -       1.59     148    1427   07-28 03:34   03:44    
@@ -100,12 +109,15 @@ here (means with spread, the ±6-row null band, the failing gate).
       4b    E2        69.2  10m 57s       3       1.98     267       ?   07-28 00:28   00:39    
       4b    P1 c3     69.2   9m 46s       1       1.00       0     576   07-30 05:08   05:18    
       4b    E2 c3     68.4  10m 42s       6       1.96     258     608   07-30 04:58   05:08    
+      4b  T2c0        68.0  42m 32s       1       4.98     506    2490   07-30 14:43   15:26    
       4b    T3        68.0  37m 26s       1       4.04     253    1925   07-28 02:26   03:04    
+      4b  T2c0 3      67.6  50m 49s       1       5.18     530    2619   07-30 16:05   16:56    
       4b     C        67.2   7m 43s       1       1.00       0       ?   07-27 23:51   23:59    
       4b    C2        66.8   7m 25s       1       1.00       0       ?   07-27 23:59   00:06    
       4b   T2c c1     66.8  38m 36s       2       4.00     499    2178   07-29 22:56   23:35    
       4b   T2c        66.0  41m 22s       3       4.09     516    1953   07-28 06:18   07:00    
       4b   T2c c3     65.6  39m 44s       2       4.02     505    2202   07-30 06:51   07:30    
+      4b  T2c0 2      64.8  45m 07s       4       4.96     510    2499   07-30 16:57   17:42    
       4b     B        62.8   8m 08s       1       1.00       0       ?   07-27 23:43   23:51    
       4b    S1 c6     62.8  13m 10s      27       3.07     268     529   07-30 12:40   12:54    
       4b   T2c c2     62.8  45m 14s       4       4.04     508    2227   07-30 02:52   03:37    
