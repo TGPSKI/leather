@@ -7,6 +7,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-08-04
+
+### Added
+
+- **`15-trust-repair` pre-pilot scaffold** — arms, runner, and oracle wiring
+  for the trust-boundary-repair workload (decision of record for the second
+  workload; full corpus and confirmatory runs remain gated).
+
 ### Changed
 
 - `examples/14-sig-triage/eval/scripts/tui/` is now vendored from its

@@ -5,6 +5,12 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+    # `labeled` is here so the `full-test` gate below actually works. The
+    # default types are opened/synchronize/reopened, so adding the label
+    # fired nothing and the cross-platform matrix stayed skipped — the
+    # documented escape hatch for testing portability BEFORE merging was
+    # silently inert. Same fix as adherence-suite's CI.
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
 # Cancel superseded runs on the same ref (saves runner minutes on busy PRs).
