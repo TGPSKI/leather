@@ -19,6 +19,7 @@ type frontMatter struct {
 	Timeout           time.Duration
 	ToolTimeout       time.Duration
 	Temperature       float64
+	TemperatureSet    bool // true when `temperature:` was explicitly present (mirrors lifecycleRecord.EnabledSet)
 	Enabled           bool
 	Tags              []string
 	Skills            []string
@@ -39,9 +40,11 @@ type frontMatter struct {
 // Returns the parsed front matter, the remaining body text, and any error.
 func parseFrontMatter(src string) (frontMatter, string, error) {
 	// Sensible defaults match the field descriptions in AGENTS-CORE.md.
+	// Temperature deliberately has no default here: an unset agent falls back
+	// to the config-level default in resolveAgent, so an explicit 0 (greedy
+	// decode) is distinguishable from "not set" (issue #56).
 	fm := frontMatter{
-		Enabled:     true,
-		Temperature: 0.7,
+		Enabled: true,
 	}
 
 	src = strings.ReplaceAll(src, "\r\n", "\n")
@@ -155,6 +158,7 @@ func applyFrontMatterFields(yamlBlock string, fm *frontMatter) error {
 				return fmt.Errorf("invalid temperature %q: %w", raw, err)
 			}
 			fm.Temperature = f
+			fm.TemperatureSet = true
 		case "enabled":
 			b, err := strconv.ParseBool(raw)
 			if err != nil {

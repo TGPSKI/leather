@@ -33,6 +33,7 @@ type lifecycleRecord struct {
 	Timeout           time.Duration
 	ToolTimeout       time.Duration
 	Temperature       float64
+	TemperatureSet    bool // true when `temperature:` was explicitly present in YAML (issue #56, mirrors EnabledSet)
 	Tags              []string
 	Skills            []string            // skill names for tool calling
 	Toolsets          []string            // named toolsets for tool calling
@@ -362,6 +363,7 @@ func applyLifecycleFields(vals map[string]string, lists map[string][]string, rec
 			return fmt.Errorf("invalid temperature %q: %w", v, err)
 		}
 		rec.Temperature = f
+		rec.TemperatureSet = true
 	}
 	// Tags are additive: instance tags append to top-level tags.
 	rec.Tags = append(rec.Tags, lists["tags"]...)

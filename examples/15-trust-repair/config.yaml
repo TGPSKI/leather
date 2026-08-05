@@ -8,9 +8,9 @@ log_level: debug
 model: llama3
 llm_timeout: 300s
 
-# Greedy decode. Set in BOTH places: here AND `temperature: 0` in every
-# agents/*.agent.md — neither alone works (see 14-sig-triage eval README,
-# "Reproducibility", and leather issue #56).
+# Greedy decode. Since leather v0.5.1 (issue #56) this alone is enough; the
+# agents also set `temperature: 0` explicitly, which is harmless and keeps
+# each arm self-describing.
 temperature: 0
 # 24576, not 8192: the 35B is a reasoning model and burns thousands of think
 # tokens before its answer; at 8192 it truncated mid-reasoning to empty output

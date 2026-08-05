@@ -263,30 +263,28 @@ Two normalizations keep the score measuring *classification*, not *formatting*:
 ## Reproducibility: `temperature: 0` must be set TWICE
 
 A gate has to be reproducible or a flip diff measures dice. Greedy decode is set
-in **both** `eval/config.eval.yaml` and every `agents/*.agent.md`. That is not
-belt-and-braces — **neither one works alone**, for two interacting reasons:
+in **both** `eval/config.eval.yaml` and every `agents/*.agent.md`.
 
-- `agent/parseFrontMatter` defaults an agent's temperature to **0.7**, not to a
-  sentinel. `resolveAgent` (`internal/cli/cmd_serve.go`) only falls back to the
-  config value when the agent's is exactly `0`. So for an agent that never
-  mentions temperature, the 0.7 frontmatter default **always shadows
-  `config.yaml`**, and the documented priority (*lifecycle > config.yaml >
-  built-in default*) does not hold. Setting it only in the config does nothing.
-- `temperature: 0` in an agent is indistinguishable from *unset*, because `0` is
-  the zero-value sentinel `resolveAgent` tests against. So setting it only in the
-  agent sends you to `cfg.Temperature`, which is `0.7` unless the config says
-  otherwise.
+**Fixed in leather v0.5.1** (issue #56): either place alone now works. The
+runtime tracks whether `temperature:` was explicitly set, so an explicit `0` in
+an agent is respected, and an agent that never mentions temperature falls back
+to `config.yaml` (built-in default 0.7 applies only when neither sets it). The
+resolution order *lifecycle > frontmatter > config.yaml > built-in* now holds.
 
-Setting both is the only combination that reaches the wire. Verify rather than
-assume — the failure is silent:
+Before v0.5.1, **neither place worked alone**: the frontmatter parser defaulted
+to 0.7 (shadowing config), and `resolveAgent` used `0` as its unset sentinel
+(so an explicit agent-side `0` read as "unset"). Every archived run in
+`results/runs/` was produced under the double-set workaround, which was — and
+remains — correct under both the old and new resolution rules. The agent files
+keep both settings deliberately: their content is pinned by `agent_sha` in the
+run manifests, and byte-identical files keep replication comparisons clean.
+
+Verify rather than assume — the resolved value and its source are in the log:
 
 ```
 LEATHER_MODEL=... leather workflow run ... 2>&1 | grep 'agent config'
-#  ... temperature=0 ...     <- what you want
+#  ... temperature=0 temperature_source=agent ...     <- what you want
 ```
-
-This is a real drift in leather, not an eval quirk; the same trap applies to any
-agent wanting greedy decode. Until it is fixed, do not remove either setting.
 
 ## The catalog is a shadow — for the 35B, which never reads it
 

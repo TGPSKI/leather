@@ -162,8 +162,47 @@ func TestParseFrontMatter_NoFrontMatter(t *testing.T) {
 	if !fm.Enabled {
 		t.Error("Enabled should default to true")
 	}
-	if fm.Temperature != 0.7 {
-		t.Errorf("Temperature should default to 0.7, got %v", fm.Temperature)
+	// Temperature carries no frontmatter default: unset agents fall back to
+	// the config default in resolveAgent, so an explicit 0 stays meaningful.
+	if fm.TemperatureSet {
+		t.Error("TemperatureSet should be false when frontmatter is absent")
+	}
+}
+
+func TestParseFrontMatter_ExplicitZeroTemperature(t *testing.T) {
+	// An explicit `temperature: 0` (greedy decode) must be distinguishable
+	// from "not set" — issue #56.
+	src := "---\nname: greedy\ntemperature: 0\n---\nbody"
+	fm, _, err := parseFrontMatter(src)
+	if err != nil {
+		t.Fatalf("parseFrontMatter: %v", err)
+	}
+	if fm.Temperature != 0 {
+		t.Errorf("Temperature = %v, want 0", fm.Temperature)
+	}
+	if !fm.TemperatureSet {
+		t.Error("TemperatureSet should be true for explicit temperature: 0")
+	}
+}
+
+func TestApplyLifecycle_ExplicitZeroTemperature(t *testing.T) {
+	// Lifecycle `temperature: 0` overrides a frontmatter value (issue #56).
+	a := model.Agent{Name: "x", Temperature: 0.5, TemperatureSet: true}
+	rec := lifecycleRecord{Temperature: 0, TemperatureSet: true}
+	applyLifecycle(&a, rec)
+	if a.Temperature != 0 {
+		t.Errorf("Temperature = %v, want 0 (lifecycle explicit zero)", a.Temperature)
+	}
+	if !a.TemperatureSet {
+		t.Error("TemperatureSet should remain true")
+	}
+}
+
+func TestApplyLifecycle_UnsetTemperatureLeavesFrontmatter(t *testing.T) {
+	a := model.Agent{Name: "x", Temperature: 0.5, TemperatureSet: true}
+	applyLifecycle(&a, lifecycleRecord{})
+	if a.Temperature != 0.5 || !a.TemperatureSet {
+		t.Errorf("Temperature = %v set=%v, want 0.5/true (lifecycle absent leaves frontmatter)", a.Temperature, a.TemperatureSet)
 	}
 }
 

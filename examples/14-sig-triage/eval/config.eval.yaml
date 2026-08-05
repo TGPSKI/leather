@@ -10,9 +10,10 @@ log_level: debug
 model: llama3
 llm_timeout: 120s
 
-# Greedy decode, for a reproducible gate. This MUST be set in BOTH places: here
-# AND as `temperature: 0` in every agents/*.agent.md. Neither alone works -- see
-# the "Reproducibility" note in eval/README.md. Do not drop either one.
+# Greedy decode, for a reproducible gate. Since leather v0.5.1 (issue #56)
+# either this OR agent frontmatter alone works; the agents also carry
+# `temperature: 0` because their bytes are pinned by agent_sha in the run
+# manifests -- see the "Reproducibility" note in eval/README.md.
 temperature: 0
 max_tokens: 8192
 completion_reserve: 1024

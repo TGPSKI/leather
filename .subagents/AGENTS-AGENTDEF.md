@@ -78,7 +78,7 @@ whitespace.
 | `max_tokens` | int | `LEATHER_MAX_TOKENS` | Token budget override. |
 | `completion_reserve` | int | `LEATHER_COMPLETION_RESERVE` | Per-agent completion token reserve override. Useful for reasoning models, whose `<think>` trace can exceed the global default before any answer content exists. |
 | `timeout` | duration | `LEATHER_LLM_TIMEOUT` | Per-call timeout. |
-| `temperature` | float | `0.7` | Sampling temperature. |
+| `temperature` | float | config `temperature` (built-in `0.7`) | Sampling temperature. Explicit `0` (greedy) is respected; unset falls back to config. |
 | `enabled` | bool | `true` | Set `false` to disable without deleting. |
 | `tool_rounds` | int | `Config.MaxToolRounds` | Per-agent override of max tool-call cycles. |
 | `queue_input` | string | — | Queue name whose payload items feed prompt-template substitution. |
@@ -174,7 +174,7 @@ human-readable convention only and is never parsed.
 | `max_tokens` | int | `LEATHER_MAX_TOKENS` | Token budget override. |
 | `completion_reserve` | int | `LEATHER_COMPLETION_RESERVE` | Per-agent completion token reserve override. Useful for reasoning models, whose `<think>` trace can exceed the global default before any answer content exists. |
 | `timeout` | duration | `LEATHER_LLM_TIMEOUT` | Per-call timeout. |
-| `temperature` | float | `0.7` | Sampling temperature. |
+| `temperature` | float | config `temperature` (built-in `0.7`) | Sampling temperature. Explicit `0` (greedy) is respected; unset falls back to config. |
 | `prompt` | string | — | Single user prompt override. |
 | `prompts` | []string | `[]` | Ordered user-turn chain; replaces body-derived turns when non-empty. |
 | `parameters` | map | `{}` | Named prompt variables, substituted into `prompt`/`prompts` via `{{varname}}`. |

@@ -145,6 +145,28 @@ func TestResolveAgent_FillsFromConfig(t *testing.T) {
 	}
 }
 
+func TestResolveAgent_ExplicitZeroTemperature(t *testing.T) {
+	// Agent-only `temperature: 0` must reach the wire even when the config
+	// default is non-zero — issue #56.
+	cfg := model.Config{Temperature: 0.7}
+	a := model.Agent{Name: "greedy", Temperature: 0, TemperatureSet: true}
+	got := resolveAgent(cfg, a)
+	if got.Temperature != 0 {
+		t.Errorf("Temperature = %v, want 0 (explicit agent zero beats config)", got.Temperature)
+	}
+}
+
+func TestResolveAgent_ConfigOnlyZeroTemperature(t *testing.T) {
+	// Config-only `temperature: 0` must reach the wire when the agent never
+	// sets one — issue #56 (previously shadowed by the 0.7 frontmatter default).
+	cfg := model.Config{Temperature: 0}
+	a := model.Agent{Name: "unset"} // TemperatureSet false, as LoadFile produces
+	got := resolveAgent(cfg, a)
+	if got.Temperature != 0 {
+		t.Errorf("Temperature = %v, want 0 (config zero, agent unset)", got.Temperature)
+	}
+}
+
 func TestResolveAgent_AgentFieldsNotOverwritten(t *testing.T) {
 	cfg := model.Config{
 		Model:       "llama3",
@@ -152,10 +174,11 @@ func TestResolveAgent_AgentFieldsNotOverwritten(t *testing.T) {
 		LLMTimeout:  60 * time.Second,
 	}
 	a := model.Agent{
-		Name:        "test-agent",
-		Model:       "mistral",
-		Temperature: 0.1,
-		Timeout:     10 * time.Second,
+		Name:           "test-agent",
+		Model:          "mistral",
+		Temperature:    0.1,
+		TemperatureSet: true,
+		Timeout:        10 * time.Second,
 	}
 	got := resolveAgent(cfg, a)
 	if got.Model != "mistral" {

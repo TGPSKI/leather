@@ -1202,7 +1202,11 @@ func resolveAgent(cfg model.Config, a model.Agent) model.Agent {
 	if a.Model == "" {
 		a.Model = cfg.Model
 	}
-	if a.Temperature == 0 {
+	// Fall back to the config default only when the agent never set a
+	// temperature: an explicit 0 (greedy decode) in frontmatter or lifecycle
+	// YAML is respected (issue #56). The built-in 0.7 default is applied in
+	// exactly one place — config.DefaultTemperature via cfg.Temperature.
+	if !a.TemperatureSet {
 		a.Temperature = cfg.Temperature
 	}
 	if a.Timeout == 0 {
@@ -1235,7 +1239,7 @@ func resolveAgent(cfg model.Config, a model.Agent) model.Agent {
 // to use for pretty printing and statistics.
 func executeAgent(ctx context.Context, a model.Agent, budget model.TokenBudget, client session.LLMClient, log *logging.Logger) (model.LLMResponse, error) {
 	log.Info("executing agent", "agent", a.Name)
-	log.Debug("agent config", "agent", a.Name, "model", a.Model, "timeout", a.Timeout, "temperature", a.Temperature, "max_tokens", budget.MaxTokens, "completion_reserve", budget.CompletionReserve)
+	log.Debug("agent config", "agent", a.Name, "model", a.Model, "timeout", a.Timeout, "temperature", a.Temperature, "temperature_source", runner.TemperatureSource(a), "max_tokens", budget.MaxTokens, "completion_reserve", budget.CompletionReserve)
 	sess := session.New(budget, a.Model, client)
 
 	if a.SystemPrompt != "" {

@@ -378,6 +378,10 @@ type Agent struct {
 	ToolTimeout time.Duration
 	// Temperature is the sampling temperature sent to the model.
 	Temperature float64
+	// TemperatureSet is true when temperature was explicitly set in frontmatter
+	// or lifecycle YAML. Distinguishes an explicit 0 (greedy decode) from unset,
+	// so resolveAgent falls back to the config default only when unset.
+	TemperatureSet bool
 	// Enabled controls whether the agent is registered with the scheduler.
 	Enabled bool
 	// Tags are metadata labels for filtering in leather status.
