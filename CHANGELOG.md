@@ -34,6 +34,41 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- **`temperature: 0` is finally reachable from a single setting** (#56) —
+  greedy decode required setting temperature in *both* `config.yaml` and every
+  agent's frontmatter, because the frontmatter parser defaulted to `0.7` (which
+  shadowed config) while `resolveAgent` used `0` as its unset sentinel (which
+  made an explicit agent-side `0` read as "unset"). Set-ness is now tracked
+  through frontmatter and lifecycle YAML (`TemperatureSet`, mirroring
+  `EnabledSet`), the built-in `0.7` lives in exactly one place
+  (`config.DefaultTemperature`), and the documented priority *lifecycle >
+  frontmatter > config.yaml > built-in* actually holds. The agent-config debug
+  line logs `temperature_source=agent|config` so this class of shadowing is
+  visible, and `leather doctor` gained a `temperature` row.
+- **`leather doctor` no longer fabricates config problems** (#31) — source
+  attribution used a `value != default` heuristic, so a value explicitly set
+  equal to the built-in default was labelled `default`, and the catch-all
+  `config/env/flag` never said which layer won. `config.Load` now records true
+  per-key provenance and doctor reports it: `yaml`, `env`, `flag`, or
+  `default`. Also fixed en route: `LEATHER_PERSIST_RUNS_DETAIL` and
+  `LEATHER_PERSIST_RUNS_TOOL_CAP` were only read at startup seeding, so a YAML
+  value silently beat those two env vars, contradicting the documented order.
+- **The documented config precedence was wrong, not the code** (#33) —
+  `docs/modules/config.md` claimed YAML overrides environment variables; the
+  code has always applied env over YAML. The doc now states the real order —
+  *flags > env > YAML > built-in* — plus the config-file resolution chain, and
+  a test pins env-over-YAML for `llm_endpoint`, the field from the original
+  wrong-endpoint incident.
+- **Falling back past a project-local `config.yaml` is now loud** (#30) —
+  invoking leather bare in a directory containing `config.yaml` silently read
+  `~/.leather/config.yaml` instead, which once connected an eval to the wrong
+  LLM endpoint. `Load` now prints a one-line stderr notice naming both files
+  and the fix (`--config=./config.yaml` or `LEATHER_CONFIG`). Cwd
+  auto-discovery remains deliberately absent.
+- **`config.Load` tests are hermetic** (#38) — the test suite read whatever
+  sat in the developer's real `~/.leather/config.yaml` (the cross-PR #34–#36
+  phantom failure). Home-dir resolution is now injectable and the
+  default-asserting tests isolate themselves.
 - **`14-sig-triage`: the battery's resume guard destroyed three finished
   cells.** Completeness required ≥225 *answered* rows, but S1's mechanism is row
   loss (~220 answered every draw), so a second invocation judged its finished
