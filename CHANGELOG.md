@@ -7,6 +7,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- `examples/14-sig-triage/eval/scripts/tui/` is now vendored from its
+  canonical public upstream, [pane](https://github.com/TGPSKI/pane):
+  `bar_chart` gains aggregation binning, outlier clipping and top-row
+  label collision handling, and `interact.py` joins the vendor set.
+  Byte-identity is checkable with `make vendor-check` in a pane checkout.
+
 ## [0.5.1] — 2026-08-04
 
 ### Added
