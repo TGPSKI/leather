@@ -7,6 +7,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-08-04
+
+### Added
+
+- **`15-trust-repair` pre-pilot scaffold** — arms, runner, and oracle wiring
+  for the trust-boundary-repair workload (decision of record for the second
+  workload; full corpus and confirmatory runs remain gated).
+
 ### Changed
 
 - **`14-sig-triage`: the ablation findings are now pre-registered and
@@ -860,7 +868,8 @@ Intentionally out of scope for v0.1.0; tracked for v0.2:
 See [ROADMAP.md](ROADMAP.md) for the full deferred-item list with
 rationales and proposed shapes.
 
-[Unreleased]: https://github.com/TGPSKI/leather/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/TGPSKI/leather/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/TGPSKI/leather/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/TGPSKI/leather/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/TGPSKI/leather/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/TGPSKI/leather/compare/v0.3.0...v0.4.0
