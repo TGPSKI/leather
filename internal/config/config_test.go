@@ -203,6 +203,88 @@ func TestLoad_EnvShowContextOverridesYAML(t *testing.T) {
 	}
 }
 
+// TestLoad_EnvEndpointOverridesYAML pins the precedence for the field from
+// issue #33's report: env beats YAML for llm_endpoint, matching the
+// documented order (flags > env > YAML > defaults).
+func TestLoad_EnvEndpointOverridesYAML(t *testing.T) {
+	isolateHome(t)
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(cfgFile, []byte("llm_endpoint: http://yaml-endpoint:8000\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("LEATHER_CONFIG", cfgFile)
+	t.Setenv("LEATHER_LLM_ENDPOINT", "http://env-endpoint:11434")
+
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	BindFlags(fs)
+	cfg, err := Load(fs)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.LLMEndpoint != "http://env-endpoint:11434" {
+		t.Errorf("LLMEndpoint = %q, want env value (env > YAML)", cfg.LLMEndpoint)
+	}
+	if cfg.Sources["llm_endpoint"] != "env" {
+		t.Errorf("Sources[llm_endpoint] = %q, want env", cfg.Sources["llm_endpoint"])
+	}
+}
+
+// --- fallback warning (issue #30) ---
+
+func TestLoad_WarnsWhenProjectConfigIgnored(t *testing.T) {
+	isolateHome(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("max_tokens: 512\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	var buf strings.Builder
+	orig := warnWriter
+	warnWriter = &buf
+	t.Cleanup(func() { warnWriter = orig })
+
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	BindFlags(fs)
+	cfg, err := Load(fs)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.MaxTokens == 512 {
+		t.Error("Load read ./config.yaml — cwd auto-discovery is not supposed to exist")
+	}
+	if !strings.Contains(buf.String(), "./config.yaml exists but is not read") {
+		t.Errorf("expected fallback notice, got %q", buf.String())
+	}
+}
+
+func TestLoad_NoWarningWhenConfigExplicit(t *testing.T) {
+	isolateHome(t)
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(cfgFile, []byte("max_tokens: 512\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	t.Setenv("LEATHER_CONFIG", cfgFile)
+
+	var buf strings.Builder
+	orig := warnWriter
+	warnWriter = &buf
+	t.Cleanup(func() { warnWriter = orig })
+
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	BindFlags(fs)
+	if _, err := Load(fs); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("unexpected warning with explicit LEATHER_CONFIG: %q", buf.String())
+	}
+}
+
 // --- expandHome ---
 
 func TestExpandHome(t *testing.T) {

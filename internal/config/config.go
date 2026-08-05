@@ -83,11 +83,25 @@ func Load(fs *flag.FlagSet) (model.Config, error) {
 	llmKeyRef := secret.Ref{Value: envString("LLM_API_KEY", "")}
 
 	// Pre-scan CLI flags for --config override before loading the YAML file.
+	explicitConfig := os.Getenv("LEATHER_CONFIG") != ""
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "config" {
 			cfg.ConfigFile = f.Value.String()
+			explicitConfig = true
 		}
 	})
+
+	// A project-local config.yaml that is silently NOT the file being read is
+	// a classic wrong-endpoint trap (issue #30): leather does not auto-discover
+	// from cwd, so say so loudly. An explicit --config / LEATHER_CONFIG choice
+	// suppresses the notice.
+	if !explicitConfig {
+		if _, err := os.Stat("config.yaml"); err == nil {
+			fmt.Fprintf(warnWriter,
+				"leather: note: ./config.yaml exists but is not read; using %s (pass --config=./config.yaml or set LEATHER_CONFIG)\n",
+				cfg.ConfigFile)
+		}
+	}
 
 	// Layer 3: YAML config file (silently skipped if not found).
 	if err := loadYAMLFile(cfg.ConfigFile, &cfg); err != nil && !os.IsNotExist(err) {
@@ -622,6 +636,10 @@ func applyFlag(f *flag.Flag, cfg *model.Config) {
 		cfg.TanneryFile = v
 	}
 }
+
+// warnWriter receives Load's fallback notice; a variable so tests can capture
+// it and callers embedding leather can silence it.
+var warnWriter io.Writer = os.Stderr
 
 // markSource records the layer that supplied key's final value: "yaml",
 // "env", or "flag". Keys never marked carry the built-in default (issue #31).
