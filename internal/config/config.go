@@ -94,6 +94,7 @@ func Load(fs *flag.FlagSet) (model.Config, error) {
 		return model.Config{}, fmt.Errorf("config/Load: reading %s: %w", cfg.ConfigFile, err)
 	}
 	applyEnvOverrides(&cfg)
+	markEnvSources(&cfg)
 
 	// Pull any llm_api_key block from the YAML; it may supply Pass / Env.
 	if cfg.ConfigFile != "" {
@@ -102,6 +103,9 @@ func Load(fs *flag.FlagSet) (model.Config, error) {
 			// YAML enriches the ref but does not replace an env-set inline value.
 			if llmKeyRef.Value == "" {
 				llmKeyRef.Value = yamlRef.Value
+				if !yamlRef.IsZero() {
+					markSource(&cfg, "llm_api_key", "yaml")
+				}
 			}
 			llmKeyRef.Pass = yamlRef.Pass
 			llmKeyRef.Env = yamlRef.Env
@@ -111,6 +115,7 @@ func Load(fs *flag.FlagSet) (model.Config, error) {
 	// Layer 1: CLI flags override everything.
 	fs.Visit(func(f *flag.Flag) {
 		applyFlag(f, &cfg)
+		markSource(&cfg, flagSourceKey(f.Name), "flag")
 		if f.Name == "llm-api-key" {
 			// --llm-api-key always wins as inline value.
 			llmKeyRef = secret.Ref{Value: f.Value.String()}
@@ -160,6 +165,8 @@ func applyEnvOverrides(cfg *model.Config) {
 	cfg.ShowVars = envBool("SHOW_VARS", cfg.ShowVars)
 	cfg.ShowContext = envBool("SHOW_CONTEXT", cfg.ShowContext)
 	cfg.PersistRuns = envBool("PERSIST_RUNS", cfg.PersistRuns)
+	cfg.PersistRunsDetail = envString("PERSIST_RUNS_DETAIL", cfg.PersistRunsDetail)
+	cfg.PersistRunsToolCap = envInt("PERSIST_RUNS_TOOL_CAP", cfg.PersistRunsToolCap)
 	cfg.RunHistoryDir = envString("RUN_HISTORY_DIR", cfg.RunHistoryDir)
 	cfg.RunMaxBytes = envInt64("RUN_MAX_BYTES", cfg.RunMaxBytes)
 	cfg.ReplayFile = envString("REPLAY", cfg.ReplayFile)
@@ -252,172 +259,221 @@ func applyYAML(r io.Reader, cfg *model.Config) error {
 	if err != nil {
 		return err
 	}
+	// mark records that a recognized key was successfully applied from the
+	// YAML layer, for doctor's source attribution (issue #31). Invalid
+	// values are silently skipped by the branches below and never marked.
+	mark := func(key string) {
+		if cfg.Sources == nil {
+			cfg.Sources = map[string]string{}
+		}
+		cfg.Sources[key] = "yaml"
+	}
 	strVal := func(key string) (string, bool) {
 		v, ok := vals[key]
 		return v, ok && v != ""
 	}
 	if v, ok := strVal("agent_dir"); ok {
 		cfg.AgentDir = v
+		mark("agent_dir")
 	}
 	if v, ok := strVal("model"); ok {
 		cfg.Model = v
+		mark("model")
 	}
 	if v, ok := strVal("log_level"); ok {
 		cfg.LogLevel = model.LogLevel(v)
+		mark("log_level")
 	}
 	if v, ok := strVal("log_format"); ok {
 		cfg.LogFormat = v
+		mark("log_format")
 	}
 	if v, ok := strVal("llm_endpoint"); ok {
 		cfg.LLMEndpoint = v
+		mark("llm_endpoint")
 	}
 	if v, ok := strVal("llm_fixture"); ok {
 		cfg.LLMFixture = v
+		mark("llm_fixture")
 	}
 	if v, ok := strVal("llm_record"); ok {
 		cfg.LLMRecord = v
+		mark("llm_record")
 	}
 	if v, ok := strVal("api_addr"); ok {
 		cfg.APIAddr = v
+		mark("api_addr")
 	}
 	if v, ok := strVal("state_dir"); ok {
 		cfg.StateDir = v
+		mark("state_dir")
 	}
 	if v, ok := strVal("max_tokens"); ok {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.MaxTokens = n
+			mark("max_tokens")
 		}
 	}
 	if v, ok := strVal("completion_reserve"); ok {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.CompletionReserve = n
+			mark("completion_reserve")
 		}
 	}
 	if v, ok := strVal("reasoning_reserve"); ok {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.ReasoningReserve = n
+			mark("reasoning_reserve")
 		}
 	}
 	if v, ok := strVal("max_concurrent_jobs"); ok {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.MaxConcurrentJobs = n
+			mark("max_concurrent_jobs")
 		}
 	}
 	if v, ok := strVal("summarize_threshold"); ok {
 		if f, err := strconv.ParseFloat(v, 64); err == nil {
 			cfg.SummarizeThreshold = f
+			mark("summarize_threshold")
 		}
 	}
 	if v, ok := strVal("temperature"); ok {
 		if f, err := strconv.ParseFloat(v, 64); err == nil {
 			cfg.Temperature = f
+			mark("temperature")
 		}
 	}
 	if v, ok := strVal("llm_timeout"); ok {
 		if d, err := time.ParseDuration(v); err == nil {
 			cfg.LLMTimeout = d
+			mark("llm_timeout")
 		}
 	}
 	if v, ok := strVal("tool_timeout"); ok {
 		if d, err := time.ParseDuration(v); err == nil {
 			cfg.ToolTimeout = d
+			mark("tool_timeout")
 		}
 	}
 	if v, ok := strVal("scheduler_tick"); ok {
 		if d, err := time.ParseDuration(v); err == nil {
 			cfg.SchedulerTick = d
+			mark("scheduler_tick")
 		}
 	}
 	if v, ok := strVal("run_duration"); ok {
 		if d, err := time.ParseDuration(v); err == nil {
 			cfg.RunDuration = d
+			mark("run_duration")
 		}
 	}
 	if v, ok := strVal("max_jobs"); ok {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.MaxJobs = n
+			mark("max_jobs")
 		}
 	}
 	if v, ok := strVal("api"); ok {
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.API = b
+			mark("api")
 		}
 	}
 	if v, ok := strVal("log_file"); ok {
 		cfg.LogFile = v
+		mark("log_file")
 	}
 	if v, ok := strVal("pretty"); ok {
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.Pretty = b
+			mark("pretty")
 		}
 	}
 	if v, ok := strVal("pretty_mode"); ok {
 		cfg.PrettyMode = v
+		mark("pretty_mode")
 	}
 	if v, ok := strVal("stats"); ok {
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.Stats = b
+			mark("stats")
 		}
 	}
 	if v, ok := strVal("tokens_per_turn"); ok {
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.TokensPerTurn = b
+			mark("tokens_per_turn")
 		}
 	}
 	if v, ok := strVal("show_vars"); ok {
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.ShowVars = b
+			mark("show_vars")
 		}
 	}
 	if v, ok := strVal("show_context"); ok {
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.ShowContext = b
+			mark("show_context")
 		}
 	}
 	if v, ok := strVal("persist_runs"); ok {
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.PersistRuns = b
+			mark("persist_runs")
 		}
 	}
 	if v, ok := strVal("persist_runs_detail"); ok {
 		cfg.PersistRunsDetail = v
+		mark("persist_runs_detail")
 	}
 	if v, ok := strVal("persist_runs_tool_cap"); ok {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.PersistRunsToolCap = n
+			mark("persist_runs_tool_cap")
 		}
 	}
 	if v, ok := strVal("run_history_dir"); ok {
 		cfg.RunHistoryDir = v
+		mark("run_history_dir")
 	}
 	if v, ok := strVal("run_max_bytes"); ok {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			cfg.RunMaxBytes = n
+			mark("run_max_bytes")
 		}
 	}
 	if v, ok := strVal("tool_dir"); ok {
 		cfg.ToolDir = v
+		mark("tool_dir")
 	}
 	if items := lists["default_toolsets"]; len(items) > 0 {
 		cfg.DefaultToolsets = append([]string(nil), items...)
+		mark("default_toolsets")
 	}
 	if v, ok := strVal("max_tool_rounds"); ok {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.MaxToolRounds = n
+			mark("max_tool_rounds")
 		}
 	}
 	if v, ok := strVal("worker_dir"); ok {
 		cfg.WorkerDir = v
+		mark("worker_dir")
 	}
 	if v, ok := strVal("cache_dir"); ok {
 		cfg.CacheDir = v
+		mark("cache_dir")
 	}
 	if v, ok := strVal("mcp_servers_file"); ok {
 		cfg.MCPServersFile = v
+		mark("mcp_servers_file")
 	}
 	if v, ok := strVal("loop"); ok {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.Loop = n
+			mark("loop")
 		}
 	}
 	return nil
@@ -565,6 +621,111 @@ func applyFlag(f *flag.Flag, cfg *model.Config) {
 	case "tannery":
 		cfg.TanneryFile = v
 	}
+}
+
+// markSource records the layer that supplied key's final value: "yaml",
+// "env", or "flag". Keys never marked carry the built-in default (issue #31).
+func markSource(cfg *model.Config, key, layer string) {
+	if cfg.Sources == nil {
+		cfg.Sources = map[string]string{}
+	}
+	cfg.Sources[key] = layer
+}
+
+// envSourceKeys maps canonical config keys to their LEATHER_* env suffix and
+// value kind, mirroring the fields Load reads from the environment. Used only
+// for source attribution — the value application lives in applyEnvOverrides
+// and the initial layer of Load.
+var envSourceKeys = []struct{ key, env, kind string }{
+	{"config_file", "CONFIG", "string"},
+	{"agent_dir", "AGENT_DIR", "string"},
+	{"log_level", "LOG_LEVEL", "string"},
+	{"log_format", "LOG_FORMAT", "string"},
+	{"model", "MODEL", "string"},
+	{"temperature", "TEMPERATURE", "float"},
+	{"max_tokens", "MAX_TOKENS", "int"},
+	{"completion_reserve", "COMPLETION_RESERVE", "int"},
+	{"reasoning_reserve", "REASONING_RESERVE", "int"},
+	{"summarize_threshold", "SUMMARIZE_THRESHOLD", "float"},
+	{"llm_endpoint", "LLM_ENDPOINT", "string"},
+	{"llm_fixture", "LLM_FIXTURE", "string"},
+	{"llm_record", "LLM_RECORD", "string"},
+	{"llm_timeout", "LLM_TIMEOUT", "duration"},
+	{"tool_timeout", "TOOL_TIMEOUT", "duration"},
+	{"scheduler_tick", "SCHEDULER_TICK", "duration"},
+	{"max_concurrent_jobs", "MAX_CONCURRENT_JOBS", "int"},
+	{"run_duration", "RUN_DURATION", "duration"},
+	{"max_jobs", "MAX_JOBS", "int"},
+	{"state_dir", "STATE_DIR", "string"},
+	{"api", "API", "bool"},
+	{"api_addr", "API_ADDR", "string"},
+	{"log_file", "LOG_FILE", "string"},
+	{"pretty", "PRETTY", "bool"},
+	{"pretty_mode", "PRETTY_MODE", "string"},
+	{"stats", "STATS", "bool"},
+	{"tokens_per_turn", "TOKENS_PER_TURN", "bool"},
+	{"show_vars", "SHOW_VARS", "bool"},
+	{"show_context", "SHOW_CONTEXT", "bool"},
+	{"persist_runs", "PERSIST_RUNS", "bool"},
+	{"persist_runs_detail", "PERSIST_RUNS_DETAIL", "string"},
+	{"persist_runs_tool_cap", "PERSIST_RUNS_TOOL_CAP", "int"},
+	{"run_history_dir", "RUN_HISTORY_DIR", "string"},
+	{"run_max_bytes", "RUN_MAX_BYTES", "int64"},
+	{"replay", "REPLAY", "string"},
+	{"replay_live", "REPLAY_LIVE", "string"},
+	{"replay_speed", "REPLAY_SPEED", "float"},
+	{"tool_dir", "TOOL_DIR", "string"},
+	{"default_toolsets", "DEFAULT_TOOLSETS", "string"},
+	{"max_tool_rounds", "MAX_TOOL_ROUNDS", "int"},
+	{"worker_dir", "WORKER_DIR", "string"},
+	{"cache_dir", "CACHE_DIR", "string"},
+	{"mcp_servers_file", "MCP_SERVERS_FILE", "string"},
+	{"loop", "LOOP", "int"},
+	{"tannery", "TANNERY", "string"},
+	{"llm_api_key", "LLM_API_KEY", "string"},
+}
+
+// markEnvSources marks every key whose LEATHER_* env var is present and
+// parseable, after applyEnvOverrides has applied them. An unparseable value
+// falls back silently (see envInt et al.) and is deliberately not marked, so
+// doctor never attributes a defaulted value to the environment.
+func markEnvSources(cfg *model.Config) {
+	for _, e := range envSourceKeys {
+		v := os.Getenv("LEATHER_" + e.env)
+		if v == "" || !envValueParses(e.kind, v) {
+			continue
+		}
+		markSource(cfg, e.key, "env")
+	}
+}
+
+// envValueParses reports whether v is a valid value for the given kind,
+// matching the fallback behavior of the env* helpers.
+func envValueParses(kind, v string) bool {
+	var err error
+	switch kind {
+	case "int":
+		_, err = strconv.Atoi(v)
+	case "int64":
+		_, err = strconv.ParseInt(v, 10, 64)
+	case "float":
+		_, err = strconv.ParseFloat(v, 64)
+	case "bool":
+		_, err = strconv.ParseBool(v)
+	case "duration":
+		_, err = time.ParseDuration(v)
+	}
+	return err == nil
+}
+
+// flagSourceKey converts a flag name to its canonical config key for source
+// attribution. Flag names are the canonical key with dashes, except --config,
+// which sets config_file.
+func flagSourceKey(name string) string {
+	if name == "config" {
+		return "config_file"
+	}
+	return strings.ReplaceAll(name, "-", "_")
 }
 
 // userHomeDir resolves the home directory for default-path resolution.

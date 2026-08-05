@@ -637,6 +637,12 @@ type Config struct {
 	// Args/Content field before truncation (with a "…[capped]" suffix).
 	// Only meaningful when PersistRunsDetail == "tools". Defaults to 2048.
 	PersistRunsToolCap int
+	// Sources records, per canonical config key (e.g. "max_tokens"), which
+	// layer supplied the final value: "yaml", "env", or "flag". Keys absent
+	// from the map carry the built-in default. Populated by config.Load so
+	// doctor can report true source attribution (issue #31); nil when a
+	// Config is constructed directly.
+	Sources map[string]string
 }
 
 // SessionContext is a point-in-time snapshot of a session's conversation window.

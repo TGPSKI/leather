@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -40,7 +41,10 @@ func TestRedact_LongKeyShowsPrefix(t *testing.T) {
 // --- buildDoctorRows ---
 
 func TestBuildDoctorRows_LLMAPIKeyRedacted(t *testing.T) {
-	cfg := model.Config{LLMAPIKey: "sk-abc1234"}
+	cfg := model.Config{
+		LLMAPIKey: "sk-abc1234",
+		Sources:   map[string]string{"llm_api_key": "env"},
+	}
 	rows := buildDoctorRows(cfg)
 
 	var apiKeyRow *doctorField
@@ -56,8 +60,8 @@ func TestBuildDoctorRows_LLMAPIKeyRedacted(t *testing.T) {
 	if strings.Contains(apiKeyRow.value, "abc1234") {
 		t.Errorf("llm_api_key value %q exposes secret", apiKeyRow.value)
 	}
-	if apiKeyRow.source != "config/env/flag" {
-		t.Errorf("source = %q, want config/env/flag", apiKeyRow.source)
+	if apiKeyRow.source != "env" {
+		t.Errorf("source = %q, want env", apiKeyRow.source)
 	}
 }
 
@@ -86,17 +90,60 @@ func TestBuildDoctorRows_OverriddenSourceLabel(t *testing.T) {
 		LLMEndpoint: "http://custom-endpoint:8080",
 		MaxTokens:   999,
 		LogFormat:   "json",
+		Sources: map[string]string{
+			"llm_endpoint": "yaml",
+			"max_tokens":   "env",
+			"log_format":   "flag",
+		},
 	}
 	rows := buildDoctorRows(cfg)
 
-	overridden := map[string]bool{
-		"llm_endpoint": true,
-		"max_tokens":   true,
-		"log_format":   true,
+	want := map[string]string{
+		"llm_endpoint": "yaml",
+		"max_tokens":   "env",
+		"log_format":   "flag",
 	}
 	for _, r := range rows {
-		if overridden[r.name] && r.source != "config/env/flag" {
-			t.Errorf("row %q: source = %q, want \"config/env/flag\"", r.name, r.source)
+		if w, ok := want[r.name]; ok && r.source != w {
+			t.Errorf("row %q: source = %q, want %q", r.name, r.source, w)
+		}
+	}
+}
+
+// TestRunDoctor_SourceAttribution goes through the real config.Load: the
+// reported source must name the layer that actually supplied the value,
+// including a YAML value equal to the built-in default (the issue #31
+// failure: doctor labelled such values "default" and fabricated a config
+// problem that cost real debugging time).
+func TestRunDoctor_SourceAttribution(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	// completion_reserve deliberately equals DefaultCompletionReserve.
+	yaml := "max_tokens: 24000\ncompletion_reserve: 1024\n"
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Pin the env layer: one var set, the yaml-covered ones cleared.
+	t.Setenv("LEATHER_LOG_LEVEL", "debug")
+	t.Setenv("LEATHER_MAX_TOKENS", "")
+	t.Setenv("LEATHER_COMPLETION_RESERVE", "")
+
+	var out bytes.Buffer
+	if code := RunDoctor([]string{"--config", cfgPath, "--api-addr", "127.0.0.1:9999"}, &out, io.Discard); code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+
+	want := map[string]string{
+		"max_tokens":         "24000.*yaml",
+		"completion_reserve": "1024.*yaml", // equal to default, still yaml
+		"log_level":          "debug.*env",
+		"api_addr":           "127.0.0.1:9999.*flag",
+		"scheduler_tick":     "default", // untouched everywhere
+	}
+	for key, pat := range want {
+		re := regexp.MustCompile(`(?m)^` + key + `\s+.*` + pat)
+		if !re.MatchString(out.String()) {
+			t.Errorf("doctor output missing %q matching %q\n%s", key, pat, out.String())
 		}
 	}
 }
