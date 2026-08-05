@@ -19,15 +19,17 @@ Three separate keys share one failure mode, which makes it a pattern rather than
 three bugs.
 
 **`temperature` in agent frontmatter is ignored unless it is also in config.yaml.**
-`parseFrontMatter` defaults to 0.7 and `resolveAgent` falls back to config only
-when the agent's value is *exactly* 0. Setting `temperature: 0` in the agent alone
-leaves you at 0.7 with no warning. This one is worse than a wasted afternoon: it
+`parseFrontMatter` defaulted to 0.7 and `resolveAgent` fell back to config only
+when the agent's value was *exactly* 0. Setting `temperature: 0` in the agent alone
+left you at 0.7 with no warning. This one is worse than a wasted afternoon: it
 silently invalidates every measurement taken while you believed decoding was
 greedy. A committed accuracy number in this example was produced under a
 temperature the config claimed was zero. **Set it in both places, and assert it
 somewhere the eval can see.** (Tracked as
-[leather#56](https://github.com/TGPSKI/leather/issues/56); keep double-setting
-until it closes.)
+[leather#56](https://github.com/TGPSKI/leather/issues/56); **fixed in v0.5.1** —
+set-ness is now tracked, either place alone works, and the debug log reports
+`temperature_source`. Every run in this campaign predates the fix and used the
+double-set workaround, which was correct under both rules.)
 
 **`{{env:VAR}}` is not expanded everywhere it looks like it should be** — notably
 config `model:`. The `LEATHER_MODEL` env override is the mechanism.

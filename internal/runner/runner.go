@@ -204,6 +204,17 @@ type ProgressEvent struct {
 	TotalTokens      int
 }
 
+// TemperatureSource reports where a resolved agent's temperature came from:
+// "agent" when frontmatter or lifecycle YAML set it explicitly, otherwise
+// "config" (the global default, possibly the built-in 0.7). Logged alongside
+// the resolved value so temperature shadowing is visible (issue #56).
+func TemperatureSource(a model.Agent) string {
+	if a.TemperatureSet {
+		return "agent"
+	}
+	return "config"
+}
+
 // Run executes a single agent turn. It:
 //  1. Collects tool definitions from the agent's skill list.
 //  2. Builds the session with system and user prompts (augmented by skill prompts).
@@ -215,6 +226,7 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 	r.Log.Info("executing agent", "agent", a.Name)
 	r.Log.Debug("agent config", "agent", a.Name, "model", a.Model,
 		"timeout", a.Timeout, "temperature", a.Temperature,
+		"temperature_source", TemperatureSource(a),
 		"max_tokens", budget.MaxTokens, "completion_reserve", budget.CompletionReserve)
 
 	// Establish per-run timeout once, outside the turn/round loops. The same

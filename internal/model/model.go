@@ -378,6 +378,10 @@ type Agent struct {
 	ToolTimeout time.Duration
 	// Temperature is the sampling temperature sent to the model.
 	Temperature float64
+	// TemperatureSet is true when temperature was explicitly set in frontmatter
+	// or lifecycle YAML. Distinguishes an explicit 0 (greedy decode) from unset,
+	// so resolveAgent falls back to the config default only when unset.
+	TemperatureSet bool
 	// Enabled controls whether the agent is registered with the scheduler.
 	Enabled bool
 	// Tags are metadata labels for filtering in leather status.
@@ -633,6 +637,12 @@ type Config struct {
 	// Args/Content field before truncation (with a "…[capped]" suffix).
 	// Only meaningful when PersistRunsDetail == "tools". Defaults to 2048.
 	PersistRunsToolCap int
+	// Sources records, per canonical config key (e.g. "max_tokens"), which
+	// layer supplied the final value: "yaml", "env", or "flag". Keys absent
+	// from the map carry the built-in default. Populated by config.Load so
+	// doctor can report true source attribution (issue #31); nil when a
+	// Config is constructed directly.
+	Sources map[string]string
 }
 
 // SessionContext is a point-in-time snapshot of a session's conversation window.

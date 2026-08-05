@@ -9,7 +9,20 @@ import (
 	"time"
 )
 
+// isolateHome points config's home-dir resolution at a throwaway directory so
+// Load never reads the developer's real ~/.leather/config.yaml (issue #38).
+// It also clears LEATHER_CONFIG, which could point at a real file.
+func isolateHome(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	orig := userHomeDir
+	userHomeDir = func() (string, error) { return dir, nil }
+	t.Cleanup(func() { userHomeDir = orig })
+	t.Setenv("LEATHER_CONFIG", "")
+}
+
 func TestApplyYAML_OverridesConfig(t *testing.T) {
+	isolateHome(t)
 	input := `
 log_level: warn
 max_tokens: 2048
@@ -32,6 +45,7 @@ llm_endpoint: http://remote:8080
 }
 
 func TestLoad_Defaults(t *testing.T) {
+	isolateHome(t)
 	// Unset all LEATHER_* vars that might be set in the environment.
 	for _, key := range []string{
 		"LEATHER_MAX_TOKENS", "LEATHER_LOG_LEVEL", "LEATHER_LLM_ENDPOINT",
@@ -59,6 +73,7 @@ func TestLoad_Defaults(t *testing.T) {
 }
 
 func TestLoad_EnvOverride(t *testing.T) {
+	isolateHome(t)
 	t.Setenv("LEATHER_MAX_TOKENS", "4096")
 	t.Setenv("LEATHER_LOG_LEVEL", "debug")
 
@@ -124,6 +139,9 @@ func TestLoad_ReasoningReserveYAML(t *testing.T) {
 }
 
 func TestLoad_PersistRunsDetailDefaults(t *testing.T) {
+	isolateHome(t)
+	t.Setenv("LEATHER_PERSIST_RUNS_DETAIL", "")
+	t.Setenv("LEATHER_PERSIST_RUNS_TOOL_CAP", "")
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	BindFlags(fs)
 	cfg, err := Load(fs)
@@ -185,6 +203,88 @@ func TestLoad_EnvShowContextOverridesYAML(t *testing.T) {
 	}
 }
 
+// TestLoad_EnvEndpointOverridesYAML pins the precedence for the field from
+// issue #33's report: env beats YAML for llm_endpoint, matching the
+// documented order (flags > env > YAML > defaults).
+func TestLoad_EnvEndpointOverridesYAML(t *testing.T) {
+	isolateHome(t)
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(cfgFile, []byte("llm_endpoint: http://yaml-endpoint:8000\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("LEATHER_CONFIG", cfgFile)
+	t.Setenv("LEATHER_LLM_ENDPOINT", "http://env-endpoint:11434")
+
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	BindFlags(fs)
+	cfg, err := Load(fs)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.LLMEndpoint != "http://env-endpoint:11434" {
+		t.Errorf("LLMEndpoint = %q, want env value (env > YAML)", cfg.LLMEndpoint)
+	}
+	if cfg.Sources["llm_endpoint"] != "env" {
+		t.Errorf("Sources[llm_endpoint] = %q, want env", cfg.Sources["llm_endpoint"])
+	}
+}
+
+// --- fallback warning (issue #30) ---
+
+func TestLoad_WarnsWhenProjectConfigIgnored(t *testing.T) {
+	isolateHome(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("max_tokens: 512\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	var buf strings.Builder
+	orig := warnWriter
+	warnWriter = &buf
+	t.Cleanup(func() { warnWriter = orig })
+
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	BindFlags(fs)
+	cfg, err := Load(fs)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.MaxTokens == 512 {
+		t.Error("Load read ./config.yaml — cwd auto-discovery is not supposed to exist")
+	}
+	if !strings.Contains(buf.String(), "./config.yaml exists but is not read") {
+		t.Errorf("expected fallback notice, got %q", buf.String())
+	}
+}
+
+func TestLoad_NoWarningWhenConfigExplicit(t *testing.T) {
+	isolateHome(t)
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(cfgFile, []byte("max_tokens: 512\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	t.Setenv("LEATHER_CONFIG", cfgFile)
+
+	var buf strings.Builder
+	orig := warnWriter
+	warnWriter = &buf
+	t.Cleanup(func() { warnWriter = orig })
+
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	BindFlags(fs)
+	if _, err := Load(fs); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("unexpected warning with explicit LEATHER_CONFIG: %q", buf.String())
+	}
+}
+
 // --- expandHome ---
 
 func TestExpandHome(t *testing.T) {
@@ -216,6 +316,7 @@ func TestExpandHome(t *testing.T) {
 // --- applyFlag (exercised via Load with explicitly-set flags) ---
 
 func TestLoad_FlagOverrides(t *testing.T) {
+	isolateHome(t)
 	dir := t.TempDir()
 	// Clear env vars so flags are the decisive layer.
 	for _, key := range []string{

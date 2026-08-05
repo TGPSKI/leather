@@ -156,8 +156,9 @@ func applyLifecycle(a *model.Agent, rec lifecycleRecord) {
 	if rec.ToolTimeout > 0 {
 		a.ToolTimeout = rec.ToolTimeout
 	}
-	if rec.Temperature != 0 {
+	if rec.TemperatureSet {
 		a.Temperature = rec.Temperature
+		a.TemperatureSet = true
 	}
 	if len(rec.Tags) > 0 {
 		a.Tags = rec.Tags
@@ -235,6 +236,7 @@ func LoadFile(path string) (model.Agent, error) {
 		Timeout:           fm.Timeout,
 		ToolTimeout:       fm.ToolTimeout,
 		Temperature:       fm.Temperature,
+		TemperatureSet:    fm.TemperatureSet,
 		Enabled:           fm.Enabled,
 		Tags:              fm.Tags,
 		Skills:            fm.Skills,
