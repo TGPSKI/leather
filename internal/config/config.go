@@ -567,9 +567,14 @@ func applyFlag(f *flag.Flag, cfg *model.Config) {
 	}
 }
 
+// userHomeDir resolves the home directory for default-path resolution.
+// A package variable so tests can point it at a throwaway directory and stay
+// hermetic from the developer's real ~/.leather/config.yaml (issue #38).
+var userHomeDir = os.UserHomeDir
+
 // resolvePaths returns the default ~/.leather/* paths resolved at call time.
 func resolvePaths() (agentDir, configFile, stateDir, logsDir string) {
-	home, err := os.UserHomeDir()
+	home, err := userHomeDir()
 	if err != nil {
 		home = "."
 	}
@@ -585,7 +590,7 @@ func expandHome(path string) string {
 	if !strings.HasPrefix(path, "~/") {
 		return path
 	}
-	home, err := os.UserHomeDir()
+	home, err := userHomeDir()
 	if err != nil {
 		return path
 	}

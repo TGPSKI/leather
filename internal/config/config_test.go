@@ -9,7 +9,20 @@ import (
 	"time"
 )
 
+// isolateHome points config's home-dir resolution at a throwaway directory so
+// Load never reads the developer's real ~/.leather/config.yaml (issue #38).
+// It also clears LEATHER_CONFIG, which could point at a real file.
+func isolateHome(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	orig := userHomeDir
+	userHomeDir = func() (string, error) { return dir, nil }
+	t.Cleanup(func() { userHomeDir = orig })
+	t.Setenv("LEATHER_CONFIG", "")
+}
+
 func TestApplyYAML_OverridesConfig(t *testing.T) {
+	isolateHome(t)
 	input := `
 log_level: warn
 max_tokens: 2048
@@ -32,6 +45,7 @@ llm_endpoint: http://remote:8080
 }
 
 func TestLoad_Defaults(t *testing.T) {
+	isolateHome(t)
 	// Unset all LEATHER_* vars that might be set in the environment.
 	for _, key := range []string{
 		"LEATHER_MAX_TOKENS", "LEATHER_LOG_LEVEL", "LEATHER_LLM_ENDPOINT",
@@ -59,6 +73,7 @@ func TestLoad_Defaults(t *testing.T) {
 }
 
 func TestLoad_EnvOverride(t *testing.T) {
+	isolateHome(t)
 	t.Setenv("LEATHER_MAX_TOKENS", "4096")
 	t.Setenv("LEATHER_LOG_LEVEL", "debug")
 
@@ -124,6 +139,9 @@ func TestLoad_ReasoningReserveYAML(t *testing.T) {
 }
 
 func TestLoad_PersistRunsDetailDefaults(t *testing.T) {
+	isolateHome(t)
+	t.Setenv("LEATHER_PERSIST_RUNS_DETAIL", "")
+	t.Setenv("LEATHER_PERSIST_RUNS_TOOL_CAP", "")
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	BindFlags(fs)
 	cfg, err := Load(fs)
@@ -216,6 +234,7 @@ func TestExpandHome(t *testing.T) {
 // --- applyFlag (exercised via Load with explicitly-set flags) ---
 
 func TestLoad_FlagOverrides(t *testing.T) {
+	isolateHome(t)
 	dir := t.TempDir()
 	// Clear env vars so flags are the decisive layer.
 	for _, key := range []string{
