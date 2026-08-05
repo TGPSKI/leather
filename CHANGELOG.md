@@ -17,6 +17,22 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `examples/14-sig-triage/eval/scripts/tui/` is now vendored from its
+  canonical public upstream, [pane](https://github.com/TGPSKI/pane):
+  `bar_chart` gains aggregation binning, outlier clipping and top-row
+  label collision handling, and `interact.py` joins the vendor set.
+  Byte-identity is checkable with `make vendor-check` in a pane checkout.
+
+## [0.5.1] — 2026-08-04
+
+### Added
+
+- **`15-trust-repair` pre-pilot scaffold** — arms, runner, and oracle wiring
+  for the trust-boundary-repair workload (decision of record for the second
+  workload; full corpus and confirmatory runs remain gated).
+
+### Changed
+
 - **`14-sig-triage`: the ablation findings are now pre-registered and
   replicated.** Six contrasts were frozen at main commit `96cc418` before any
   confirmatory cell ran; the battery executed 11 arms × 3 draws (5× on the one

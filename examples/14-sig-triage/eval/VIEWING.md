@@ -193,7 +193,8 @@ worth calling out because they can mislead:
 matrixdata.py      loads archives, scores via sigeval, one filter grammar
   ├── table.py       rows for the watcher and `make table`
   ├── matrix-tui.py  the four browser views
-  └── tui/           vendored curses primitives (stdlib only)
+  └── tui/           vendored curses primitives (stdlib only, from
+                     https://github.com/TGPSKI/pane — re-vendor, don't edit)
 watch-matrix.sh    the live frame: progress, keys, scrolling
 ```
 
