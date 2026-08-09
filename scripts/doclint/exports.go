@@ -315,8 +315,8 @@ func checkExports(srcRoot, modulesDir, baselinePath string, write bool) ([]viola
 		}
 		if len(keys) > max {
 			return nil, fmt.Errorf(
-				"refusing to write baseline: %d undocumented exports exceeds max %d.\n"+
-					"Document the new symbols, or raise the max header in %s deliberately.",
+				"refusing to write baseline: %d undocumented exports exceeds max %d — "+
+					"document the new symbols, or deliberately raise the max header in %s",
 				len(keys), max, baselinePath)
 		}
 		return vs, writeBaseline(baselinePath, keys, max)
