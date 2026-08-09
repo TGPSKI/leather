@@ -15,23 +15,34 @@ the automated release pipeline.
 
 ---
 
+## How to read these steps
+
+Steps 3–5 are checks, not chores. A release where nothing matched is a pass —
+say so in one line and move on. Do not invent work to make a step produce a
+diff, and do not block on a step whose target does not exist in the repo.
+
 ## Step 1 — Determine NEXT_VERSION
 
-If the user supplied an explicit version string (e.g. `v0.2.0`), use it.
-Otherwise auto-detect:
+An explicit version from the user wins outright. Take it and skip to Step 2 —
+no bump table, no justification needed.
 
-1. Find the most recent semver tag: `git tag --list 'v*' --sort=-version:refname | head -1`
-2. List commits since that tag: `git log <last-tag>..HEAD --oneline`
-3. Categorise every commit subject using these rules (first match wins):
+Otherwise size it by impact: how much changes for someone already running
+leather, and how likely a working setup is to need attention. The table is a
+starting point, not a rule.
 
-| Pattern in subject | Bump |
+| Signal | Usually |
 |---|---|
-| `BREAKING`, `!:` in conventional-commit type, or `breaking change` in body | MAJOR |
-| New CLI command or flag added (e.g. `add leather foo`, `feat(cli):`, `cli: add`) | MINOR |
-| Everything else | PATCH |
+| Existing configs stop working with no migration path | MAJOR |
+| A themed batch of user-facing capability | MINOR |
+| Fixes, and additive keys or flags that are inert until declared | PATCH |
 
-4. Apply the highest bump to LAST_VERSION to get NEXT_VERSION.
-5. State the version and the bump reason to the user before continuing.
+Judgment beats the table. A single opt-in key is a patch even though it is
+technically a feature; a small change that silently alters what a running
+deployment does may deserve more than its diff suggests. State the version and
+one sentence of reasoning, then continue.
+
+1. Most recent tag: `git tag --list 'v*' --sort=-version:refname | head -1`
+2. Commits since: `git log <last-tag>..HEAD --oneline`
 
 See [references/version-examples.md](references/version-examples.md) for worked examples.
 
@@ -44,67 +55,66 @@ Open `CHANGELOG.md`. The file follows [Keep a Changelog](https://keepachangelog.
 1. Find the `[Unreleased]` section (or the top of the file if absent).
 2. Insert a new `## [NEXT_VERSION] — YYYY-MM-DD` section immediately after
    the `[Unreleased]` header (or at the top if no Unreleased section).
-3. Populate it with every commit since LAST_TAG grouped under the appropriate
-   heading (`### Added`, `### Changed`, `### Fixed`, `### Removed`).
+3. If `[Unreleased]` already holds the entries for this release, promote them —
+   move the heading, do not rewrite prose that was written when the change was
+   fresh. Otherwise populate the section from the commits since LAST_TAG,
+   grouped under the appropriate heading (`### Added`, `### Changed`, `### Fixed`,
+   `### Removed`; others are fine if they fit).
    - Write human-readable bullet points, not raw commit subjects.
    - Omit `chore:` commits unless they are user-visible.
-4. Leave the `[Unreleased]` section blank (or remove it if empty).
+4. Leave the `[Unreleased]` header in place with nothing under it.
 5. Update the comparison link at the bottom of the file:
    `[NEXT_VERSION]: https://github.com/TGPSKI/leather/compare/LAST_TAG...NEXT_VERSION`
 
 ---
 
-## Step 3 — Update version references in docs
+## Step 3 — Stale version references
 
-Search for the previous version string and update to NEXT_VERSION in:
+`grep -rn "LAST_VERSION" README.md docs/ SECURITY.md` and update whatever it
+finds — badge URLs, install examples, pinned versions in code blocks.
 
-- `README.md` — badge URLs, install examples, version pinning in code blocks
-- `docs/GUIDE.md` — any version callouts
-- `docs/OPERATIONS.md` — any version callouts
-
-Use `grep -rn "LAST_VERSION"` to find any other version-pinned references.
+Most releases pin nothing and this greps clean. That is the expected result,
+not a missed step. Version strings inside CHANGELOG history stay as they are.
 
 ---
 
-## Step 4 — Update SECURITY.md
+## Step 4 — SECURITY.md supported versions
 
-Open `SECURITY.md` and update the **Supported Versions** table:
+Only for a MAJOR or MINOR bump: add a row for the new `X.Y.x` line with
+`:white_check_mark:` and mark the outgoing minor line `:x:` — leather supports
+only the current minor line.
 
-1. Add a new row for `NEXT_VERSION_MINOR.x` (the X.Y portion of
-   NEXT_VERSION) with `:white_check_mark:`.
-2. If LAST_VERSION was on a different minor line (e.g. LAST_TAG = v0.2.x
-   and NEXT_VERSION = v0.3.0), mark the old minor line as `:x:` (end of
-   support) — leather supports only the current minor line.
-3. If NEXT_VERSION is a patch on the same minor (e.g. v0.2.1 on v0.2.x),
-   no row change is needed; the existing row already covers it.
+A patch on the same minor needs nothing; the existing row already covers it.
 
 ---
 
-## Step 5 — Verify subcommand tables are current
+## Step 5 — Subcommand tables
 
-Confirm that every `Run*` function in `internal/cli/cli.go` has a corresponding
-row in each of these tables:
+Skip unless this release adds, removes, or renames a subcommand.
 
-- `README.md` commands table
-- `docs/GUIDE.md` commands table
-- `docs/modules/cli.md` Public API table
-- `.subagents/AGENTS-SERVE.md` subcommand reference table
+When it does, confirm each subcommand registered in `internal/cli/cli.go` has a
+row in `docs/GUIDE.md` and `.subagents/AGENTS-SERVE.md`. `docs/modules/cli.md`
+is enforced by doclint's export gate, so `go run ./scripts/doclint` is the
+check there rather than reading the table.
 
-If any row is missing, add it before committing.
+README carries a feature table and a "you want to…" routing table, not a
+per-subcommand list. Nothing to sync there.
 
 ---
 
 ## Step 6 — Commit and push
 
 Stay on the **current branch** — do not switch to or push directly to `main`.
-Stage all changed files and create one commit:
+Stage what this skill actually changed and make one commit:
 
 ```
 CURRENT_BRANCH=$(git branch --show-current)
-git add CHANGELOG.md README.md SECURITY.md docs/ .subagents/
+git add -u
 git commit -m "chore(release): prepare NEXT_VERSION"
 git push origin "$CURRENT_BRANCH"
 ```
+
+Often that is `CHANGELOG.md` alone. A one-file release-prep commit is normal.
 
 If the current branch already has an open PR, the commit is added to it
 automatically. If not, open a new PR targeting `main`:
@@ -119,11 +129,19 @@ Do not tag in this step. Tagging is the job of `leather-release-tag`.
 
 ## Checklist before handing off
 
-- [ ] NEXT_VERSION is set and justified
-- [ ] CHANGELOG has the new section with at least one bullet
-- [ ] No stale version string remains in docs (grep clean)
-- [ ] SECURITY.md: Supported Versions table reflects NEXT_VERSION
-- [ ] Subcommand tables are in sync
-- [ ] Commit is pushed to current branch (not directly to main)
-- [ ] PR is open targeting main (create one if it doesn't exist)
+Must hold:
+
+- [ ] NEXT_VERSION is set, with one sentence of reasoning
+- [ ] CHANGELOG has the new section, dated, with its comparison link
+- [ ] Commit is pushed to the current branch (never directly to main)
+- [ ] A PR targeting main exists
 - [ ] Working tree is clean (`git status` shows nothing)
+
+Checked, and "nothing to do" is a valid outcome for each:
+
+- [ ] Stale version strings (Step 3)
+- [ ] SECURITY.md supported versions (Step 4)
+- [ ] Subcommand tables (Step 5)
+
+Report the second group as one line, naming what was checked and what changed.
+Do not pad the release with edits to satisfy a box.
