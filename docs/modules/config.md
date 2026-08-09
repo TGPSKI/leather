@@ -9,6 +9,10 @@ registers the common flag set, resolves home-directory defaults, folds in
 `LEATHER_*` environment variables, overlays `config.yaml`, parses notify
 backend blocks, and returns a fully resolved `model.Config` value.
 
+It also owns the second, independent config surface: `tannery.yaml`, loaded by
+`LoadTannery` into a `TanneryConfig`. Tannery settings do not participate in the
+flag/env/YAML precedence chain below — they are read from one file only.
+
 ## Public API
 
 | Symbol | Signature | Description |
@@ -16,6 +20,9 @@ backend blocks, and returns a fully resolved `model.Config` value.
 | `Load` | `func Load(fs *flag.FlagSet) (model.Config, error)` | Merge shared defaults, env vars, YAML config, and explicitly set flags into one `model.Config`. |
 | `BindFlags` | `func BindFlags(fs *flag.FlagSet)` | Register the full shared leather flag set on a `flag.FlagSet`. |
 | `ParseBlock` | `func ParseBlock(src string) (map[string]string, map[string][]string)` | Parse a flat YAML block into scalar and list maps for downstream packages. |
+| `TanneryConfig` | `type TanneryConfig struct` | Tannery settings from `tannery.yaml`: `HideDir`, `CuringDir`, `ArtifactDir`, `Routes []model.TanneryRoute`, `Queues map[string]model.QueueConcurrencyConfig`, `Webhooks []model.WebhookConfig`. |
+| `LoadTannery` | `func LoadTannery(path string) (TanneryConfig, error)` | Parse `tannery.yaml`. Returns a zero-value `TanneryConfig` — not an error — when `path` does not exist. Relative paths resolve against the directory of `path`; `{{env:VAR}}` secrets expand from `os.Getenv`. |
+| `ValidateTannery` | `func ValidateTannery(cfg TanneryConfig, defs []model.CuringDefinition) error` | Verify every route references a loaded curing definition and a declared queue. Routes carrying `queue_pattern` skip the static queue check. Fail-fast at serve startup: callers treat a non-nil return as fatal. |
 
 ## Defaults
 
@@ -39,6 +46,9 @@ backend blocks, and returns a fully resolved `model.Config` value.
 | `DefaultRunMaxBytes` | `10485760` |
 | `DefaultReplaySpeed` | `1.0` |
 | `DefaultMaxToolRounds` | `5` |
+| `DefaultToolTimeout` | `600s` (0 = none) |
+| `DefaultPersistRunsDetail` | `"none"` (or `"tools"`) |
+| `DefaultPersistRunsToolCap` | `2048` (per-field byte cap for persisted tool traces) |
 
 Home-relative path defaults such as `AgentDir`, `ConfigFile`, and `StateDir`
 are resolved at load time rather than exported as constants.
@@ -97,6 +107,11 @@ flowchart LR
     YAML[config.yaml] --> LOAD
     FS[explicit flags] --> LOAD
     LOAD --> CFG[model.Config]
+
+    TY[tannery.yaml] --> LT[LoadTannery]
+    LT --> TC[TanneryConfig]
+    TC --> VT[ValidateTannery]
+    DEFS[curing definitions] --> VT
 ```
 
 ## Test Surface
@@ -106,9 +121,17 @@ flowchart LR
 behavior for invalid values, config-file loading, and the current precedence
 rules for defaults, env, YAML, and flags.
 
+`internal/config/tannery_test.go` covers `LoadTannery` (valid parse, missing and
+empty paths, `{{env:VAR}}` expansion including the empty-secret case, defaults,
+`max_depth`, `max_body_bytes`) and `ValidateTannery` (success plus routes
+referencing an unknown curing, an unknown queue, and routes declared with no
+curings loaded).
+
 ## Related Docs
 
 - [docs/modules/model.md](model.md)
 - [docs/modules/schema.md](schema.md)
 - [docs/modules/agent.md](agent.md)
+- [docs/modules/curing.md](curing.md)
+- [docs/REFERENCE-TANNERY.md](../REFERENCE-TANNERY.md)
 - [docs/ARCHITECTURE.md](../ARCHITECTURE.md)
