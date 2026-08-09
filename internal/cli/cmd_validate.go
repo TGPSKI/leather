@@ -9,7 +9,10 @@ import (
 
 	"github.com/TGPSKI/leather/internal/agent"
 	"github.com/TGPSKI/leather/internal/config"
+	"github.com/TGPSKI/leather/internal/mcp"
+	"github.com/TGPSKI/leather/internal/runner"
 	"github.com/TGPSKI/leather/internal/schema"
+	"github.com/TGPSKI/leather/internal/tool"
 )
 
 // RunValidate parses and validates all agent, skill, and worker definition files.
@@ -278,6 +281,69 @@ func RunValidate(args []string, stdout, stderr io.Writer) int {
 						totalFiles++
 					}
 				}
+			}
+		}
+	}
+
+	// --- Phase 6: cross-file registry load ---
+	//
+	// Every phase above validates one file at a time, which structurally cannot
+	// see invariants that only exist across files: a duplicate tool name in two
+	// skills, a toolset naming a tool nobody defines, an agent naming a skill
+	// that is not there. Each of those breaks the registry the runtime loads
+	// while leaving every individual file well-formed, so validate has to load
+	// that same registry to see them (issues #71, #72).
+
+	if cfg.ToolDir != "" {
+		reg, regErr := tool.Load(cfg.ToolDir)
+		if regErr != nil {
+			fmt.Fprintf(stderr, "error:  %v\n", regErr)
+			exitCode = 1
+		} else {
+			skillCount, toolsetCount, toolCount := reg.Stats()
+
+			// Every type: mcp tool must name a server mcp-servers.yaml configures.
+			// A dangling server name registers fine and fails at dispatch, after
+			// the model has already committed to the call.
+			if mcpFile != "" {
+				if servers, err := mcp.LoadServers(mcpFile); err == nil && len(servers) > 0 {
+					known := make(map[string]bool, len(servers))
+					for _, s := range servers {
+						known[s.Name] = true
+					}
+					for _, t := range reg.MCPTools() {
+						if !known[t.MCP.Server] {
+							fmt.Fprintf(stderr, "error:  tool %q: mcp.server %q is not configured in %s\n",
+								t.Name, t.MCP.Server, filepath.Base(mcpFile))
+							exitCode = 1
+						}
+					}
+				}
+			}
+
+			// Resolve each agent's scope against the loaded registry, exactly as
+			// the runner does — including per-turn declarations.
+			for _, a := range agents {
+				resolved := resolveAgent(cfg, a)
+				if err := reg.CheckScope(resolved.Skills, resolved.Toolsets, nil); err != nil {
+					fmt.Fprintf(stderr, "error:  agent %q: %v\n", a.Name, err)
+					exitCode = 1
+				}
+				for i := range runner.MaxTurnDecls(resolved) {
+					skills, toolsets, toolNames, declared := runner.TurnScopeFor(resolved, i)
+					if !declared {
+						continue
+					}
+					if err := reg.CheckScope(skills, toolsets, toolNames); err != nil {
+						fmt.Fprintf(stderr, "error:  agent %q turn %d: %v\n", a.Name, i, err)
+						exitCode = 1
+					}
+				}
+			}
+
+			if exitCode == 0 {
+				fmt.Fprintf(stdout, "ok:     tool registry  (%d skill(s), %d toolset(s), %d tool(s))\n",
+					skillCount, toolsetCount, toolCount)
 			}
 		}
 	}

@@ -32,6 +32,16 @@ These require a Raspberry Pi 5 with AI HAT+ 2 and Hailo-Ollama on `127.0.0.1:800
 | [rpi-02](rpi-02-hailo-local-status-digest/) | `rpi-02-hailo-local-status-digest` | Local status snapshot → scheduled digest |
 | [rpi-03](rpi-03-hailo-local-status-ingest/) | `rpi-03-hailo-local-status-ingest` | Local status snapshot → hide → curing → artifact |
 
+### Reference deployment
+
+Every example above runs from a fresh clone with one `make` target, which
+bounds how much of a real system any of them can show. For a leather
+deployment that has been running unattended against a live workload — six
+agents, four queues, a 41-minute job, and measured run records —
+see [docs/REFERENCE-TANNERY.md](../docs/REFERENCE-TANNERY.md). It studies
+[`TGPSKI/catnip/tannery`](https://github.com/TGPSKI/catnip/tree/2033b0d9c8d5739995e2aec4087130babcce699d/tannery)
+in place rather than vendoring a copy that could not run and would drift.
+
 ## Prerequisites
 
 Basic (`01`–`06`): Go 1.22+, `bash`, `curl`.

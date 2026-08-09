@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -88,6 +89,12 @@ func Load(dir string) (*Registry, error) {
 		if toolset.Name == "" {
 			return nil, fmt.Errorf("tool/Load: %s: missing required field: name", e.Name())
 		}
+		// A toolset exists only to name tools. One that names none is always a
+		// mistake, and a silent empty toolset produces an agent that was told
+		// about tools it cannot call (issues #72, #73).
+		if len(toolset.Tools) == 0 {
+			return nil, fmt.Errorf("tool/Load: %s: toolset %q lists no tools", e.Name(), toolset.Name)
+		}
 		pendingToolsets = append(pendingToolsets, struct {
 			path string
 			set  model.Toolset
@@ -151,6 +158,31 @@ func (r *Registry) RegisterToolset(s model.Toolset) error {
 	}
 	r.toolsets[s.Name] = s
 	return nil
+}
+
+// Stats returns the number of loaded skills, toolsets, and tools.
+func (r *Registry) Stats() (skills, toolsets, tools int) {
+	if r == nil {
+		return 0, 0, 0
+	}
+	return len(r.skills), len(r.toolsets), len(r.tools)
+}
+
+// MCPTools returns every loaded tool of type "mcp", sorted by tool name.
+// Callers use it to cross-check mcp.server against the configured servers —
+// a check that needs the whole registry and so cannot live in per-file parsing.
+func (r *Registry) MCPTools() []model.ToolDefinition {
+	if r == nil {
+		return nil
+	}
+	var out []model.ToolDefinition
+	for _, t := range r.tools {
+		if t.Type == "mcp" {
+			out = append(out, t)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
 // GetTool returns the ToolDefinition for name, and false if not found.
@@ -237,6 +269,72 @@ func (r *Registry) ResolveTools(skillNames, toolsetNames, toolNames []string) []
 	return out
 }
 
+// CheckScope reports whether every name in a tool scope resolves to something
+// the registry actually loaded. A reference that matches nothing is an error,
+// not a skip: skill headers put tool names into the system prompt, so an agent
+// whose references silently vanish has been told about tools it cannot call and
+// will narrate their results instead of calling them (issues #71, #72, #73).
+//
+// Messages name the near miss when one exists — a *.skill.yaml listed under
+// toolsets: is one edit from correct and reads as correct.
+func (r *Registry) CheckScope(skillNames, toolsetNames, toolNames []string) error {
+	if r == nil {
+		if len(skillNames)+len(toolsetNames)+len(toolNames) == 0 {
+			return nil
+		}
+		return fmt.Errorf("tool/CheckScope: no tool registry loaded, but the scope names %d skill(s), %d toolset(s), %d tool(s)",
+			len(skillNames), len(toolsetNames), len(toolNames))
+	}
+	var problems []string
+	for _, name := range skillNames {
+		if _, ok := r.skills[name]; ok {
+			continue
+		}
+		problems = append(problems, fmt.Sprintf("unknown skill %q%s", name, r.nearMiss(name, "skill")))
+	}
+	for _, name := range toolsetNames {
+		if _, ok := r.toolsets[name]; ok {
+			continue
+		}
+		problems = append(problems, fmt.Sprintf("unknown toolset %q%s", name, r.nearMiss(name, "toolset")))
+	}
+	for _, name := range toolNames {
+		if _, ok := r.tools[name]; ok {
+			continue
+		}
+		problems = append(problems, fmt.Sprintf("unknown tool %q%s", name, r.nearMiss(name, "tool")))
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("tool/CheckScope: %s", strings.Join(problems, "; "))
+	}
+	// A toolset or an explicit tool name exists only to supply tools. Naming one
+	// and getting none back means the scope is not what the author wrote.
+	if len(toolsetNames)+len(toolNames) > 0 && len(r.ResolveTools(skillNames, toolsetNames, toolNames)) == 0 {
+		return fmt.Errorf("tool/CheckScope: scope names %d toolset(s) and %d tool(s) but resolves to zero tools",
+			len(toolsetNames), len(toolNames))
+	}
+	return nil
+}
+
+// nearMiss returns a parenthetical hint when name is loaded under a different
+// kind than the one it was referenced as, and "" otherwise.
+func (r *Registry) nearMiss(name, referencedAs string) string {
+	var found []string
+	if _, ok := r.skills[name]; ok && referencedAs != "skill" {
+		found = append(found, "skills:")
+	}
+	if _, ok := r.toolsets[name]; ok && referencedAs != "toolset" {
+		found = append(found, "toolsets:")
+	}
+	if _, ok := r.tools[name]; ok && referencedAs != "tool" {
+		found = append(found, "tools:")
+	}
+	if len(found) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (loaded under %s — list it there instead)", strings.Join(found, " / "))
+}
+
 // GetSkills returns the Skill definitions for the named skills, in order.
 // Unknown names are silently skipped.
 func (r *Registry) GetSkills(skillNames []string) []model.Skill {
@@ -251,11 +349,26 @@ func (r *Registry) GetSkills(skillNames []string) []model.Skill {
 
 // parseToolsetYAML parses a *.toolset.yaml document into a Toolset.
 // Supported top-level fields: name, description, tools.
+//
+// tools: is a list of tool *names*; the tools themselves are defined by a
+// *.skill.yaml in the same tool_dir. A list entry shaped like a tool
+// definition ("- name: foo") is rejected rather than read as a tool literally
+// named "name: foo", which would resolve to nothing at run time (issue #73).
 func parseToolsetYAML(src string) (model.Toolset, error) {
 	src = strings.ReplaceAll(src, "\r\n", "\n")
 	lines := strings.Split(src, "\n")
 	var set model.Toolset
 	inTools := false
+	addTool := func(name string) error {
+		if name == "" {
+			return nil
+		}
+		if strings.Contains(name, ":") {
+			return fmt.Errorf("tools: entry %q is a tool definition, not a tool name — a toolset lists the names of tools defined by a *.skill.yaml (see docs/GUIDE.md)", name)
+		}
+		set.Tools = append(set.Tools, name)
+		return nil
+	}
 	for _, rawLine := range lines {
 		line := strings.TrimSpace(rawLine)
 		if line == "" || strings.HasPrefix(line, "#") || line == "---" {
@@ -263,8 +376,8 @@ func parseToolsetYAML(src string) (model.Toolset, error) {
 		}
 		if inTools {
 			if strings.HasPrefix(line, "- ") {
-				if name := toolsetUnquote(strings.TrimSpace(strings.TrimPrefix(line, "- "))); name != "" {
-					set.Tools = append(set.Tools, name)
+				if err := addTool(toolsetUnquote(strings.TrimSpace(strings.TrimPrefix(line, "- ")))); err != nil {
+					return model.Toolset{}, err
 				}
 				continue
 			}
@@ -282,8 +395,8 @@ func parseToolsetYAML(src string) (model.Toolset, error) {
 				raw = strings.TrimPrefix(raw, "[")
 				raw = strings.TrimSuffix(raw, "]")
 				for _, item := range strings.Split(raw, ",") {
-					if name := toolsetUnquote(strings.TrimSpace(item)); name != "" {
-						set.Tools = append(set.Tools, name)
+					if err := addTool(toolsetUnquote(strings.TrimSpace(item))); err != nil {
+						return model.Toolset{}, err
 					}
 				}
 			} else {
@@ -631,6 +744,28 @@ func parseToolBlock(block string) (model.ToolDefinition, error) {
 			td.Description = skillUnquote(val)
 		case "type":
 			td.Type = skillUnquote(val)
+		case "mcp":
+			// Flow style: mcp: { server: shells, tool: report_write }.
+			// Block style is handled by the mcpLine branch below.
+			flow, ok := flowMappingLines(val)
+			if !ok {
+				return model.ToolDefinition{}, fmt.Errorf("tool %q: mcp: expected a nested mapping or a flow mapping like { server: s, tool: t }", td.Name)
+			}
+			cfg, err := parseMCPConfig(flow)
+			if err != nil {
+				return model.ToolDefinition{}, fmt.Errorf("mcp config for tool %q: %w", td.Name, err)
+			}
+			td.MCP = cfg
+		case "http":
+			flow, ok := flowMappingLines(val)
+			if !ok {
+				return model.ToolDefinition{}, fmt.Errorf("tool %q: http: expected a nested mapping or a flow mapping like { method: GET, url: u }", td.Name)
+			}
+			cfg, err := parseHTTPConfig(flow)
+			if err != nil {
+				return model.ToolDefinition{}, fmt.Errorf("http config for tool %q: %w", td.Name, err)
+			}
+			td.HTTP = cfg
 		case "output_file":
 			td.OutputFile = skillUnquote(val)
 		case "max_repeats":
@@ -671,7 +806,51 @@ func parseToolBlock(block string) (model.ToolDefinition, error) {
 		}
 		td.MCP = cfg
 	}
+	// An MCP tool missing either half of its dispatch address cannot execute.
+	// Catching it here turns a mid-run tool result the model can narrate around
+	// into a load failure (issue #74).
+	if td.Type == "mcp" && (td.MCP.Server == "" || td.MCP.Tool == "") {
+		return model.ToolDefinition{}, fmt.Errorf("tool %q: type: mcp requires a non-empty mcp.server and mcp.tool", td.Name)
+	}
 	return td, nil
+}
+
+// flowMappingLines converts a YAML flow mapping ("{a: b, c: {d: e}}") into the
+// equivalent block-style lines ("a: b", "c: {d: e}"), so the block parsers can
+// read both forms. Splitting respects nested {}/[] and quoted values.
+// ok is false when s is not a flow mapping.
+func flowMappingLines(s string) ([]string, bool) {
+	s = strings.TrimSpace(s)
+	if !strings.HasPrefix(s, "{") || !strings.HasSuffix(s, "}") {
+		return nil, false
+	}
+	inner := strings.TrimSpace(s[1 : len(s)-1])
+	if inner == "" {
+		return nil, true
+	}
+	var out []string
+	depth := 0
+	var quote byte
+	start := 0
+	for i := 0; i < len(inner); i++ {
+		c := inner[i]
+		switch {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '{' || c == '[':
+			depth++
+		case c == '}' || c == ']':
+			depth--
+		case c == ',' && depth == 0:
+			out = append(out, strings.TrimSpace(inner[start:i]))
+			start = i + 1
+		}
+	}
+	return append(out, strings.TrimSpace(inner[start:])), true
 }
 
 // parseMCPConfig parses the key-value lines inside an mcp: sub-block.
@@ -726,6 +905,28 @@ func parseHTTPConfig(lines []string) (model.HTTPToolConfig, error) {
 			cfg.Method = strings.ToUpper(skillUnquote(val))
 		case "url":
 			cfg.URL = skillUnquote(val)
+		case "headers", "query", "body":
+			// Flow style: headers: { Accept: application/json }. The block form
+			// is picked up by the section scan above and never reaches here.
+			flow, ok := flowMappingLines(val)
+			if !ok {
+				return model.HTTPToolConfig{}, fmt.Errorf("%s: expected a nested mapping or a flow mapping like { k: v }", key)
+			}
+			m := make(map[string]string, len(flow))
+			for _, entry := range flow {
+				k, v := splitKV(entry)
+				if k != "" {
+					m[k] = skillUnquote(v)
+				}
+			}
+			switch key {
+			case "headers":
+				cfg.Headers = m
+			case "query":
+				cfg.Query = m
+			case "body":
+				cfg.Body = m
+			}
 		}
 	}
 

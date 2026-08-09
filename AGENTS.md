@@ -31,7 +31,7 @@ appropriate domain guide rather than loading the entire codebase.
 | **Security** (threat model, secret handling, API authn/authz, trust boundaries, prompt-injection) | [.subagents/AGENTS-SECURITY.md](.subagents/AGENTS-SECURITY.md) | Trust-boundary policy; cross-cutting |
 | **Operations** (deploy layout, systemd/launchd, single-process lock, backup/restore, upgrade) | [.subagents/AGENTS-OPERATIONS.md](.subagents/AGENTS-OPERATIONS.md) | Deployment + lifecycle; cross-cutting |
 | **Integrations authoring** (how to add a notifier, MCP server, webhook worker, Skeptic-style scanner) | [.subagents/AGENTS-INTEGRATIONS.md](.subagents/AGENTS-INTEGRATIONS.md) | Authoring patterns across `internal/notify`, `internal/mcp`, `internal/worker` |
-| **Examples & tutorials** (`tanning/`, demo agents/skills/toolsets, `docs/tutorials/`) | [.subagents/AGENTS-EXAMPLES.md](.subagents/AGENTS-EXAMPLES.md) | `tanning/`, tutorial sequence, example-as-test policy |
+| **Examples & tutorials** (`examples/`, demo agents/skills/toolsets, the reference deployment) | [.subagents/AGENTS-EXAMPLES.md](.subagents/AGENTS-EXAMPLES.md) | `examples/`, `docs/REFERENCE-TANNERY.md`, tutorial sequence, example-as-test policy |
 | **Observability** (log levels per component, run history JSONL, status/health/metrics endpoints) | [.subagents/AGENTS-OBSERVABILITY.md](.subagents/AGENTS-OBSERVABILITY.md) | `internal/logging`, history records, `/status`, `/metrics`, `/healthz` |
 
 If a task spans multiple domains, spawn one subagent per domain in parallel and

@@ -89,10 +89,13 @@ func RunOnce(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	// A registry that fails to load leaves the agent with no tools at all while
+	// its skill prompt still names them, so the model role-plays the calls it
+	// cannot make. There is no useful run on the other side of this (issue #72).
 	toolReg, err := tool.Load(cfg.ToolDir)
 	if err != nil {
-		log.Warn("failed to load tool registry", "dir", cfg.ToolDir, "error", err)
-		toolReg = tool.NewRegistry()
+		fmt.Fprintf(stderr, "leather run: tool registry failed to load from %s: %v\n", cfg.ToolDir, err)
+		return 1
 	}
 
 	mcpServersFile := cfg.MCPServersFile

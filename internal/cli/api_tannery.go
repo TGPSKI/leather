@@ -331,7 +331,43 @@ func acquireProcessLock(path string) (*os.File, error) {
 		_ = f.Close()
 		return nil, fmt.Errorf("acquireProcessLock: flock %s: %w", path, err)
 	}
+	// Name the holder. The lock alone can only say "someone has it"; the PID
+	// turns that into a process an operator can inspect or signal, instead of
+	// pattern-matching `leather` and taking down every other tannery on the
+	// machine (issue #77).
+	if err := f.Truncate(0); err == nil {
+		if _, err := f.WriteAt([]byte(strconv.Itoa(os.Getpid())+"\n"), 0); err == nil {
+			_ = f.Sync()
+		}
+	}
 	return f, nil
+}
+
+// lockHolderPID returns the PID recorded in a leather.lock file, or 0 when the
+// file is missing, empty (written by an older leather), or unreadable.
+func lockHolderPID(path string) int {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return 0
+	}
+	return pid
+}
+
+// serveIsRunning reports whether a process holds the state-dir lock at path.
+// Acquiring the lock proves nobody holds it, so the probe releases it again
+// immediately — `status` must never keep a lock a serve would need.
+// Returns the holder's PID when the lock file records one, and 0 otherwise.
+func serveIsRunning(path string) (running bool, pid int) {
+	lf, err := acquireProcessLock(path)
+	if err != nil {
+		return true, lockHolderPID(path)
+	}
+	releaseProcessLock(lf)
+	return false, 0
 }
 
 // releaseProcessLock releases the flock and closes the lock file.
@@ -735,17 +771,25 @@ func handleIntake(td *tanneryDeps, deps *apiDeps) http.HandlerFunc {
 			http.Error(w, `{"error":"request body too large"}`, http.StatusRequestEntityTooLarge)
 			return
 		}
-		// Resolve queue: explicit curing+queue params, then router, then no routing.
-		curingName := r.URL.Query().Get("curing")
-		queueName := r.URL.Query().Get("queue")
-		if curingName == "" {
-			eventType := r.URL.Query().Get("event_type")
-			if route, ok := td.curingRouter.Match(source, eventType); ok {
-				curingName = route.Curing
-				queueName = route.Queue
-			}
+		// Resolve the destination through the shared rule both intake surfaces
+		// use, so `curing=` and `queue=` mean the same thing here as they do on
+		// `leather ingest` (issue #75).
+		routing, routeErr := curing.ResolveRouting(curing.RoutingRequest{
+			Curing:    r.URL.Query().Get("curing"),
+			Queue:     r.URL.Query().Get("queue"),
+			Source:    source,
+			EventType: r.URL.Query().Get("event_type"),
+			Router:    td.curingRouter,
+			Defs:      td.curingDefs,
+			Queues:    td.tannCfg.Queues,
+		})
+		if routeErr != nil {
+			httpx.WriteError(w, http.StatusBadRequest, routeErr.Error())
+			return
 		}
-		// A2 backpressure (when routing resolved a queue).
+		curingName := routing.Curing
+		queueName := routing.Queue
+		// A2 backpressure (when routing resolved a static queue).
 		if queueName != "" && deps.queueMgr != nil {
 			if queueCfg, exists := td.tannCfg.Queues[queueName]; exists &&
 				queueCfg.MaxDepth > 0 && deps.queueMgr.Depth(queueName) >= queueCfg.MaxDepth {
@@ -761,7 +805,9 @@ func handleIntake(td *tanneryDeps, deps *apiDeps) http.HandlerFunc {
 			return
 		}
 		resp := map[string]string{"hide_id": entry.ID}
-		if queueName != "" && deps.queueMgr != nil {
+		if routing.Routed() && deps.queueMgr != nil {
+			// Single-use queue patterns expand only now that the hide ID exists.
+			queueName = routing.QueueFor(entry.ID)
 			item := model.QueueItem{
 				ID:         queue.GenerateItemID(),
 				CuringName: curingName,
@@ -771,11 +817,18 @@ func handleIntake(td *tanneryDeps, deps *apiDeps) http.HandlerFunc {
 				Payload:    map[string]any{"hide_id": entry.ID, "curing": curingName},
 			}
 			if err := deps.queueMgr.Enqueue(queueName, item); err != nil {
+				// The hide is stored but nothing will process it. Reporting 202
+				// here is the silent-plateau shape this endpoint used to have.
 				deps.log.Error("intake: enqueue failed", "queue", queueName, "error", err)
-			} else {
-				resp["queue"] = queueName
-				resp["curing"] = curingName
+				httpx.WriteJSON(w, http.StatusInternalServerError, map[string]string{
+					"error":   "enqueue failed: hide stored but not routed",
+					"hide_id": entry.ID,
+					"queue":   queueName,
+				})
+				return
 			}
+			resp["queue"] = queueName
+			resp["curing"] = curingName
 		}
 		if deps.devtoolsSrc != nil {
 			deps.devtoolsSrc.PublishHTTP("intake.received", map[string]any{

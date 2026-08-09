@@ -838,11 +838,13 @@ func RunServe(args []string, stdout, stderr io.Writer, version, commit string) i
 		}
 	}
 
-	// Load tool registry from the configured skill directory.
+	// Load tool registry from the configured skill directory. A load failure is
+	// fatal: every agent the scheduler runs would otherwise start with no tools
+	// while its prompt still names them (issue #72).
 	toolReg, err := tool.Load(cfg.ToolDir)
 	if err != nil {
-		log.Warn("failed to load tool registry", "dir", cfg.ToolDir, "error", err)
-		toolReg = tool.NewRegistry()
+		fmt.Fprintf(stderr, "leather serve: tool registry failed to load from %s: %v\n", cfg.ToolDir, err)
+		return 1
 	}
 
 	// Set up the queue manager for agents that pull from file queues.

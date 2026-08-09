@@ -20,7 +20,11 @@ import (
 
 // buildWebhookTannery constructs a minimal tanneryDeps and apiDeps for webhook tests.
 // routes are installed on the router; webhook endpoints are not set here — callers build them.
-func buildWebhookTannery(t *testing.T, routes []model.TanneryRoute, queues map[string]model.QueueConcurrencyConfig) (*tanneryDeps, *apiDeps) {
+// buildWebhookTannery builds a tannery whose curing definitions cover its
+// routes, plus any extra defs a test names explicitly. Intake resolves
+// `curing=`/`queue=` against the loaded definitions, so a fixture with no
+// definitions is not a tannery any ingest could route through.
+func buildWebhookTannery(t *testing.T, routes []model.TanneryRoute, queues map[string]model.QueueConcurrencyConfig, extraDefs ...model.CuringDefinition) (*tanneryDeps, *apiDeps) {
 	t.Helper()
 	dir := t.TempDir()
 	hideDir := dir + "/hides"
@@ -31,7 +35,7 @@ func buildWebhookTannery(t *testing.T, routes []model.TanneryRoute, queues map[s
 		hideStore:    hide.NewStore(hideDir),
 		artStore:     artifact.NewStore(artDir),
 		curingRouter: curing.NewRouter(routes),
-		curingDefs:   []model.CuringDefinition{},
+		curingDefs:   defsForRoutes(routes, extraDefs),
 		tannCfg: config.TanneryConfig{
 			HideDir:     hideDir,
 			ArtifactDir: artDir,
@@ -44,6 +48,40 @@ func buildWebhookTannery(t *testing.T, routes []model.TanneryRoute, queues map[s
 		log:      testLogger(t),
 	}
 	return td, deps
+}
+
+// defsForRoutes synthesizes one curing definition per distinct route target,
+// then appends extras, so a fixture's routes and its definitions agree.
+func defsForRoutes(routes []model.TanneryRoute, extras []model.CuringDefinition) []model.CuringDefinition {
+	defs := make([]model.CuringDefinition, 0, len(routes)+len(extras))
+	seen := make(map[string]bool, len(routes))
+	for _, r := range routes {
+		if r.Curing == "" || seen[r.Curing] {
+			continue
+		}
+		seen[r.Curing] = true
+		defs = append(defs, model.CuringDefinition{Name: r.Curing, Queue: r.Queue, QueuePrefix: queuePrefixOf(r.QueuePattern)})
+	}
+	for _, d := range extras {
+		if seen[d.Name] {
+			continue
+		}
+		seen[d.Name] = true
+		defs = append(defs, d)
+	}
+	return defs
+}
+
+// queuePrefixOf returns the literal prefix of a queue_pattern (the text before
+// the first template token), which is what a curing declares as queue_prefix.
+func queuePrefixOf(pattern string) string {
+	if pattern == "" {
+		return ""
+	}
+	if idx := strings.Index(pattern, "{{"); idx >= 0 {
+		return pattern[:idx]
+	}
+	return pattern
 }
 
 // makeHMAC computes the sha256= header value for body with secret.

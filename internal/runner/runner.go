@@ -254,6 +254,13 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 
 	baseSkills := append([]string(nil), a.Skills...)
 	baseToolsets := append([]string(nil), a.Toolsets...)
+	// Fail closed before the first LLM call. A skill or toolset that resolves to
+	// nothing used to be skipped silently, leaving an agent whose prompt names
+	// tools the tool-calling API never received — the most probable completion
+	// then is to narrate the calls and their results (issue #72).
+	if err := r.checkScopes(a, baseSkills, baseToolsets); err != nil {
+		return r.errorRecord(a, startTs, err), err
+	}
 	baseTools := r.resolveScopeTools(baseSkills, baseToolsets, nil)
 	if r.HideBuffer == nil && toolsNeedBuffer(baseTools) {
 		r.HideBuffer = hide.NewHideBuffer(0)
@@ -385,7 +392,7 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 		// Apply turn-level vars (may include values extracted from previous tool calls).
 		userPrompt = applyVars(userPrompt, turnVars)
 
-		turnSkills, turnToolsets, turnToolNames, turnDeclared := turnScopeFor(a, i)
+		turnSkills, turnToolsets, turnToolNames, turnDeclared := TurnScopeFor(a, i)
 		turnTools := baseTools
 		if turnDeclared {
 			turnTools = r.resolveScopeTools(turnSkills, turnToolsets, turnToolNames)
@@ -850,6 +857,25 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 	return rec, nil
 }
 
+// checkScopes verifies that the agent's base scope and every declared turn
+// scope name only skills, toolsets, and tools the registry actually loaded.
+// Returns the first problem found, naming the agent and the turn.
+func (r *Runner) checkScopes(a model.Agent, baseSkills, baseToolsets []string) error {
+	if err := r.Registry.CheckScope(baseSkills, baseToolsets, nil); err != nil {
+		return fmt.Errorf("runner/Execute: agent %q: %w", a.Name, err)
+	}
+	for i := 0; i < MaxTurnDecls(a); i++ {
+		skills, toolsets, toolNames, declared := TurnScopeFor(a, i)
+		if !declared {
+			continue
+		}
+		if err := r.Registry.CheckScope(skills, toolsets, toolNames); err != nil {
+			return fmt.Errorf("runner/Execute: agent %q turn %d: %w", a.Name, i, err)
+		}
+	}
+	return nil
+}
+
 func (r *Runner) resolveScopeTools(skillNames, toolsetNames, toolNames []string) []model.ToolDefinition {
 	if r.Registry == nil {
 		return nil
@@ -888,9 +914,9 @@ func (r *Runner) agentHasAnyTools(a model.Agent, baseTools []model.ToolDefinitio
 	if len(baseTools) > 0 {
 		return true
 	}
-	turnCount := maxTurnDecls(a)
+	turnCount := MaxTurnDecls(a)
 	for i := 0; i < turnCount; i++ {
-		skills, toolsets, toolNames, declared := turnScopeFor(a, i)
+		skills, toolsets, toolNames, declared := TurnScopeFor(a, i)
 		if !declared {
 			continue
 		}
@@ -901,7 +927,10 @@ func (r *Runner) agentHasAnyTools(a model.Agent, baseTools []model.ToolDefinitio
 	return false
 }
 
-func turnScopeFor(a model.Agent, i int) (skills []string, toolsets []string, tools []string, declared bool) {
+// TurnScopeFor returns the skills, toolsets, and tool names declared for turn i,
+// and whether that turn declared a scope of its own at all. Exported so
+// `leather validate` can resolve the same per-turn scopes the runner does.
+func TurnScopeFor(a model.Agent, i int) (skills []string, toolsets []string, tools []string, declared bool) {
 	if len(a.TurnSkills) > i && a.TurnSkills[i] != nil {
 		skills = a.TurnSkills[i]
 		declared = true
@@ -1067,7 +1096,9 @@ func intArg(args map[string]any, name string) (int, bool) {
 	}
 }
 
-func maxTurnDecls(a model.Agent) int {
+// MaxTurnDecls returns the number of turns for which the agent declares a
+// per-turn tool scope (the longest of TurnTools, TurnSkills, TurnToolsets).
+func MaxTurnDecls(a model.Agent) int {
 	max := len(a.TurnTools)
 	if len(a.TurnSkills) > max {
 		max = len(a.TurnSkills)
