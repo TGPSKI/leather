@@ -7,6 +7,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-08-09
+
+Three defects of one kind, all found by operating the reference tannery: a
+configuration or prompt mistake that produced no error, only a run that looked
+successful. Two are fixed by failing closed at load; the third replaces a prompt
+sentence with a mechanism.
+
 ### Added
 
 - **`require_tool:` — a turn that must act cannot end on text**
@@ -1053,7 +1060,8 @@ Intentionally out of scope for v0.1.0; tracked for v0.2:
 See [ROADMAP.md](ROADMAP.md) for the full deferred-item list with
 rationales and proposed shapes.
 
-[Unreleased]: https://github.com/TGPSKI/leather/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/TGPSKI/leather/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/TGPSKI/leather/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/TGPSKI/leather/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/TGPSKI/leather/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/TGPSKI/leather/compare/v0.4.1...v0.5.0
