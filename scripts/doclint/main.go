@@ -276,7 +276,26 @@ func main() {
 	src := flag.String("src", "internal,cmd", "comma-separated source roots for ground truth")
 	allowPath := flag.String("allow", "scripts/doclint/allow.txt", "allowlist file (one token per line)")
 	jsonOut := flag.Bool("json", false, "emit violations as JSON")
+	modulesDir := flag.String("modules", "docs/modules", "directory holding per-package module docs")
+	baselinePath := flag.String("baseline", "scripts/doclint/undocumented.txt", "export baseline file")
+	writeBase := flag.Bool("write-baseline", false, "regenerate the export baseline instead of linting")
 	flag.Parse()
+
+	if *writeBase {
+		vs, err := checkExports("internal", *modulesDir, *baselinePath, true)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "baseline:", err)
+			os.Exit(2)
+		}
+		for _, v := range vs {
+			fmt.Printf("%s:%d: [%s] %s\n", v.File, v.Line, v.Check, v.Msg)
+		}
+		fmt.Printf("wrote %s\n", *baselinePath)
+		if len(vs) > 0 {
+			os.Exit(1)
+		}
+		return
+	}
 
 	t, err := scanTruth(strings.Split(*src, ","))
 	if err != nil {
@@ -291,7 +310,11 @@ func main() {
 		os.Exit(2)
 	}
 
-	var vs []violation
+	vs, err := checkExports("internal", *modulesDir, *baselinePath, false)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "export check:", err)
+		os.Exit(2)
+	}
 	for _, file := range mdFiles {
 		b, err := os.ReadFile(file)
 		if err != nil {

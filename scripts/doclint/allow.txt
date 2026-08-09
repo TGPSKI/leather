@@ -1,6 +1,11 @@
 # doclint allowlist — tokens that are intentionally documented but have no
 # leather code referent. One token per line. Keep this SHORT; everything here
 # is a deliberate exception, not a place to hide real drift.
+#
+# This file is for the doc -> code direction only. Undocumented EXPORTS belong
+# in undocumented.txt, which is a debt ledger with a shrink ratchet, not an
+# exceptions list. Do not mix them: 40 mechanical entries would bury the
+# hand-written exceptions below and this header would stop meaning anything.
 
 # Universal CLI flags handled outside fs.*() (cobra-style built-ins).
 --help

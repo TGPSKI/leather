@@ -4,6 +4,7 @@
 # Build output
 /leather
 /shell-mcp
+/doclint
 .agents/skills/agents-doc-lifecycle/agents-doc-lifecycle
 
 # Test / coverage artifacts
@@ -15,8 +16,13 @@ bench-baseline.txt
 reviews/
 dev/
 recordings/
-.state-profiles/
 plans/
+
+# Runtime state_dir. Unanchored so it matches examples/*/.state too — the demo
+# scripts mkdir it and leather writes hides, artifacts, queues, and logs there.
+# Nothing under it has ever been tracked.
+.state/
+.state-profiles/
 
 # private working notes -- never committed
 _private/

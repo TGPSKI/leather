@@ -1,0 +1,64 @@
+# doclint export baseline — exported symbols with no row in their module doc.
+#
+# This is a DEBT LEDGER, not an exceptions list. Curated exceptions belong in
+# allow.txt. Every line here is a doc row someone still owes.
+#
+# It can only shrink. Documenting a symbol makes its entry stale, and a stale
+# entry is a hard failure telling you to delete the line — so paid debt cannot
+# sit here looking unpaid. Adding a line requires raising "max" below, which is
+# a visible one-line diff. Regenerate with:
+#
+#	go run ./scripts/doclint -write-baseline
+#
+# max: 40
+
+internal/cli.DevtoolsHandlerDeps
+internal/cli.NewDevtoolsHandler
+internal/cli.RunSnapshotRestore
+internal/cli.RunSnapshotSave
+internal/cli.RunWorkflowRun
+
+internal/hide.Format
+internal/hide.ResolveID
+
+internal/model.ToolTrace
+
+internal/notify.Name
+internal/notify.New
+
+internal/queue.Delete
+internal/queue.Depth
+internal/queue.DequeueByIDs
+internal/queue.Drain
+internal/queue.EnqueueIfAbsent
+internal/queue.GenerateItemID
+internal/queue.NamesContaining
+internal/queue.NamesWithPrefix
+internal/queue.Scan
+
+internal/runner.MaxTurnDecls
+internal/runner.TemperatureSource
+internal/runner.TurnScopeFor
+
+internal/safepath.ErrAbsolute
+internal/safepath.ErrEmpty
+internal/safepath.ErrEscapesRoot
+internal/safepath.ErrNUL
+
+internal/scheduler.Deregister
+
+internal/secret.IsSensitiveKey
+internal/secret.RedactJSON
+
+internal/tool.ApplyExtractors
+internal/tool.CheckScope
+internal/tool.HostLimiter
+internal/tool.MCPTools
+internal/tool.MetricSnapshot
+internal/tool.NewHostLimiter
+internal/tool.Stats
+internal/tool.Wait
+
+internal/worker.Drain
+internal/worker.Run
+internal/worker.WorkerStatus
