@@ -67,3 +67,55 @@ def cycle(seq, current, step=1):
         return seq[(seq.index(current) + step) % len(seq)]
     except ValueError:
         return seq[0]
+
+
+class RowCursor:
+    """A selected row index and the scroll offset that keeps it on screen.
+
+    Scroll-only lists answer "what is here"; a cursor is what lets a list
+    answer "tell me more about *this* one", which is the basis of every
+    drill-down. The two numbers have to move together — an app that keeps
+    them apart eventually scrolls the selection off screen and then acts
+    on a row the operator cannot see.
+
+    Knows nothing about rows: `total` and `page` are supplied per call, so
+    one cursor survives a list whose length changes under it (a filter
+    typed into `/`, a sort that drops empty entries).
+    """
+
+    def __init__(self, index=0, scroll=0):
+        self.index = index
+        self.scroll = scroll
+
+    def clamp(self, total, page):
+        """Pull index and scroll back into range for the list as it is now."""
+        if total <= 0:
+            self.index = self.scroll = 0
+            return self
+        page = max(1, page)
+        self.index = max(0, min(self.index, total - 1))
+        self.scroll = max(0, min(self.scroll, max(0, total - page)))
+        if self.index < self.scroll:
+            self.scroll = self.index
+        elif self.index >= self.scroll + page:
+            self.scroll = self.index - page + 1
+        return self
+
+    def move(self, delta, total, page):
+        """Move the selection by delta rows, scrolling to follow it."""
+        self.index += delta
+        return self.clamp(total, page)
+
+    def to(self, index, total, page):
+        self.index = index
+        return self.clamp(total, page)
+
+    def home(self, total, page):
+        return self.to(0, total, page)
+
+    def end(self, total, page):
+        return self.to(total - 1, total, page)
+
+    def reset(self):
+        self.index = self.scroll = 0
+        return self

@@ -7,21 +7,25 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [0.5.1] — 2026-08-04
-
-### Added
-
-- **`15-trust-repair` pre-pilot scaffold** — arms, runner, and oracle wiring
-  for the trust-boundary-repair workload (decision of record for the second
-  workload; full corpus and confirmatory runs remain gated).
-
 ### Changed
 
-- `examples/14-sig-triage/eval/scripts/tui/` is now vendored from its
-  canonical public upstream, [pane](https://github.com/TGPSKI/pane):
-  `bar_chart` gains aggregation binning, outlier clipping and top-row
-  label collision handling, and `interact.py` joins the vendor set.
-  Byte-identity is checkable with `make vendor-check` in a pane checkout.
+- **`14-sig-triage`: `eval/scripts/tui/` is vendored from its canonical public
+  upstream, [pane](https://github.com/TGPSKI/pane), now at
+  [v0.2.0](https://github.com/TGPSKI/pane/releases/tag/v0.2.0) (`9e80e94`).**
+  The copy is byte-identical to upstream and its provenance header now names a
+  released tag rather than an untagged mid-history commit, so what the eval
+  viewers run is pinned to something a reader can fetch by version; pane's
+  `tools/check-vendor.sh` verifies the byte-identity claim rather than merely
+  asserting it.
+  Reaching the eval viewers: `bar_chart` gains aggregation binning, outlier
+  clipping and top-row label collision handling; `interact.py` (with
+  `RowCursor`) and `grids.py` join the vendor set; `grids.diverging_bars()`
+  draws signed values either side of a zero line, for series where the sign is
+  the finding rather than the magnitude. Fixed along the way: a bar carrying
+  both a peak marker and a value label had the label written over the marker,
+  so a chart whose legend promised "▲ marks this day" drew no ▲ at all. The
+  marker is now kept and the value placed beside it, or dropped when there is
+  no room.
 
 ## [0.5.1] — 2026-08-04
 

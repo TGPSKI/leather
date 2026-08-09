@@ -46,7 +46,7 @@ def bar_chart(put, curses_mod, top, series, plot_h, max_x, *,
               label_every=1, label_row_offset=1, label_pad=2,
               half_blocks=False, label_fit=False, bin_unit="",
               clip_ratio=None, clip_min_bars=5, clip_max_frac=0.25,
-              no_data_text="no data available"):
+              no_data_text="no data available", geometry=None):
     """Draw a vertical bar chart of series from row `top`; return next row.
 
     put(y, x, text, attr) is the caller's bounds-checked writer.
@@ -56,6 +56,14 @@ def bar_chart(put, curses_mod, top, series, plot_h, max_x, *,
     clip_ratio: cap the y-axis at ratio x the median non-zero bucket so a lone
     outlier can't flatten the rest. Over-cap bars run to the top row and are
     labelled there with their real value + '↑'. None disables it.
+    geometry: an empty dict, filled in with the layout actually used —
+    plot_x, bar_w, gap, slot, span, n, binned, plot_top, plot_h, axis_row,
+    label_row, max_val, series. A caller that wants to annotate a chart
+    (a rule under one bucket, a strip aligned to the same columns) needs
+    bar x positions, and binning/shrinking means it cannot derive those
+    positions itself. Reporting what was drawn — rather than offering a
+    second function that recomputes it — is what stops an annotation from
+    sliding off the bar it describes.
     """
     A_DIM = curses_mod.A_DIM
     y = top
@@ -64,6 +72,10 @@ def bar_chart(put, curses_mod, top, series, plot_h, max_x, *,
             put(y, 1, title, title_attr)
             y += 1
         put(y, 3, no_data_text, A_DIM)
+        if geometry is not None:
+            geometry.update(n=0, series=[], binned=1, plot_top=y, plot_h=0,
+                            plot_x=8, bar_w=0, gap=0, slot=0, span=0,
+                            axis_row=y, label_row=y, max_val=0, clipped=set())
         return y + 1
 
     axis_w = 7
@@ -140,6 +152,13 @@ def bar_chart(put, curses_mod, top, series, plot_h, max_x, *,
     slot = bar_w + gap
     span = min(n * bar_w + (n - 1) * gap, avail)
     put(y + plot_h, axis_w, "└" + "─" * span, axis_attr)
+
+    if geometry is not None:
+        geometry.update(n=n, series=series, binned=binned, plot_top=y,
+                        plot_h=plot_h, plot_x=plot_x, bar_w=bar_w, gap=gap,
+                        slot=slot, span=span, axis_row=y + plot_h,
+                        label_row=y + plot_h + label_row_offset,
+                        max_val=max_val, clipped=clipped)
 
     heights = []
     for i, b in enumerate(series):
@@ -231,19 +250,30 @@ def bar_chart(put, curses_mod, top, series, plot_h, max_x, *,
         else:
             if _touches_top(i):
                 top_free = max(top_free, x + bar_w)
-            if peak_attr is not None and b.get("peak") and h_eff < plot_h:
+            marked = peak_attr is not None and b.get("peak") and h_eff < plot_h
+            if marked:
                 put(y + plot_h - 1 - h_eff, x, "▲" * min(bar_w, 1), peak_attr)
 
             # value above bar — only when there's a clear row above it, so the
             # tallest bar's label never lands on the title/axis-max line.
+            #
+            # A marked bar keeps its ▲ and gives up its label unless the
+            # value also fits beside it. Written the other way round, the
+            # label landed on the same cell and silently erased the marker,
+            # so a chart could announce "▲ marks this day" and show none.
             if value_labels and count > 0 and h_eff < plot_h:
                 vs = fmt(count)
-                # label_fit: write the full value only when it fits before the
-                # next bar; a truncated "1.3k"->"1" is worse than no label.
-                if not label_fit:
-                    put(y + plot_h - 1 - h_eff, x, vs[:slot], A_DIM)
-                elif len(vs) <= slot - 1:
-                    put(y + plot_h - 1 - h_eff, x, vs, A_DIM)
+                row, col = y + plot_h - 1 - h_eff, x
+                if marked:
+                    col += 1
+                    if len(vs) + 1 > slot - 1:
+                        vs = ""
+                if not vs:
+                    pass
+                elif not label_fit:
+                    put(row, col, vs[: max(0, slot - (1 if marked else 0))], A_DIM)
+                elif len(vs) <= slot - 1 - (1 if marked else 0):
+                    put(row, col, vs, A_DIM)
 
         if not label_fit and (label_every <= 1 or i % label_every == 0
                               or i == n - 1):
