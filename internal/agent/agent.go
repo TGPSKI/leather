@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -192,12 +193,14 @@ func applyLifecycle(a *model.Agent, rec lifecycleRecord) {
 		a.TurnTools = nil // lifecycle prompt replaces body turns
 		a.TurnSkills = nil
 		a.TurnToolsets = nil
+		a.TurnRequireTools = nil
 	}
 	if len(rec.UserPrompts) > 0 {
 		a.UserPrompts = rec.UserPrompts
 		a.TurnTools = nil // lifecycle prompts replace body turns
 		a.TurnSkills = nil
 		a.TurnToolsets = nil
+		a.TurnRequireTools = nil
 	}
 	if rec.Hooks.PreRun != "" || rec.Hooks.PostSuccess != "" || rec.Hooks.PostError != "" {
 		a.Hooks = rec.Hooks
@@ -222,7 +225,26 @@ func LoadFile(path string) (model.Agent, error) {
 		return model.Agent{}, fmt.Errorf("agent/LoadFile %s: %w", filepath.Base(path), err)
 	}
 
-	sysPrompt, turnPrompts, turnTools, turnSkills, turnToolsets, turnClear := splitAgentBody(body)
+	sysPrompt, turns, err := splitAgentBody(body)
+	if err != nil {
+		return model.Agent{}, fmt.Errorf("agent/LoadFile %s: %w", filepath.Base(path), err)
+	}
+	var (
+		turnPrompts      []string
+		turnTools        [][]string
+		turnSkills       [][]string
+		turnToolsets     [][]string
+		turnRequireTools [][]string
+		turnClear        []bool
+	)
+	for _, t := range turns {
+		turnPrompts = append(turnPrompts, t.prompt)
+		turnTools = append(turnTools, t.tools)
+		turnSkills = append(turnSkills, t.skills)
+		turnToolsets = append(turnToolsets, t.toolsets)
+		turnRequireTools = append(turnRequireTools, t.requireTools)
+		turnClear = append(turnClear, t.clear)
+	}
 
 	return model.Agent{
 		Name:              fm.Name,
@@ -246,10 +268,26 @@ func LoadFile(path string) (model.Agent, error) {
 		DisableThinking:   fm.DisableThinking,
 		TurnSkills:        turnSkills,
 		TurnToolsets:      turnToolsets,
+		TurnRequireTools:  turnRequireTools,
 		TurnClear:         turnClear,
 		SourcePath:        path,
 	}, nil
 }
+
+// turnSection is one "\n---\n"-separated turn: the declarations parsed from its
+// header and the prompt text that follows them.
+type turnSection struct {
+	prompt       string
+	skills       []string
+	toolsets     []string
+	tools        []string
+	requireTools []string
+	clear        bool
+}
+
+// turnHeaderKeys is the complete set of per-turn header keys. A header-position
+// line naming anything else is an error, not prompt text — see parseTurnSection.
+var turnHeaderKeys = []string{"skills", "toolsets", "tools", "require_tool", "clear"}
 
 // splitAgentBody splits the agent body on "\n---\n" boundaries into a system
 // prompt and a sequence of per-turn user prompts with optional tool restrictions.
@@ -259,68 +297,110 @@ func LoadFile(path string) (model.Agent, error) {
 //   - skills: [skill1, skill2]
 //   - toolsets: [toolset1, toolset2]
 //   - tools: [tool1, tool2]
+//   - require_tool: [tool1, tool2]
+//   - clear: true
 //
 // These lines are consumed and not included in the user prompt text sent to the model.
 //
 // A nil entry in turn slices means "not declared for that turn". When the body
 // contains no "---" separators, turn slices are nil and existing behaviour
 // (single system-prompt agent) is preserved.
-func splitAgentBody(body string) (sysPrompt string, turnPrompts []string, turnTools [][]string, turnSkills [][]string, turnToolsets [][]string, turnClear []bool) {
+func splitAgentBody(body string) (sysPrompt string, turns []turnSection, err error) {
 	const sep = "\n---\n"
 	parts := strings.Split(body, sep)
 	sysPrompt = strings.TrimSpace(parts[0])
 	if len(parts) == 1 {
-		return sysPrompt, nil, nil, nil, nil, nil
+		return sysPrompt, nil, nil
 	}
-	for _, part := range parts[1:] {
-		prompt, skills, toolsets, tools, clear := parseTurnSection(part)
-		turnPrompts = append(turnPrompts, prompt)
-		turnTools = append(turnTools, tools)
-		turnSkills = append(turnSkills, skills)
-		turnToolsets = append(turnToolsets, toolsets)
-		turnClear = append(turnClear, clear)
+	for i, part := range parts[1:] {
+		sec, secErr := parseTurnSection(part)
+		if secErr != nil {
+			return "", nil, fmt.Errorf("turn %d: %w", i, secErr)
+		}
+		turns = append(turns, sec)
 	}
-	return
+	return sysPrompt, turns, nil
 }
 
-func parseTurnSection(part string) (prompt string, skills []string, toolsets []string, tools []string, clear bool) {
+func parseTurnSection(part string) (turnSection, error) {
+	var sec turnSection
 	lines := strings.Split(strings.TrimSpace(part), "\n")
 	idx := 0
 	for idx < len(lines) {
 		line := strings.TrimSpace(lines[idx])
 		if line == "" {
-			idx++
-			continue
+			// A blank line ends the header. The section was trimmed above, so a
+			// blank here always follows a consumed declaration — no agent under
+			// examples/ or docs/ separates two declarations with one. Making it
+			// terminal is what gives prompt text an escape hatch from the strict
+			// key check below: anything after the blank is prompt, whatever its
+			// shape.
+			break
 		}
 		key, raw, ok := turnDecl(line)
 		if !ok {
+			// A header-position line shaped like a declaration but naming no
+			// recognized key was silently swallowed into the prompt before
+			// v0.5.3 (issue #82): `tool_rounds: 12` set no budget and shipped as
+			// the first line of the user turn, and a typo'd `toolset:` left the
+			// turn inheriting the previous turn's scope — the case where a turn
+			// meant to drop a write tool keeps it. Fail closed instead.
+			if bad, isDecl := unknownTurnKey(line); isDecl {
+				return turnSection{}, fmt.Errorf(
+					"unrecognized header key %q (recognized: %s); if this line is prompt text, separate it from the header with a blank line",
+					bad, strings.Join(turnHeaderKeys, ", "))
+			}
 			break
 		}
 		items := parseInlineList(raw)
 		switch key {
 		case "skills":
-			skills = items
+			sec.skills = items
 		case "toolsets":
-			toolsets = items
+			sec.toolsets = items
 		case "tools":
-			tools = items
+			sec.tools = items
+		case "require_tool":
+			sec.requireTools = items
 		case "clear":
 			// `clear: true` resets the conversation before this turn.
-			clear = len(items) > 0 && (items[0] == "true" || items[0] == "yes")
+			sec.clear = len(items) > 0 && (items[0] == "true" || items[0] == "yes")
 		}
 		idx++
 	}
-	prompt = strings.TrimSpace(strings.Join(lines[idx:], "\n"))
-	return prompt, skills, toolsets, tools, clear
+	sec.prompt = strings.TrimSpace(strings.Join(lines[idx:], "\n"))
+	return sec, nil
 }
 
 func turnDecl(line string) (string, string, bool) {
-	for _, key := range []string{"skills", "toolsets", "tools", "clear"} {
+	for _, key := range turnHeaderKeys {
 		if after, found := strings.CutPrefix(line, key+":"); found {
 			return key, strings.TrimSpace(after), true
 		}
 	}
 	return "", "", false
+}
+
+// declLike matches a line that opens with a lowercase snake_case word followed
+// by a colon — the shape of every turn header key, and the shape a mistyped or
+// invented one takes.
+var declLike = regexp.MustCompile(`^([a-z][a-z0-9_]*):(.*)$`)
+
+// unknownTurnKey reports whether line is shaped like a turn declaration naming
+// a key the parser does not recognize, returning that key.
+//
+// A URL opening a prompt ("http://…") matches the same shape, so a "//"
+// remainder is excluded. Measured against every *.agent.md under examples/ and
+// every agent block in docs/: no line is classified as a declaration here.
+func unknownTurnKey(line string) (string, bool) {
+	m := declLike.FindStringSubmatch(line)
+	if m == nil {
+		return "", false
+	}
+	if strings.HasPrefix(strings.TrimSpace(m[2]), "//") {
+		return "", false
+	}
+	return m[1], true
 }
 
 func parseInlineList(raw string) []string {

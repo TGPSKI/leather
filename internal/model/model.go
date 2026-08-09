@@ -404,6 +404,21 @@ type Agent struct {
 	// TurnToolsets, when non-empty, declares named toolsets that become available on
 	// each user-prompt turn. Element i corresponds to UserPrompts[i].
 	TurnToolsets [][]string
+	// TurnRequireTools, when non-empty, names tools of which at least one must be
+	// called before turn i may end. A text response arriving with none of them
+	// called is refused and the model is told to make the call; the run fails if
+	// the turn's tool rounds are exhausted without one.
+	//
+	// This exists because a turn whose job is to act — dispatch N briefs, file a
+	// package, publish — otherwise ends the moment the model produces text, and
+	// producing text instead of acting is the failure mode. Observed: a fan-out
+	// agent composed five dispatch blocks as its reply, called nothing, and
+	// recorded success while zero downstream work was queued.
+	//
+	// Any one named tool satisfies the requirement, and a call that fails counts:
+	// the requirement is that the model attempted the act, and a tool that
+	// rejects its arguments has its own contract with the model.
+	TurnRequireTools [][]string
 	// TurnClear, when element i is true, clears the conversation before that turn's
 	// prompt is added: the system message is preserved and every other message is
 	// dropped. Values captured by skill extract: patterns survive, because they live in
