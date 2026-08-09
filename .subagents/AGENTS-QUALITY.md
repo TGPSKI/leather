@@ -167,37 +167,57 @@ go tool trace trace.out
 
 ## CI pipeline
 
-`.github/workflows/ci.yml` is currently checked in disabled (`on: {}`). When
-re-enabled for push / pull_request on `main`, it installs `golangci-lint`,
-runs the local CI gate, and then builds the binary:
+Two workflows gate a PR. Read the files for exact step content — the YAML is
+not reproduced here, because an embedded copy is what silently went stale last
+time (this section described `ci.yml` as disabled with `on: {}` long after it
+went live).
 
-```yaml
-name: CI
+| Workflow | Fires on | Jobs |
+|---|---|---|
+| `.github/workflows/ci.yml` | push to `main`; PR to `main` (`opened`, `synchronize`, `reopened`, `labeled`); `workflow_dispatch` | `ci` — Build & Test (linux/amd64); `full-scope` — cross-platform matrix, label-gated |
+| `.github/workflows/doclint.yml` | PR touching `docs/**`, `.subagents/**`, `*.md`, `internal/**`, `cmd/**`, `scripts/doclint/**`; push to `main` | doclint self-test, then the gate |
 
-on: {}
-
-jobs:
-  ci:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
-      - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34  # v5.3.0
-        with:
-          go-version-file: go.mod
-          cache: true
-      - uses: golangci/golangci-lint-action@4afd733a84b1f43292c63897423277bb7f4313a9  # v6.5.2
-        with:
-          install-only: true
-      - run: make ci        # check + test-race + lint
-        env:
-          LEATHER_TEST_BUILD: "1"
-      - run: make build     # verify the binary compiles
-```
+The `ci` job runs `make check`, `make test-race`, `make integration`,
+`make build`, `make build-shell-mcp` as separate steps so failures land in
+distinct job steps rather than one opaque `make ci` line. `full-scope` repeats
+the same sequence across the platform matrix and is skipped unless the PR
+carries the triggering label — `labeled` is in the trigger list precisely
+because without it, adding the label fired nothing and the matrix stayed
+silently inert (`edf5478`).
 
 `make ci` (check + test-race + lint) is the recommended local gate before
-pushing. CI runs the same steps individually so lint results appear in
-separate job steps; `golangci-lint` must be installed locally to run
-`make lint` and `make ci`.
+pushing. `golangci-lint` must be installed locally to run `make lint` or
+`make ci`.
+
+### Documentation gate
+
+`scripts/doclint` is a deterministic doc-consistency gate with zero third-party
+dependencies. It runs in **both directions**:
+
+| Direction | Checks | Catches |
+|---|---|---|
+| doc → code | documented flags, env vars, HTTP endpoints, shell-tools JSON resolve against code | phantom documentation |
+| code → doc | every exported symbol in `internal/` has a row in `docs/modules/<pkg>.md` | an export shipped with no doc row |
+
+The forward (code → doc) direction exists because the reverse cannot see
+silent rot: a missing doc row produces no token to validate.
+
+Pre-existing gaps live in `scripts/doclint/undocumented.txt`, a debt ledger
+kept separate from `allow.txt` (curated exceptions). It is validated in both
+directions so it can only shrink — documenting a symbol makes its entry stale,
+and a stale entry is a hard failure telling you to delete the line. A
+`# max: N` header caps the entry count, so growth is a visible one-line diff
+rather than a silent append. A package with no module doc at all is a
+`module-doc` violation and is never silenceable by the ledger.
+
+```bash
+go run ./scripts/doclint                  # gate; exit 0 clean, 1 violations, 2 scan error
+go run ./scripts/doclint -write-baseline  # regenerate the ledger after documenting something
+go test ./scripts/doclint/                # the linter's own tests
+```
+
+`-write-baseline` refuses to write above `max`, so it cannot launder new drift
+into the ledger. See [`scripts/doclint/README.md`](../scripts/doclint/README.md).
 
 ---
 
@@ -262,6 +282,8 @@ an import cycle. Prefer these over re-rolling the same logic inline.
 Before opening a PR:
 
 - [ ] `make ci` passes locally (check + test-race + lint)
+- [ ] `go run ./scripts/doclint` passes — new exported symbols have a row in `docs/modules/<pkg>.md`, or the ledger was regenerated with `-write-baseline`
+- [ ] Any `undocumented.txt` entry you resolved was deleted and `# max:` lowered to match
 - [ ] New disk persistence / ID / flat-YAML code reuses `internal/{fileutil,jsonstore,ids,yamlx}` rather than re-rolling it
 - [ ] New HTTP handler responses use `internal/httpx` (`WriteJSON`, `WriteError`) rather than inline `json.NewEncoder(w).Encode` patterns
 - [ ] New packages have colocated `_test.go` with coverage for exported API
@@ -288,4 +310,4 @@ PRs touching `internal/tool`, `internal/config`, or `internal/cli/cmd_dlq.go`:
 
 ---
 
-_Last reviewed: 2026-07-05_
+_Last reviewed: 2026-08-09_

@@ -25,7 +25,7 @@ appropriate domain guide rather than loading the entire codebase.
 | **`shell-mcp` companion binary** (config format, templating, JSON-RPC conformance) | [.subagents/AGENTS-SHELL-MCP.md](.subagents/AGENTS-SHELL-MCP.md) | `cmd/shell-mcp` |
 | **Browser UI** (`ui/`) | [.subagents/AGENTS-UI.md](.subagents/AGENTS-UI.md) | `ui/` SPA, design tokens, API contract layer |
 | **Replay subsystem** (capture, storage format, action endpoints, redaction) | [.subagents/AGENTS-REPLAY.md](.subagents/AGENTS-REPLAY.md) | Replay capture + `/replay/...` API + replay UI views |
-| Tests, benchmarks, Makefile, CI, linting | [.subagents/AGENTS-QUALITY.md](.subagents/AGENTS-QUALITY.md) | `*_test.go`, `Makefile`, `.github/workflows` |
+| Tests, benchmarks, Makefile, CI, linting, doc gates | [.subagents/AGENTS-QUALITY.md](.subagents/AGENTS-QUALITY.md) | `*_test.go`, `Makefile`, `.github/workflows`, `scripts/doclint` |
 | **Shared stdlib leaf utilities** (atomic file writes, JSON persistence, ID generation, flat-YAML parsing, HTTP response helpers) | [.subagents/AGENTS-QUALITY.md](.subagents/AGENTS-QUALITY.md) | `internal/fileutil`, `internal/jsonstore`, `internal/ids`, `internal/yamlx`, `internal/httpx` |
 | **Performance** (hot paths, benchmarks, allocation budgets, pprof, baseline) | [.subagents/AGENTS-PERFORMANCE.md](.subagents/AGENTS-PERFORMANCE.md) | Performance posture; cross-cutting |
 | **Security** (threat model, secret handling, API authn/authz, trust boundaries, prompt-injection) | [.subagents/AGENTS-SECURITY.md](.subagents/AGENTS-SECURITY.md) | Trust-boundary policy; cross-cutting |

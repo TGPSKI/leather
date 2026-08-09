@@ -9,10 +9,13 @@ metadata:
 
 # agents-doc-lifecycle
 
-Keeps [`AGENTS.md`](../../../AGENTS.md), every guide in
-[`.subagents/`](../../../.subagents/), and the
-[`.subagents/README.md`](../../../.subagents/README.md) index
-synchronized with the leather codebase.
+Keeps [`AGENTS.md`](../../../AGENTS.md) and every guide in
+[`.subagents/`](../../../.subagents/) synchronized with the leather codebase.
+
+**The routing table lives in `AGENTS.md`, and only there.**
+[`.subagents/README.md`](../../../.subagents/README.md) holds conventions only;
+it used to mirror the routing table and the mirror drifted, which is the one
+failure a duplicated index reliably produces. Do not reintroduce it.
 
 These documents are **first-class navigation surface** for AI agents
 working on leather. Stale or inaccurate guides waste context budget
@@ -31,7 +34,8 @@ and steer agents toward the wrong file.
 - A flag, model type, CLI subcommand, HTTP endpoint, or trust-boundary
   surface was added or removed.
 - A guide's `last reviewed` footer is missing or older than 90 days.
-- The routing table in `AGENTS.md` doesn't match `.subagents/README.md`.
+- The routing table in `AGENTS.md` doesn't match the live guide set or the
+  package tree.
 - You want a health check before a significant PR or a release.
 
 ## When NOT to use this skill
@@ -47,9 +51,7 @@ and steer agents toward the wrong file.
 ## Authoritative guide set
 
 This skill must keep the **routing table** in
-[`../../../AGENTS.md`](../../../AGENTS.md) and the index in
-[`../../../.subagents/README.md`](../../../.subagents/README.md) in
-sync with the live set of guides:
+[`../../../AGENTS.md`](../../../AGENTS.md) in sync with the live set of guides:
 
 | Guide | Domain |
 |---|---|
@@ -100,8 +102,15 @@ bash .agents/skills/agents-doc-lifecycle/scripts/run.sh check
 ```
 
 Flags: `--root` (default `AGENTS.md`), `--subagents-dir`
-(default `.subagents`), `--divide-threshold` (default `500`),
-`--union-threshold` (default `80`), `--fix` (sync only).
+(default `.subagents`), `--divide-threshold` (default `400`),
+`--union-threshold` (default `150`), `--fix` (sync only).
+
+The tool warns one band earlier than the policy acts. `--divide-threshold`
+defaults to 400 — the start of the *watch* band in the breadth/depth table
+below, not the 500 split trigger — so a guide is flagged while a split is still
+cheap. A `[divide]` line is a prompt to plan, not an instruction to split now;
+split at 500. Likewise `--union-threshold` 150 matches the pairwise merge rule
+(two guides together under 150 LOC), not the 80-LOC too-thin floor.
 
 The tool covers the mechanical checks. The procedures below cover the
 judgment-based operations (split, merge, table sync, content authoring,
@@ -138,7 +147,8 @@ Produce an **audit report** with this template:
 |---|---|---|
 | Every `internal/` package owned by exactly one guide | | List orphans / duplicates. |
 | Every `cmd/` binary owned by exactly one guide | | |
-| `AGENTS.md` routing table and `.subagents/README.md` rows match 1:1 | | |
+| `AGENTS.md` routing table lists every guide in `.subagents/` exactly once | | |
+| `.subagents/README.md` contains no routing rows (conventions only) | | |
 | Every routing-table link points to a file that exists | | |
 | Every guide between 80–500 LOC | | List out-of-band guides. |
 | Every guide ends with `_Last reviewed: YYYY-MM-DD_` | | |
@@ -160,23 +170,15 @@ When a new package, binary, or cross-cutting concern appears:
 1. Identify which existing guide owns the closest domain.
 2. If it fits inside an existing guide's scope, add it to that guide's
    "Package responsibilities" or "Scope" section and update the guide's
-   `Owns` cell in [`AGENTS.md`](../../../AGENTS.md) and
-   [`.subagents/README.md`](../../../.subagents/README.md).
+   `Owns` cell in [`AGENTS.md`](../../../AGENTS.md).
 3. If it's a genuinely new domain, create a new guide (procedure 6
-   below), then add a routing row to **both** the root routing table
-   and the `.subagents/README.md` index in the same PR.
+   below), then add a routing row to the root routing table.
 4. Run `audit` to confirm parity.
 
-Row format (root routing table):
+Row format (root routing table — the only routing table):
 
 ```markdown
 | Brief description of what you're working on | [.subagents/AGENTS-NAME.md](.subagents/AGENTS-NAME.md) | `internal/pkg1`, `internal/pkg2` |
-```
-
-Row format (`.subagents/README.md` index):
-
-```markdown
-| [AGENTS-NAME.md](AGENTS-NAME.md) | Short domain | `internal/pkg1`, `internal/pkg2` |
 ```
 
 ### 3. Split — divide an overloaded guide
@@ -192,8 +194,7 @@ spec**):
 3. **Lift** the relevant sections out of the original guide (do not
    duplicate). Leave a pointer like
    *"For X, see [AGENTS-NEWDOMAIN.md](AGENTS-NEWDOMAIN.md)."*
-4. Update cross-references in both guides; add a row to
-   `AGENTS.md` and `.subagents/README.md`.
+4. Update cross-references in both guides; add a row to `AGENTS.md`.
 5. Verify no dead links remain (procedure 8).
 6. Run `check` and confirm exit 0.
 
@@ -215,8 +216,7 @@ collapsed:
 2. Merge content, including "Common mistakes" rows and Verification
    checklist items.
 3. Delete the smaller file.
-4. Update both `AGENTS.md` routing table and
-   `.subagents/README.md` index — replace two rows with one.
+4. Update the `AGENTS.md` routing table — replace two rows with one.
 5. Update every cross-reference pointing at the deleted guide.
 6. Run `check`.
 
@@ -402,7 +402,8 @@ Walk every bullet and confirm:
 - Every guide between 80 and 500 LOC.
 - Every guide ends with a `last reviewed` footer.
 - No two guides own overlapping ground.
-- Routing in `AGENTS.md` and `.subagents/README.md` match.
+- Routing in `AGENTS.md` covers every guide; `.subagents/README.md` stays
+  conventions-only.
 - New cross-cutting topics (security, operations, performance) each
   have a guide and inbound links from every affected package guide.
 
@@ -428,7 +429,7 @@ cross-cutting concern emerges.
 
 | Operation | Trigger | Action |
 |---|---|---|
-| Add routing row | New `internal/` package or `cmd/` binary | Update `AGENTS.md` + `.subagents/README.md`; assign owner guide. |
+| Add routing row | New `internal/` package or `cmd/` binary | Update `AGENTS.md`; assign owner guide. |
 | Add a cross-cutting concern | New trust surface / perf path / ops playbook | Add row to the matching cross-cutting guide, add cross-link in every affected package guide. |
 | Split guide | LOC > 500 or two audiences in one file | New file from template; lift content; update routing + cross-refs; run `check`. |
 | Merge guides | Both < 80 LOC and domains collapsed | Keep larger; delete smaller; collapse routing rows. |
@@ -448,11 +449,11 @@ cross-cutting concern emerges.
 ## References
 
 - [`../../../AGENTS.md`](../../../AGENTS.md) — root guide and routing table
-- [`../../../.subagents/README.md`](../../../.subagents/README.md) — index of all guides
+- [`../../../.subagents/README.md`](../../../.subagents/README.md) — guide conventions (no routing table)
 - [`scripts/main.go`](scripts/main.go) — executable sync/audit/check tool
 - [`scripts/main_test.go`](scripts/main_test.go) — tool tests
 - [`scripts/run.sh`](scripts/run.sh) — thin wrapper
 
 ---
 
-_Last reviewed: 2026-07-05_
+_Last reviewed: 2026-08-09_
