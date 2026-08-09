@@ -244,7 +244,7 @@ proxy guidance), see [OPERATIONS.md § Endpoints](OPERATIONS.md).
 | Path | Purpose |
 |---|---|
 | `/healthz` | Liveness + state-dir writability + LLM endpoint configured. Returns 503 + JSON when degraded. |
-| `/status` | Aggregate scheduler / worker / queue state for `leather status`. |
+| `/status` | Aggregate scheduler / worker / queue state: uptime, version, agent count, tick. `leather status` reads job state from disk and reports serve liveness from the state-dir lock; it does not call this endpoint. |
 | `/config` | Effective runtime config (secrets redacted). |
 | `/metrics` | Prometheus text format. |
 | `/jobs`, `/jobs/{name}` | Scheduled-job inventory and per-job last run. |

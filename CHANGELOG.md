@@ -7,8 +7,104 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-08-09
+
+Every fix in this release is the same defect wearing different clothes: a
+configuration or routing mistake that produced no error, only a run that looked
+successful. A tool reference that resolved to nothing left an agent whose prompt
+still named the tools, so it narrated calls it never made and reported outcomes
+nobody produced. An ingest that could not route stored a hide, exited 0, and
+plateaued. A dead scheduler kept advertising its next fire time. None of these
+were visible as failures, so leather now fails closed on all of them.
+
+### Fixed
+
+- **A tool reference that resolves to nothing is now fatal, not skipped**
+  ([#71](https://github.com/TGPSKI/leather/issues/71),
+  [#72](https://github.com/TGPSKI/leather/issues/72)).
+  A failed tool-registry load was logged at WARN and the run continued with no
+  tools registered at all. Because skill headers put tool names and purposes
+  into the system prompt, the agent had been told in detail about tools the
+  tool-calling API never received — and the most probable completion is to
+  role-play them. The measured example: 72 prompt tokens on a turn declaring 14
+  tools, followed by 2208 completion tokens of fabricated `[TOOL CALL]` /
+  `[RESPONSE]` pairs with invented field names and a made-up hash. A scheduled
+  agent doing this at 05:07 writes a confident, entirely invented artifact, and
+  the only signal is one WARN line.
+  `leather run`, `leather serve`, and `leather workflow run` now exit non-zero
+  when the registry fails to load, and a run fails before the first LLM call
+  when an agent — or any of its per-turn scopes — names a skill, toolset, or
+  tool the registry did not load. The message names the near miss, because a
+  `*.skill.yaml` listed under `toolsets:` is one edit from correct and reads as
+  correct.
+- **`leather validate` loads the registry the runtime loads**
+  ([#71](https://github.com/TGPSKI/leather/issues/71)).
+  Two skills in one `tool_dir` declaring the same tool name broke the whole
+  registry while every file stayed individually well-formed, so per-file
+  validation reported no errors on a configuration that could not execute a
+  single tool. Validate now performs a whole-registry load and resolves each
+  agent's scope against it, catching duplicate tool names, toolsets naming
+  tools nobody defines, dangling `skills:`/`toolsets:` references, and
+  `type: mcp` tools whose `mcp.server` is not configured in `mcp-servers.yaml`.
+- **Flow-style `mcp:` and `http:` mappings parse**
+  ([#74](https://github.com/TGPSKI/leather/issues/74)).
+  `mcp: { server: shells, tool: report_write }` parsed to an empty server and
+  tool. The tool registered, was offered to the model, was selected, and died at
+  dispatch with `server "" not found` — as a tool *result* the model could
+  narrate around, after it had already committed to the call. Both YAML mapping
+  forms are now accepted wherever a nested map is, and a `type: mcp` tool
+  missing either half of its dispatch address fails the load instead of failing
+  mid-run. Found in a tannery whose fourteen tools all used flow style: every
+  one undispatchable, validate clean.
+- **A toolset written as tool definitions is rejected**
+  ([#73](https://github.com/TGPSKI/leather/issues/73)).
+  `docs/GUIDE.md` showed a toolset containing full tool definitions; the parser
+  reads bare names. Following the guide registered a tool literally named
+  `name: list-tags`, the toolset resolved to zero real tools, and no error was
+  raised. The GUIDE now shows the name-list form and says explicitly that a
+  toolset *references* tools some `*.skill.yaml` defines, and a `- ` entry
+  containing a colon — which is always this mistake — fails the load naming the
+  file and the required form. A toolset that lists no tools is also an error.
+- **The two intake surfaces route by one rule**
+  ([#75](https://github.com/TGPSKI/leather/issues/75)).
+  `queue=` alone enqueued over HTTP but not from the CLI; `curing=` alone
+  routed on neither, though the named curing already declares its queue. The
+  unrouted cases printed success-shaped output whose only tell was two absent
+  lines. Now, on both surfaces: a named curing routes to its declared queue, a
+  named queue routes and picks up the curing that consumes it, and naming
+  neither lets the route table decide. A parameter set that names a destination
+  which cannot route — an unknown curing, a queue the tannery does not declare —
+  is an error, and a hide-only ingest says `routing   none` rather than leaving
+  it to be inferred. A `queue_pattern` route reaching `/intake` now expands and
+  enqueues instead of silently resolving to an empty queue name.
+- **CLI ingest refuses to write queues a live serve owns**
+  ([#76](https://github.com/TGPSKI/leather/issues/76)).
+  A running serve holds each queue it polls in memory and rewrites the backing
+  file from that snapshot, so an item appended by `leather ingest` was never
+  seen and was overwritten by the serve's next write. The empty-queue-plus-idle-
+  worker state looks identical to "nothing was ever enqueued", which is #75's
+  failure shape — the two stacked bugs took three reproductions to separate.
+  `leather ingest` now probes the state-dir lock before enqueuing and refuses
+  with the holder's PID and the supported alternative. Hide-only ingests touch
+  no queue and are still allowed.
+- **`leather status` reports whether a scheduler is running**
+  ([#77](https://github.com/TGPSKI/leather/issues/77)).
+  Every field it printed came off disk, so a serve killed an hour ago produced
+  output identical to a healthy idle one — including a `next=` it would never
+  honour, which for a daily agent stays plausible for a day. Status now probes
+  the state-dir lock (acquiring it is proof of absence; releasing it
+  immediately, because status must never hold it) and reports
+  `serve: running (pid N)` or `serve: not running`. `serve` writes its PID into
+  the lock file, which was 0 bytes, so the holder can be named instead of
+  pattern-matched. A `next=` already in the past renders as `(stale)`.
+
 ### Changed
 
+- **`.subagents/README.md` no longer mirrors the root routing table**
+  ([#54](https://github.com/TGPSKI/leather/issues/54)). The mirror had drifted
+  from `AGENTS.md`, which is the one failure a duplicated index reliably
+  produces. The README now points at the canonical table and keeps only what is
+  its own: the per-guide conventions.
 - **`14-sig-triage`: `eval/scripts/tui/` is vendored from its canonical public
   upstream, [pane](https://github.com/TGPSKI/pane), now at
   [v0.2.0](https://github.com/TGPSKI/pane/releases/tag/v0.2.0) (`9e80e94`).**
@@ -888,7 +984,8 @@ Intentionally out of scope for v0.1.0; tracked for v0.2:
 See [ROADMAP.md](ROADMAP.md) for the full deferred-item list with
 rationales and proposed shapes.
 
-[Unreleased]: https://github.com/TGPSKI/leather/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/TGPSKI/leather/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/TGPSKI/leather/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/TGPSKI/leather/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/TGPSKI/leather/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/TGPSKI/leather/compare/v0.4.0...v0.4.1

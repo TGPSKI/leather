@@ -495,6 +495,19 @@ tools:
       tool: get_pr_diff
 ```
 
+Both YAML mapping forms are accepted for `mcp:` and `http:` — the block style
+above, or flow style on one line:
+
+```yaml
+  - name: get_pr_diff
+    description: Fetch the unified diff for a PR (first 4000 bytes).
+    type: mcp
+    mcp: { server: shell, tool: get_pr_diff }
+```
+
+A `type: mcp` tool must name a non-empty `server` and `tool`; leaving either
+empty fails the load rather than failing at dispatch, mid-run.
+
 ### Skill `system_prompt_append`
 
 Keep it short. The append should:
@@ -511,14 +524,26 @@ When you want to expose tools without adding prompt fragments, use a toolset:
 ```yaml
 # tools/release-read.toolset.yaml
 name: release-read
-tools:
-  - name: list-tags
-    description: List all git tags.
-    type: mcp
-    mcp:
-      server: shell
-      tool: list-tags
+description: Release read scope
+tools: [list-tags, log-since]
 ```
+
+A toolset **references** tools; it never defines them. Every name under
+`tools:` must be defined by a `*.skill.yaml` in the same `tool_dir` — a skill
+file registers its tools whether or not any agent names the skill, so a skill
+that exists only to hold definitions is a valid way to organise them. The
+equivalent block form is a plain list of names:
+
+```yaml
+tools:
+  - list-tags
+  - log-since
+```
+
+Writing a tool *definition* here (`- name: list-tags`, followed by
+`description:`/`type:`/`mcp:`) is rejected at load: the parser reads bare
+names, and the definition form used to register a tool literally named
+`name: list-tags` that resolved to nothing at run time.
 
 Use toolsets when the agent's own prompt already explains the tools, or when
 you need per-turn scope without extra prompt injection.
@@ -1251,11 +1276,33 @@ notify failure is logged as a warning and does not affect the queue item.
 **Ingest a hide manually for testing:**
 
 ```bash
-leather ingest --config config.yaml \
-  --hide-kind github.issues \
-  --queue event-in \
+leather ingest --config config.yaml --tannery tannery.yaml \
+  --kind github.issues \
+  --curing summary \
   sample/input.json
 ```
+
+Routing follows one rule on both intake surfaces — `leather ingest` and
+`POST /intake`:
+
+| You pass | What happens |
+|---|---|
+| `--curing` / `curing=` | Routes to that curing's declared `queue:`. |
+| `--queue` / `queue=` | Routes to that queue, picking up the curing that consumes it. |
+| both | Routes to the named queue under the named curing. |
+| neither | The route table decides from `source` and kind; with no match, the hide is stored and nothing is enqueued — reported as `routing   none`. |
+
+Naming a curing that does not exist, or a queue the tannery does not declare,
+is an error. An ingest that cannot route fails instead of storing a hide and
+exiting 0, because an unrouted hide is indistinguishable downstream from a
+pipeline with nothing to do.
+
+**Which surface to use.** A running `serve` holds each queue it polls in
+memory and rewrites the backing file from that snapshot, so it never sees
+out-of-band appends. `leather ingest` therefore refuses to enqueue while a
+serve holds the state-dir lock, and tells you the PID. Post to that serve's
+`/intake` instead, or stop it, ingest, and start it again. A hide-only ingest
+(no routing) touches no queue and is allowed either way.
 
 ---
 
@@ -1305,7 +1352,7 @@ my-project/
 | `leather validate` | Parse and schema-check all files; report errors. |
 | `leather ingest` | Write a file as a hide and optionally enqueue it. |
 | `leather workflow run` | Run a bounded one-shot tannery workflow: reads one hide from stdin, drains queues to quiescence. Loads MCP servers from config `mcp_servers_file`. Note: it still validates tannery webhook secrets (`{{env:…}}`) even though it never serves the webhook — set the env var or omit the webhook block. |
-| `leather status` | Print job history, token usage, scheduler state. |
+| `leather status` | Print job history, token usage, scheduler state, and whether a `serve` is running. |
 | `leather test-agent` | Run an agent against `MockLLM` and print the transcript. |
 | `leather snapshot` | Save or restore a point-in-time `tar.gz` archive of runtime state. |
 | `leather dlq` | Inspect and requeue outbound dead-letter queue items. |

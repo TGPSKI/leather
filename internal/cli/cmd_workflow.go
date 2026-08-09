@@ -202,10 +202,12 @@ func RunWorkflowRun(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	// Fatal, not a warning: a workflow whose registry failed to load runs every
+	// stage tool-less while the prompts still advertise the tools (issue #72).
 	toolReg, err := tool.Load(cfg.ToolDir)
 	if err != nil {
-		log.Warn("workflow run: failed to load tool registry", "dir", cfg.ToolDir, "error", err)
-		toolReg = tool.NewRegistry()
+		fmt.Fprintf(stderr, "leather workflow run: tool registry failed to load from %s: %v\n", cfg.ToolDir, err)
+		return 1
 	}
 
 	// Set LEATHER_INTAKE_URL before starting MCP servers so shell-mcp child

@@ -92,7 +92,7 @@ func TestRun_Version_Dispatches(t *testing.T) {
 
 func TestFormatJob_NeverRun(t *testing.T) {
 	j := model.Job{AgentName: "my-agent", Status: model.JobStatusPending}
-	got := formatJob(j)
+	got := formatJob(j, time.Unix(1500000, 0))
 	if !strings.Contains(got, "my-agent") {
 		t.Errorf("formatJob %q missing agent name", got)
 	}
@@ -112,7 +112,7 @@ func TestFormatJob_WithTimes(t *testing.T) {
 		NextRun:   2000000,
 		RunCount:  7,
 	}
-	got := formatJob(j)
+	got := formatJob(j, time.Unix(1500000, 0))
 	if !strings.Contains(got, "sched-agent") {
 		t.Errorf("formatJob %q missing agent name", got)
 	}

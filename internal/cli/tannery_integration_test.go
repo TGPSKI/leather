@@ -68,7 +68,7 @@ type tanneryHarness struct {
 	server    *httptest.Server
 }
 
-func newTanneryHarness(t *testing.T, routes []model.TanneryRoute, queues map[string]model.QueueConcurrencyConfig, webhooks []model.WebhookConfig) *tanneryHarness {
+func newTanneryHarness(t *testing.T, routes []model.TanneryRoute, queues map[string]model.QueueConcurrencyConfig, webhooks []model.WebhookConfig, extraDefs ...model.CuringDefinition) *tanneryHarness {
 	t.Helper()
 	dir := t.TempDir()
 	h := &tanneryHarness{
@@ -86,6 +86,7 @@ func newTanneryHarness(t *testing.T, routes []model.TanneryRoute, queues map[str
 		hideStore:    h.hideStore,
 		artStore:     h.artStore,
 		curingRouter: curing.NewRouter(routes),
+		curingDefs:   defsForRoutes(routes, extraDefs),
 		tannCfg: config.TanneryConfig{
 			HideDir:     h.hideDir,
 			ArtifactDir: h.artDir,
@@ -268,7 +269,8 @@ func TestWebhook_MultiRouteByEventType(t *testing.T) {
 func TestIntake_ExplicitRouting_EndToEnd(t *testing.T) {
 	routes := []model.TanneryRoute{} // empty: rely on explicit query params
 	queues := map[string]model.QueueConcurrencyConfig{"default": {Concurrency: 1, MaxDepth: 100}}
-	h := newTanneryHarness(t, routes, queues, nil)
+	h := newTanneryHarness(t, routes, queues, nil,
+		model.CuringDefinition{Name: "summarize", Queue: "default"})
 
 	body := strings.NewReader("hello world")
 	resp, err := http.Post(h.url("/intake?kind=raw&source=cli&curing=summarize&queue=default"),
@@ -315,7 +317,8 @@ func TestIntake_ExplicitRouting_EndToEnd(t *testing.T) {
 // webhook semantics.
 func TestIntake_Backpressure(t *testing.T) {
 	queues := map[string]model.QueueConcurrencyConfig{"default": {MaxDepth: 1}}
-	h := newTanneryHarness(t, nil, queues, nil)
+	h := newTanneryHarness(t, nil, queues, nil,
+		model.CuringDefinition{Name: "c", Queue: "default"})
 	_ = h.qmgr.Enqueue("default", model.QueueItem{ID: "seed"})
 
 	resp, err := http.Post(h.url("/intake?kind=raw&curing=c&queue=default"),

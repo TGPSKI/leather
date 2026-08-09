@@ -92,7 +92,10 @@ func TestIntake_AutoRoute_EnqueuesItem(t *testing.T) {
 
 func TestIntake_ExplicitCuring_SkipsRouter(t *testing.T) {
 	// No routes configured; explicit curing+queue params should bypass router.
-	td, deps := buildWebhookTannery(t, nil, nil)
+	td, deps := buildWebhookTannery(t,
+		nil,
+		map[string]model.QueueConcurrencyConfig{"default": {Concurrency: 1, MaxDepth: 100}},
+		model.CuringDefinition{Name: "review", Queue: "default"})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/intake", handleIntake(td, deps))
@@ -207,5 +210,94 @@ func TestIntake_BodyTooLarge_413(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
 		t.Errorf("status = %d, want 202 for body within limit", resp.StatusCode)
+	}
+}
+
+// --- issue #75: the two intake surfaces agree ---
+
+// postIntake sends an empty-bodied intake and returns the status and JSON body.
+func postIntake(t *testing.T, td *tanneryDeps, deps *apiDeps, query string) (int, map[string]string) {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/intake", handleIntake(td, deps))
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/intake?"+query, "text/plain", strings.NewReader("payload"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var body map[string]string
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	return resp.StatusCode, body
+}
+
+func TestIntake_RoutingSymmetry(t *testing.T) {
+	queues := map[string]model.QueueConcurrencyConfig{"work-q": {Concurrency: 1, MaxDepth: 100}}
+	defs := []model.CuringDefinition{{Name: "summarize", Queue: "work-q"}}
+
+	tests := []struct {
+		name       string
+		query      string
+		wantStatus int
+		wantCuring string
+		wantQueue  string
+	}{
+		// `curing=` alone used to store the hide and route nothing, even though
+		// the curing definition already declared its queue.
+		{"curing alone", "kind=raw&curing=summarize", http.StatusAccepted, "summarize", "work-q"},
+		{"queue alone", "kind=raw&queue=work-q", http.StatusAccepted, "summarize", "work-q"},
+		{"both", "kind=raw&curing=summarize&queue=work-q", http.StatusAccepted, "summarize", "work-q"},
+		// Naming a destination that cannot route is an error, not a 202 with
+		// the routing fields quietly missing.
+		{"unknown curing", "kind=raw&curing=nope", http.StatusBadRequest, "", ""},
+		{"undeclared queue", "kind=raw&queue=typo-q", http.StatusBadRequest, "", ""},
+		// Naming nothing is a valid hide-only ingest.
+		{"nothing named", "kind=raw", http.StatusAccepted, "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			td, deps := buildWebhookTannery(t, nil, queues, defs...)
+			status, body := postIntake(t, td, deps, tc.query)
+			if status != tc.wantStatus {
+				t.Fatalf("status = %d, want %d (body %v)", status, tc.wantStatus, body)
+			}
+			if tc.wantStatus != http.StatusAccepted {
+				return
+			}
+			if body["curing"] != tc.wantCuring || body["queue"] != tc.wantQueue {
+				t.Errorf("response curing=%q queue=%q, want curing=%q queue=%q",
+					body["curing"], body["queue"], tc.wantCuring, tc.wantQueue)
+			}
+			depth := deps.queueMgr.Depth("work-q")
+			wantDepth := 0
+			if tc.wantQueue != "" {
+				wantDepth = 1
+			}
+			if depth != wantDepth {
+				t.Errorf("work-q depth = %d, want %d", depth, wantDepth)
+			}
+		})
+	}
+}
+
+// A queue_pattern route reaching /intake used to resolve to an empty queue name
+// and enqueue nothing, silently.
+func TestIntake_QueuePatternRouteEnqueues(t *testing.T) {
+	routes := []model.TanneryRoute{
+		{Name: "fan", Match: model.RouteMatch{Source: "bulk"}, Curing: "fanout", QueuePattern: "fan/{{hide_id}}"},
+	}
+	td, deps := buildWebhookTannery(t, routes, nil)
+	status, body := postIntake(t, td, deps, "kind=raw&source=bulk")
+	if status != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202 (body %v)", status, body)
+	}
+	wantQueue := "fan/" + body["hide_id"]
+	if body["queue"] != wantQueue {
+		t.Fatalf("queue = %q, want %q", body["queue"], wantQueue)
+	}
+	if deps.queueMgr.Depth(wantQueue) != 1 {
+		t.Errorf("%s depth = %d, want 1", wantQueue, deps.queueMgr.Depth(wantQueue))
 	}
 }
