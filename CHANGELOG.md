@@ -11,40 +11,29 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
-- **A reference deployment: [`docs/REFERENCE-TANNERY.md`](docs/REFERENCE-TANNERY.md).**
-  Every numbered example runs from a fresh clone with one `make` target, which
-  bounds how much of a real system any of them can show. This studies
+- **[`docs/REFERENCE-TANNERY.md`](docs/REFERENCE-TANNERY.md) — a study of a
+  running leather deployment.** Every numbered example runs from a fresh clone
+  with one `make` target, so none of them shows a whole system.
   [`TGPSKI/catnip/tannery`](https://github.com/TGPSKI/catnip/tree/2033b0d9c8d5739995e2aec4087130babcce699d/tannery)
-  — six agents, four queues, a 41-minute job, running unattended — in place
-  and pinned, rather than vendoring a copy that could not run and would drift.
-  It covers the patterns no example reaches: stages joined by queues instead of
-  clock arithmetic, per-turn scopes that *replace* rather than extend, verdicts
-  that must cite a tool, and a three-layer timeout stack sized from a
-  measurement rather than a guess.
-  It also carries the measurements. Against a 35B MoE (~3B active, NVFP4, one
-  local GPU), decomposition took the analyst stage from a monolith at 237s
-  median that **never completed a recorded cycle** to 43s median, 26 runs for
-  26 — and every "failure" in the ledger is a validation guard refusing bad
-  input, not a crash. The failure ledger's finding is that **zero fixes
-  required a bigger model**: the small model's failures were boundary
-  failures, at each point the design implicitly trusted it to count, name,
-  quote or self-report, and a frontier model would have crossed some of those
-  gaps on raw capability and thereby hidden them.
-  And it carries the A/B that goes the other way. A blind frontier control
-  running the same skill single-shot — 64k tokens, 7.5 minutes, one context —
-  **produced the materially better document** than the tannery's ~750k-token,
-  15-minute pipeline. The gap decomposes into a tool-surface gap (fixable, and
-  most of it) and a whole-store synthesis ceiling that is a property of the
-  decomposition rather than the model. Both are stated in the doc, because a
-  reference deployment that only reports its wins is a brochure.
+  — six agents, four queues, a 41-minute job, unattended — is read in place and
+  pinned at `2033b0d` rather than vendored; it needs `catnip`, a populated
+  store and a served model, so a copy under `examples/` could not run.
+  Covers stages joined by queues rather than clock arithmetic, per-turn scopes
+  that replace rather than extend, tool-sourced verdicts, and a three-layer
+  timeout stack. Carries run records from 2026-08-07 against a 35B MoE (~3B
+  active, NVFP4, one GPU): the analyst stage went from a monolith at 237s
+  median that never completed a recorded cycle to 43s median, 26 runs for 26,
+  and no fix in that day's failure ledger required a bigger model. Also carries
+  the A/B in which a blind frontier control — single-shot, 64k tokens, 7.5
+  minutes — produced a better document than the ~750k-token pipeline, and the
+  split of that gap into tool surface and synthesis ceiling.
 
-Every fix in this release is the same defect wearing different clothes: a
-configuration or routing mistake that produced no error, only a run that looked
-successful. A tool reference that resolved to nothing left an agent whose prompt
-still named the tools, so it narrated calls it never made and reported outcomes
-nobody produced. An ingest that could not route stored a hide, exited 0, and
-plateaued. A dead scheduler kept advertising its next fire time. None of these
-were visible as failures, so leather now fails closed on all of them.
+Every fix here closes a silent failure: a configuration or routing mistake that
+produced no error, only a run that looked successful. A tool reference that
+resolved to nothing left an agent whose prompt still named the tools, so it
+narrated calls it never made. An ingest that could not route stored a hide and
+exited 0. A dead scheduler kept advertising its next fire time. leather now
+fails closed on all three.
 
 ### Fixed
 

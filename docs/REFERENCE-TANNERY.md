@@ -12,15 +12,11 @@ unattended and turns each day's data into two documents.
 
 Every example under [`examples/`](../examples/) runs from a fresh clone with a
 single `make` target. This one cannot: it needs `catnip` installed, a store
-with real history behind it, and a served model. Vendoring a copy that cannot
-run would be an example in shape only — and a copy that drifts from the system
-it claims to document is the exact failure class
-[v0.5.2](../CHANGELOG.md#052--2026-08-09) is about. So it stays upstream,
-pinned, and is read here.
+with real history, and a served model. A vendored copy would not run, and would
+drift from the system it documents. It stays upstream, pinned, and is read here.
 
-Use the numbered examples to learn a mechanism. Use this to see what happens
-when six agents, four queues and a real 41-minute job are wired together and
-left alone.
+The numbered examples each show one mechanism. This shows six agents, four
+queues and a 41-minute job running together.
 
 ## Topology
 
@@ -192,27 +188,24 @@ parameters, NVFP4-quantized, served by vLLM on one local GPU.
 | `catnip-prowl-editor` | 7 | 5 | 30k | 36s |
 | monolithic analyst (before decomposition) | 7 | 6 | 155k | 237s |
 
-Read honestly: token totals count prompt tokens **re-sent per tool round**, so
-they are compute cost, not information volume — the meta's 101k median is
-roughly 10k of actual context resent across ~10 rounds.
+Token totals count prompt tokens re-sent per tool round, so they are compute
+cost, not information volume: the meta's 101k median is roughly 10k of context
+resent across ~10 rounds.
 
-The comparison that matters is the last row against the fourth. The
-pre-decomposition monolithic analyst ran 237s at a 155k median and **never
-completed a recorded cycle**. The decomposed analyst runs 43s at 60k, 26 for
-26. Every one of the 4 writer and 2 editor "failures" is a validation guard
-refusing malformed or stale input — the mechanism working, not a crash.
+Compare the last row to the fourth. The pre-decomposition monolithic analyst
+ran 237s at a 155k median and never completed a recorded cycle. The decomposed
+analyst runs 43s at 60k, 26 for 26. Each of the 4 writer and 2 editor failures
+is a validation guard refusing malformed or stale input, not a crash.
 
-A full rich cycle — meta, six analysts, six writer runs, editor passes —
-costs roughly 700–800k tokens and about 15 minutes of wall clock at queue
-concurrency 2. On owned hardware the marginal cost is zero, which is what
-makes guard-refuse-retry affordable as the quality mechanism: a refused
-attempt costs seconds, and the guard plus one retry outperformed trying to
-prompt the behaviour in.
+A full rich cycle — meta, six analysts, six writer runs, editor passes — costs
+roughly 700–800k tokens and about 15 minutes of wall clock at queue concurrency
+2. On owned hardware the marginal cost is zero, which is what makes
+guard-refuse-retry affordable: a refused attempt costs seconds, and the guard
+plus one retry outperformed prompting the behaviour in.
 
 ### What each leather capability removes from the model
 
-The mapping is the argument for decomposition, and each row was exercised in
-this build:
+Each row was exercised in this build:
 
 | leather capability | what the model no longer has to do |
 |---|---|
@@ -225,19 +218,17 @@ this build:
 | cron + intake + curing chaining | decide what runs next. Delivery decides |
 | run persistence (`runs/*.jsonl`) | nothing — but it is why every number here is checkable and every failure was diagnosable from records rather than from re-runs |
 
-The complementary half is not leather but the pattern built on it:
-**deterministic scripts at both ends of every model stage.** Dispatch parses
-the seed blocks, the recorder parses the finding blocks, edit-publish enforces
-tier-count fidelity. Leather makes these easy to mount as shell tools; the
-discipline of using them is the operator's.
+The other half is not leather but the pattern built on it: deterministic
+scripts at both ends of every model stage. Dispatch parses the seed blocks, the
+recorder parses the finding blocks, edit-publish enforces tier-count fidelity.
+Leather mounts these as shell tools; using them is the operator's discipline.
 
-The failure ledger for the build day has one finding worth stating on its own:
-**zero fixes required a bigger model.** The 35B's failures were not reasoning
-failures — during a guard retry it correctly diagnosed its own count mismatch.
-They were *boundary* failures, at every place the design implicitly trusted
-the model to count, name, quote, or self-report. Each fix converted trust into
-mechanism. A frontier model would have crossed some of those gaps on raw
-capability and thereby hidden them.
+No fix in the build day's failure ledger required a bigger model. The 35B's
+failures were not reasoning failures — during a guard retry it correctly
+diagnosed its own count mismatch. They were boundary failures, at each place
+the design implicitly trusted the model to count, name, quote, or self-report.
+Each fix replaced trust with mechanism. A frontier model would have crossed
+some of those gaps on raw capability and hidden them.
 
 ## The A/B against a frontier control
 
@@ -259,40 +250,36 @@ editor — at roughly 750k local tokens and about 15 minutes.
 | errors detected in either | none | none |
 | tier discipline | good after tuning | excellent untuned |
 
-**Verdict: the control produced the materially better document.** It found the
-one finding that would change operator behaviour, and the best synthesis in
-either document. The tannery matched frontier *structure*, matched correctness
-where the two overlapped, and was blind to the rest.
+**Verdict: the control produced the better document.** It found the one finding
+that would change operator behaviour, and the best synthesis in either
+document. The tannery matched frontier structure, matched correctness where the
+two overlapped, and was blind to the rest.
 
-The useful part is that the gap decomposes into two different things:
+The gap has two separate causes:
 
 1. **Evidence access — fixable, and most of the gap.** The control read raw
-   store fields the tannery has no tools for. Nearly every control-only
-   finding rests on those fields, which means the analysts could not have
-   found them at any model size. This is a tool-surface gap wearing a
-   capability costume; adding the tools and re-running the A/B is the
-   experiment that separates the two.
-2. **Whole-store synthesis — the real ceiling.** Unifying separate episodes
-   across the full store into one explanation requires seeing everything at
-   once. The meta stage sees summaries; the analysts see briefs. This is the
-   predicted "who sees the whole" break point, now observed rather than
-   predicted, and it is a property of the decomposition, not of the model.
+   store fields the tannery has no tools for. Nearly every control-only finding
+   rests on those fields, so the analysts could not have found them at any
+   model size. Adding the tools and re-running the A/B is the experiment that
+   separates tool surface from model capability.
+2. **Whole-store synthesis — the ceiling.** Unifying separate episodes across
+   the full store into one explanation requires seeing everything at once. The
+   meta stage sees summaries; the analysts see briefs. This is a property of
+   the decomposition, not of the model.
 
 Cost runs the other way: 64k metered frontier tokens against ~750k free local
 ones. At a three-day cadence both are cheap, so the local pipeline's case is
-privacy, autonomy and zero marginal cost — not token efficiency.
+privacy, autonomy and zero marginal cost, not token efficiency.
 
-Where the recipe should be expected to break: tasks whose value requires
-global context in one place at one time. Long-horizon narrative,
-whole-corpus cross-referencing beyond what a brief can carry, and judgments
-where the decomposition itself is the hard part. The meta stage is the current
-answer to "who sees the whole", and it sees only summaries — a problem whose
-summaries lose the signal will defeat it.
+Expect the recipe to break on tasks that need global context in one place at
+one time: long-horizon narrative, whole-corpus cross-referencing beyond what a
+brief can carry, and judgments where the decomposition itself is the hard part.
+The meta stage is the current answer to "who sees the whole", and it sees only
+summaries.
 
-**Bottom line.** leather's decomposition gets a local 35B to frontier-shaped
-form and frontier-grade reliability on what it can see. What it can see is set
-by its tools; what it can synthesize is capped by the widest single context in
-the design.
+The decomposition gets a local 35B to frontier-shaped form and frontier-grade
+reliability on what it can see. What it can see is set by its tools; what it
+can synthesize is capped by the widest single context in the design.
 
 ## What running it cost leather
 
