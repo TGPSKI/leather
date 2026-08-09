@@ -8,8 +8,11 @@
 a model response." It tracks token budgets, accumulates conversational turns,
 triggers automatic summarization when the context window fills, and defines
 the `LLMClient` interface that decouples leather from any specific LLM backend.
-It also provides `HTTPClient` (the production implementation) and `MockLLM`
-(the test double).
+
+Four `LLMClient` implementations ship here: `HTTPClient` (production),
+`MockLLM` (test double), and the record/replay pair `RecordingClient` and
+`FixtureClient`, which capture a live run once and replay it forever with no
+model behind it.
 
 ## Public API
 
@@ -30,6 +33,8 @@ It also provides `HTTPClient` (the production implementation) and `MockLLM`
 | `HTTPClient` | Production `LLMClient` targeting an OpenAI-compatible endpoint. |
 | `MockLLM` | Deterministic test double. Returns configured response, records all calls. |
 | `MockConfig` | Configuration for `MockLLM`: `Response string`, `TokensPerMessage int`, `Err error`. |
+| `FixtureClient` | `LLMClient` that replays completions from a JSONL file, one line per `Complete` call, in order (`--llm-fixture`). |
+| `RecordingClient` | Wraps a live `LLMClient` and appends every successful completion to a JSONL file in `FixtureClient` format (`--llm-record`). |
 
 ### Session functions
 
@@ -41,6 +46,19 @@ It also provides `HTTPClient` (the production implementation) and `MockLLM`
 | `(*Session).Usage` | `() (used, remaining int)` | Current token usage and remaining capacity. |
 | `(*Session).Snapshot` | `(metadata map[string]string) model.SessionContext` | Point-in-time snapshot of the context window. |
 | `(*Session).Reset` | `()` | Clear the context window; preserve the system prompt if present as first message. |
+| `(*Session).CompactLatestHidePage` | `(ctx context.Context, summary string) (bool, error)` | Drop the most recent completed hide-reflection cycle, keeping only the assistant's page summary. Used by reflection-mode paging so prior page bodies and `hide_next` scaffolding do not stay in context after the model has summarized that page. |
+
+### Record / replay functions
+
+| Symbol | Signature | Description |
+|---|---|---|
+| `NewFixtureClient` | `(path string) (*FixtureClient, error)` | Load a JSONL fixture. Blank lines and lines starting with `#` are skipped, so fixtures can carry comments. |
+| `(*FixtureClient).Complete` | `(ctx, modelName, messages, opts) (model.LLMResponse, error)` | Return the next recorded response. |
+| `(*FixtureClient).CountTokens` | `(messages) (int, error)` | ~4 bytes/token, matching `HTTPClient`'s local estimate so budget math is identical with and without a live model. |
+| `NewRecordingClient` | `(inner LLMClient, path string) (*RecordingClient, error)` | Open (truncating) the output file and wrap `inner`. |
+| `(*RecordingClient).Complete` | `(ctx, modelName, messages, opts) (model.LLMResponse, error)` | Delegate to the wrapped client and append the response. |
+| `(*RecordingClient).CountTokens` | `(messages) (int, error)` | Delegate to the wrapped client. |
+| `(*RecordingClient).Close` | `() error` | Close the recording file. |
 
 ### HTTPClient functions
 
@@ -81,6 +99,21 @@ requiring changes to the core API.
 **Thread safety:** `Session` is not safe for concurrent use from multiple
 goroutines. Each agent execution creates its own `Session`.
 
+**Record / replay fails loud.** Both halves of the pair error rather than
+improvise, because a quietly-degraded recording surfaces later as an unrelated
+mid-run divergence:
+
+- An exhausted fixture is an error, not an end-of-run. The run made more model
+  calls than the recording, which means the wiring changed; the failure names
+  the call index and the last message so the divergence is diagnosable.
+- A record-write failure fails the `Complete` call that triggered it, rather
+  than continuing with an incomplete recording.
+
+`FixtureClient` replay is strictly sequential across the whole process — one
+line per `Complete` call, in order. Run fixture-backed configs with
+`max_concurrent_jobs: 1`; concurrency makes call order nondeterministic and the
+replay will diverge.
+
 ## Dependencies
 
 - `internal/model` — `Message`, `TokenBudget`, `LLMResponse`, `SessionContext`
@@ -109,9 +142,13 @@ sequenceDiagram
 - `session_test.go` — tests `Add`, token budget enforcement, summarization
   trigger, `Reset` (system prompt preservation), `Snapshot`, `Usage`.
   All tests use `MockLLM`.
+- `fixture_llm_test.go` — `FixtureClient` replay order including tool calls,
+  loud exhaustion, empty-file rejection, and a `RecordingClient` round trip back
+  through `FixtureClient`.
 
 ## Related Docs
 
 - [docs/modules/model.md](model.md) — `Message`, `TokenBudget`, `LLMResponse`
 - [docs/modules/cli.md](cli.md) — calls `session.New` and `session.CompletionOptions`
+- [docs/OPERATIONS.md](../OPERATIONS.md) — `--llm-fixture`, `--llm-record`
 - [docs/ARCHITECTURE.md](../ARCHITECTURE.md)

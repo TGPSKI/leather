@@ -39,8 +39,10 @@ The CLI's `/api/devtools/*` HTTP endpoints read directly from this package.
 | `Node` | One event in the trace tree. |
 | `Result` | `Root, Nodes, Truncated`. |
 | `Engine` | Stateless tracer. |
+| `NewEngine` | `() *Engine` — construct an Engine. |
 | `(*Engine).Trace` | `(ctx, b *bus.Bus, root uint64, opts TraceOptions) Result` — walks parent and child links from a root sequence. |
 | `(*Engine).LinkForward` | `(b *bus.Bus, parent, child uint64) bool` — convenience wrapper around `Bus.AppendCause`. |
+| `(*Engine).Annotate` | `(ev bus.Event) bus.Event` — returns `ev` unchanged; a reserved hook for richer derivation rules, not yet implemented. |
 
 ## Public API — `sources`
 
@@ -51,7 +53,8 @@ The CLI's `/api/devtools/*` HTTP endpoints read directly from this package.
 | `Wire` | `(b *bus.Bus, deps Deps) *Wiring` | Construct a wiring; usually one per `serve` process. |
 | `(*Wiring).PublishHTTP` | `(kind string, payload map[string]any) uint64` | Inbound API request. |
 | `(*Wiring).PublishRunner` | `(curingName, agentName string, ev runner.ProgressEvent) uint64` | Convert a runner progress event to a bus event. |
-| `(*Wiring).PublishScheduleFire` | `(agentName, scheduleExpr string) uint64` | Scheduler tick. |
+| `(*Wiring).PublishScheduleFire` | `(agentName, scheduleExpr string) uint64` | Scheduler tick. Call once per tick, before the runner executes the agent. |
+| `(*Wiring).PublishQueueRun` | `(agentName, queueName string, item model.QueueItem) uint64` | Scheduler dequeued an item and is starting an agent run. Carries queue context without exposing payload values. |
 | `(*Wiring).PublishTannery` | `(ev curing.TanneryEvent) uint64` | Tannery transitions (hide stored, agent run, artifact written, etc.). |
 
 ## Internal Design
