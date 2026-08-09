@@ -24,8 +24,16 @@ LLM calls, and scheduling all live elsewhere.
 `LoadFile` parses YAML front matter into scalar fields such as `name`,
 `schedule`, `model`, `tool_rounds`, `skills`, and `toolsets`, then splits the
 Markdown body into a system prompt plus optional user-turn sections. Each turn
-section may declare `skills: [...]`, `toolsets: [...]`, or `tools: [...]`
-before the actual prompt text.
+section may declare `skills: [...]`, `toolsets: [...]`, `tools: [...]`,
+`require_tool: [...]`, or `clear: true` before the actual prompt text.
+
+The header ends at the first blank line or the first non-declaration line. A
+header-position line shaped like a declaration but naming none of those five
+keys is a load error rather than prompt text: swallowing it silently meant
+`tool_rounds: 12` set no budget and a mistyped `toolset:` left the turn holding
+the previous turn's scope ([#82](https://github.com/TGPSKI/leather/issues/82)).
+`require_tool` populates `model.Agent.TurnRequireTools`, which the runner
+enforces and `leather validate` resolves against the turn's scope.
 
 `LoadDir` works in phases: load all base agent files, load all lifecycle files,
 clone and overlay lifecycle records onto the matching base agents, then add any

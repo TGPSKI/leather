@@ -7,6 +7,57 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **`require_tool:` — a turn that must act cannot end on text**
+  ([#84](https://github.com/TGPSKI/leather/issues/84)).
+  A turn whose job is to dispatch, file, or publish ends the moment the model
+  produces text, and producing text instead of acting is the failure mode:
+  observed, a fan-out agent composed five dispatch blocks as its reply, called
+  nothing, and recorded success while zero downstream work was queued. The only
+  defense was a sentence in the prompt, re-breakable by anyone who rewrote it.
+  A turn header may now name required tools; a text response arriving with none
+  of them called is refused, the model is told to make the call, and the turn
+  continues. If the turn's tool rounds run out first the run fails, naming the
+  turn and the tool. Any one named tool satisfies the requirement, and a call
+  that fails counts — the requirement is that the model attempted the act. A
+  requirement no tool in that turn's scope can satisfy is rejected by
+  `leather validate` and again at run start, before the first LLM call.
+
+### Fixed
+
+- **An unrecognized turn header key is an error, not prompt text**
+  ([#82](https://github.com/TGPSKI/leather/issues/82)).
+  The turn parser recognized four keys and silently treated any other
+  declaration-shaped line as the first line of the prompt. `tool_rounds: 12` set
+  no budget and shipped to the model as prose; a typo'd `toolset:` left the turn
+  inheriting the previous turn's scope, which is the case where a turn written
+  to drop a write tool keeps it. Both produced a clean run and no warning. A
+  header-position line naming an unrecognized key now fails the load, naming the
+  file, the turn, and the five recognized keys. The header also ends at the
+  first blank line, so a prompt that genuinely opens with `word:` has somewhere
+  to put it. Measured against every agent under `examples/` and every agent
+  block in `docs/`: no existing turn changes meaning.
+- **Lifecycle `output: type: queue` produced items no curing could consume**
+  ([#83](https://github.com/TGPSKI/leather/issues/83)).
+  The route enqueued an item carrying only a payload. A curing's first act is to
+  load its item's hide, so every item this route produced hit "hide missing" and
+  dead-lettered on first touch — there was no input for which it worked, and the
+  schema accepted it, `leather validate` passed it, and the failure surfaced only
+  as a growing DLQ. The route now writes the response to the hide store and
+  enqueues a reference to it, matching what curing-to-curing chaining already
+  did. Where no hide store is available the route warns and enqueues nothing
+  rather than producing an item guaranteed to dead-letter.
+
+### Documentation
+
+- `docs/GUIDE.md` gains the full turn-header key table, the `require_tool`
+  contract, a shape-selection table for picking between cron, curing, fan-out
+  and fan-in, five authoring anti-patterns drawn from live failures, and two
+  corrections: `hide_types` does not filter chained artifacts (a chained hide
+  carries the upstream curing's name as its kind), and `page_size_bytes` smaller
+  than the document silently drops the tail an end-of-document guard depends on.
+
 ## [0.5.2] — 2026-08-09
 
 ### Added

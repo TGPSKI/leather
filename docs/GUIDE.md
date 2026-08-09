@@ -273,6 +273,54 @@ Confirm the tag is present on origin.
 
 Per-turn declarations **replace** (not extend) the base scope for that turn.
 Use this to restrict risky operations (write tools off for read turns, etc.).
+A turn with no declarations of its own inherits the frontmatter scope.
+
+#### Turn header keys
+
+A turn's header is the run of declaration lines at its top. Exactly five keys
+are recognized:
+
+| key | effect |
+|---|---|
+| `skills` | replace this turn's scope with these skills |
+| `toolsets` | replace this turn's scope with these toolsets |
+| `tools` | replace this turn's scope with these tool names |
+| `require_tool` | this turn may not end until one of these tools is called |
+| `clear` | `clear: true` drops the conversation before this turn's prompt |
+
+The header ends at the first blank line, or at the first line that is not a
+declaration. A line in header position shaped like a declaration (`word:`) but
+naming an unrecognized key **fails the load**, naming the file and the turn.
+Before v0.5.3 it silently became the first line of the prompt, so `tool_rounds:
+12` set no budget and a typo'd `toolset:` left the turn holding the previous
+turn's scope. If a prompt legitimately opens with such a line, separate it from
+the header with a blank line.
+
+#### `require_tool` — turns that must act, not describe
+
+A turn whose job is to *act* — dispatch briefs, file a record, publish — ends
+the moment the model produces text, and producing text instead of acting is the
+failure mode. Observed: a fan-out agent composed five dispatch blocks as its
+reply, called nothing, and recorded success while zero downstream work queued.
+
+```markdown
+---
+toolsets: [prowl-dispatch]
+require_tool: [dispatch_briefs]
+
+Dispatch one brief per seed you identified.
+```
+
+A text response arriving with none of the named tools called is refused, the
+model is told to make the call, and the turn continues. If the turn's tool
+rounds run out first the run **fails**, naming the turn and the tool, rather
+than recording success over work that never happened.
+
+- Any one named tool satisfies the requirement.
+- A call that fails still satisfies it — the requirement is that the model
+  attempted the act; a tool that rejects its arguments has its own contract.
+- A `require_tool` naming a tool outside that turn's scope is unsatisfiable and
+  is rejected by `leather validate` and at run start, before the first LLM call.
 
 ### Anti-patterns
 
@@ -282,6 +330,11 @@ Use this to restrict risky operations (write tools off for read turns, etc.).
 | 20-line system prompt | Trim to role + format. Move operational params to lifecycle file. |
 | Two unrelated tasks in one agent | Split into two agents, connect via output queue. |
 | Asking the agent to "decide what to do" without constraints | Enumerate the decision tree explicitly (see `decision.agent.md`, example 10). |
+| A turn that says "Call X" and nothing more | State the turn's exit condition. A turn with no text deliverable loops tools until `max tool rounds` is hit. |
+| An acting turn that also shows a text output format | The model writes the text and skips the act. Put the output spec in the tool's argument description and add `require_tool`. |
+| A tool rejection with no stated fallback | Say what to do when the tool refuses ("record the rejection as `action: failed`"). Without it the model edits its input to appease the validator and loops. |
+| Asking the model to cite a tool or field name from memory | Enumerate the legal names in the prompt. An invented name fails downstream validation, not at the call. |
+| Hardcoded counts (findings per cycle, repos, turns) | Counts in prompts become targets the model pads to. Let the data set N. |
 
 ---
 
@@ -331,6 +384,21 @@ cache:
 `parameters`, output routing, cache.
 
 **Use the agent file for:** the system prompt (the *what*). Keep it stable.
+
+### Output routes
+
+| Route | Delivers to |
+|---|---|
+| `type: file` | a path; `{{.date}}` and `{{.agent}}` expand |
+| `type: queue` | a named queue, as a hide the consuming curing can load |
+| `type: http` | a URL; POST `/intake?queue=…` is how one agent feeds another across a serve |
+| `type: notify` | a configured notify backend |
+
+`type: queue` requires tannery mode: the response is written to the hide store
+and the queue item references it, because a curing loads its item's hide before
+anything else. Without a hide store the route logs a warning and enqueues
+nothing — before v0.5.3 it enqueued an item with no hide and every one of them
+dead-lettered on first touch ([#83](https://github.com/TGPSKI/leather/issues/83)).
 
 ### Multiple instances from one file
 
@@ -629,14 +697,32 @@ output:                     # optional
 | `name` | Unique curing identifier. Must match the route's `curing:` field in tannery.yaml. |
 | `agent` | Agent name. Must match the `name:` in the corresponding `*.agent.md`. |
 | `queue` | Input queue name. Must be declared in tannery.yaml `queues:`. |
-| `hide_types` | Semantic hide kinds this curing handles. Leave empty (`[]`) for collect-only curings. |
-| `page_size_bytes` | Max bytes per hide cut sent to the agent. Smaller = more paging turns. |
+| `hide_types` | Semantic hide kinds this curing handles. Leave empty (`[]`) for collect-only curings. Not a content filter — see below. |
+| `page_size_bytes` | Max bytes per hide cut sent to the agent. Smaller = more paging turns. Size it to the whole document when the agent needs the end of it — see below. |
 | `max_attempts` | Retry count before the item is moved to `<queue>-dlq`. |
 | `timeout_seconds` | Per-run wall-clock timeout. |
 | `collect_size` | Fan-in: wait for this many queue items (grouped by `collect_by`) before running. |
 | `collect_by` | Fan-in grouping key. Currently: `correlation_id`. |
 | `output.queue` | Enqueue the agent's response to this queue after completion. |
 | `output.notify` | Send artifact to these notify backends after completion. |
+
+#### `hide_types` does not filter chained artifacts
+
+It reads like a content filter, but a curing that chains into another via
+`output.queue` stamps the downstream hide's kind with the **upstream curing's
+name**, so every artifact from one curing arrives with the same kind whatever
+`hide_types` lists. It selects only among hides entering from `/intake`. Routing
+decisions belong in `tannery.yaml` `routes:` — see
+[LEP-0008](LEP-0008-conditional-routing.md) for the four places leather makes a
+routing decision and what each can see.
+
+#### Size `page_size_bytes` to the whole document when the tail matters
+
+A hide larger than `page_size_bytes` is paged, and an agent that reads only the
+first cut never sees the end. When the agent must check something that lives at
+the end of the document — a trailing count, a closing section, a stamp a guard
+compares against — a page smaller than the document silently drops it, and the
+guard then refuses every item. Size it to the largest realistic input.
 
 ### Fan-in collect curing
 
@@ -734,6 +820,27 @@ before writing the hide.
 ---
 
 ## 10. Recipes
+
+### Choosing the shape
+
+Pick the row that matches the trigger and the data, then read the recipe.
+
+| Situation | Shape |
+|---|---|
+| Runs on the wall clock | agent + lifecycle with `schedule:` |
+| Runs when another stage delivers | curing on a queue; the producer POSTs `/intake?queue=` |
+| One agent's output is another's whole input | two agents joined by a queue — the downstream one cannot re-derive what it never saw |
+| Fan-out where N is a judgment about the data | the model writes blocks; one deterministic tool parses them and posts N items |
+| Fan-in of N results | accumulate on disk and dedupe at publish, not a join queue — a failed item then costs only itself |
+| One step must hold a risky tool the others must not | multi-turn agent with per-turn scope replacement |
+| Every step needs the same tools | single-scope agent, frontmatter only, plain-prose turns |
+| N results must be seen together before the next step | fan-in collect curing (`collect_size`, `collect_by`) |
+
+Two notes on cost. Adding a stage is cheap; making one primitive absorb another
+rule is not — when a prompt keeps growing rules, the fix is usually a new small
+stage, not another paragraph. And a `collect_size` barrier makes the whole group
+wait for its slowest member, so prefer append-and-dedupe fan-in unless the next
+step genuinely needs every result at once.
 
 ### Recipe: Scheduled agent
 

@@ -1266,6 +1266,102 @@ func TestRunner_TurnSkillScopeReplacesBaseScope(t *testing.T) {
 	}
 }
 
+// requireToolRegistry returns a registry holding one callable tool named
+// dispatch_briefs, the acting tool the require_tool tests below guard.
+func requireToolRegistry(t *testing.T) *tool.Registry {
+	t.Helper()
+	reg := tool.NewRegistry()
+	if err := reg.Register(model.Skill{
+		Name:  "dispatch",
+		Tools: []model.ToolDefinition{{Name: "dispatch_briefs", Type: "http", HTTP: model.HTTPToolConfig{Method: "GET", URL: "http://127.0.0.1:0/"}}},
+	}); err != nil {
+		t.Fatalf("Register dispatch skill: %v", err)
+	}
+	return reg
+}
+
+func TestRunner_RequireTool_RefusesTextThenAccepts(t *testing.T) {
+	// Round 0 answers in prose without calling anything — the failure #84
+	// exists to catch. The turn must not end there; round 1 makes the call.
+	mock := session.NewMockLLM(session.MockConfig{
+		Response: "SEED 1: ...\nSEED 2: ...",
+		ToolCallSequence: [][]model.ToolCall{
+			nil,
+			{{ID: "d-1", Name: "dispatch_briefs", Arguments: map[string]any{}}},
+		},
+	})
+	r := &Runner{Client: mock, Registry: requireToolRegistry(t), Log: testLogger(t), MaxToolRounds: 5}
+	a := testAgent("require-tool-recovers")
+	a.UserPrompts = []string{"dispatch one brief per seed"}
+	a.TurnSkills = [][]string{{"dispatch"}}
+	a.TurnRequireTools = [][]string{{"dispatch_briefs"}}
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if rec.Status != model.JobStatusSuccess {
+		t.Fatalf("status = %q, want success", rec.Status)
+	}
+	if len(mock.Calls()) < 3 {
+		t.Fatalf("Complete calls = %d, want at least 3 (refused text, tool call, final text)", len(mock.Calls()))
+	}
+	// The refusal must reach the model as a user message, otherwise it has no
+	// way to know the turn is still open.
+	var sawNudge bool
+	for _, msg := range mock.Calls()[len(mock.Calls())-1] {
+		if msg.Role == "user" && strings.Contains(msg.Content, "requires a call to dispatch_briefs") {
+			sawNudge = true
+			break
+		}
+	}
+	if !sawNudge {
+		t.Error("expected the refusal to be delivered to the model as a user message")
+	}
+}
+
+func TestRunner_RequireTool_FailsWhenNeverCalled(t *testing.T) {
+	// A model that only ever answers in text must fail the run rather than
+	// record success over work that never happened.
+	mock := session.NewMockLLM(session.MockConfig{Response: "SEED 1: ..."})
+	r := &Runner{Client: mock, Registry: requireToolRegistry(t), Log: testLogger(t), MaxToolRounds: 3}
+	a := testAgent("require-tool-never")
+	a.UserPrompts = []string{"dispatch one brief per seed"}
+	a.TurnSkills = [][]string{{"dispatch"}}
+	a.TurnRequireTools = [][]string{{"dispatch_briefs"}}
+
+	rec, err := r.Run(context.Background(), a, testBudget())
+	if err == nil {
+		t.Fatal("Run: want error when the required tool is never called, got nil")
+	}
+	if !strings.Contains(err.Error(), "dispatch_briefs") {
+		t.Errorf("error %q does not name the required tool", err)
+	}
+	if rec.Status == model.JobStatusSuccess {
+		t.Error("status = success, want failure")
+	}
+}
+
+func TestRunner_RequireTool_UnsatisfiableScopeFailsImmediately(t *testing.T) {
+	// A requirement no tool in the turn's scope can satisfy is a config error.
+	// Failing on the check costs one comparison; looping costs every round.
+	mock := session.NewMockLLM(session.MockConfig{Response: "done"})
+	r := &Runner{Client: mock, Registry: requireToolRegistry(t), Log: testLogger(t), MaxToolRounds: 5}
+	a := testAgent("require-tool-unsatisfiable")
+	a.UserPrompts = []string{"dispatch"}
+	a.TurnSkills = [][]string{{"dispatch"}}
+	a.TurnRequireTools = [][]string{{"not_in_scope"}}
+
+	if _, err := r.Run(context.Background(), a, testBudget()); err == nil {
+		t.Fatal("Run: want error for an unsatisfiable require_tool, got nil")
+	} else if !strings.Contains(err.Error(), "not_in_scope") {
+		t.Errorf("error %q does not name the unsatisfiable tool", err)
+	}
+	if len(mock.Calls()) != 0 {
+		t.Errorf("Complete calls = %d, want 0 (the check must run before the first LLM call)", len(mock.Calls()))
+	}
+}
+
 func TestRunner_TurnToolsetScopeReplacesBaseScope(t *testing.T) {
 	reg := tool.NewRegistry()
 	if err := reg.Register(model.Skill{
@@ -1438,9 +1534,11 @@ func TestRouteOutput_File(t *testing.T) {
 func TestRouteOutput_Queue(t *testing.T) {
 	dir := t.TempDir()
 	mgr := queue.NewManager(dir)
+	store := hide.NewStore(filepath.Join(dir, "hides"))
 
 	r := testRunner(t)
 	r.QueueMgr = mgr
+	r.HideStoreFn = func() *hide.Store { return store }
 	a := testAgent("queue-route")
 	a.OutputRoutes = []model.OutputRoute{
 		{Type: "queue", Queue: "myqueue"},
@@ -1456,7 +1554,55 @@ func TestRouteOutput_Queue(t *testing.T) {
 		t.Fatalf("Get queue: %v", err)
 	}
 	if q.Len() != 1 {
-		t.Errorf("queue len = %d, want 1", q.Len())
+		t.Fatalf("queue len = %d, want 1", q.Len())
+	}
+
+	// The item must reference a readable hide: a curing loads it before doing
+	// anything else, so an item without one dead-letters on first touch (#83).
+	item, ok := q.Peek()
+	if !ok {
+		t.Fatal("Peek: queue reported a length but yielded no item")
+	}
+	if item.HideID == "" {
+		t.Fatal("enqueued item has no HideID; the consuming curing would DLQ it")
+	}
+	buf, err := store.LoadIntoBuffer(item.HideID, 4096)
+	if err != nil {
+		t.Fatalf("LoadIntoBuffer %s: %v", item.HideID, err)
+	}
+	cut, err := buf.FirstCut()
+	if err != nil {
+		t.Fatalf("FirstCut: %v", err)
+	}
+	if !strings.Contains(cut.Format(), "ok") {
+		t.Errorf("hide content = %q, want the agent response", cut.Format())
+	}
+}
+
+func TestRouteOutput_Queue_NoHideStore(t *testing.T) {
+	// Without a hide store the route cannot produce a consumable item, so it
+	// must refuse rather than enqueue one that is guaranteed to dead-letter.
+	dir := t.TempDir()
+	mgr := queue.NewManager(dir)
+
+	r := testRunner(t)
+	r.QueueMgr = mgr
+	r.HideStoreFn = nil
+	a := testAgent("queue-route-no-store")
+	a.OutputRoutes = []model.OutputRoute{
+		{Type: "queue", Queue: "myqueue"},
+	}
+
+	if _, err := r.Run(context.Background(), a, testBudget()); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	q, err := mgr.Get("myqueue")
+	if err != nil {
+		t.Fatalf("Get queue: %v", err)
+	}
+	if q.Len() != 0 {
+		t.Errorf("queue len = %d, want 0 (unconsumable item must not be enqueued)", q.Len())
 	}
 }
 

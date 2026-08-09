@@ -1114,6 +1114,7 @@ func (w *Worker) buildRunner(buf *hide.HideBuffer) runner.Runner {
 		ToolTimeout:        w.deps.ToolTimeout,
 		Cache:              w.deps.Cache,
 		QueueMgr:           w.deps.QueueMgr,
+		HideStoreFn:        func() *hide.Store { return w.hideStore },
 		Notifiers:          w.deps.Notifiers,
 		MCPRegistry:        w.deps.MCPReg,
 		HideBuffer:         buf,

@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -65,6 +66,17 @@ type Runner struct {
 	// QueueMgr is used for output routing to named queues.
 	// May be nil; nil means queue output routing is unavailable.
 	QueueMgr *queue.Manager
+	// HideStoreFn resolves the tannery's hide store, used by type=queue output
+	// routes to stage content before enqueuing a reference to it. A curing loads
+	// its item's hide before anything else, so an item enqueued without one
+	// dead-letters.
+	//
+	// It is a function rather than a pointer because `leather serve` registers
+	// scheduled agents before it initialises the tannery, while output routing
+	// runs long after startup — a pointer captured at registration would always
+	// be nil. May be nil, or return nil: type=queue output routing is then
+	// unavailable and says so, rather than enqueuing an unconsumable item.
+	HideStoreFn func() *hide.Store
 	// Notifiers maps backend name to a ready Notifier for type=notify output routes.
 	// May be nil or empty; missing backend names are logged as warnings.
 	Notifiers map[string]notify.Notifier
@@ -426,6 +438,27 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 			toolByName[t.Name] = t
 		}
 
+		// require_tool: this turn may not end on a text response until one of the
+		// named tools has been called (issue #84). Resolved against the turn's own
+		// scope: a requirement no tool in scope can satisfy is a configuration
+		// error, and failing here costs one check instead of every tool round.
+		turnRequired := TurnRequireFor(a, i)
+		requiredMet := len(turnRequired) == 0
+		if !requiredMet {
+			satisfiable := false
+			for _, name := range turnRequired {
+				if _, ok := toolByName[name]; ok {
+					satisfiable = true
+					break
+				}
+			}
+			if !satisfiable {
+				wErr := fmt.Errorf("runner/Run %s: turn %d requires tool %s, none of which is in that turn's scope",
+					a.Name, i, strings.Join(turnRequired, " or "))
+				return r.errorRecord(a, startTs, wErr), wErr
+			}
+		}
+
 		opts := session.CompletionOptions{
 			MaxTokens:   budget.CompletionReserve + budget.ReasoningReserve,
 			Temperature: a.Temperature,
@@ -537,6 +570,37 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 				lastResp = resp
 			}
 
+			if len(resp.ToolCalls) == 0 && !requiredMet {
+				// An acting turn that produced text instead of acting. Ending here
+				// is the failure this key exists to prevent: the run records
+				// success while the work it was supposed to queue never happened.
+				// The text stays in the session — the model sees what it already
+				// said — and the turn continues rather than failing outright,
+				// because the usual cause is a model that composed the tool's
+				// arguments as prose and needs only to be told to send them.
+				if round == rounds-1 {
+					wErr := fmt.Errorf("runner/Run %s: turn %d ended without calling %s (require_tool) after %d rounds",
+						a.Name, i, strings.Join(turnRequired, " or "), rounds)
+					return r.errorRecord(a, startTs, wErr), wErr
+				}
+				r.Log.Warn("required tool not called; text response refused",
+					"agent", a.Name, "turn", i, "round", round,
+					"require_tool", strings.Join(turnRequired, ","))
+				if err := sess.Add(ctx, model.Message{Role: "assistant", Content: resp.Content}); err != nil {
+					return r.errorRecord(a, startTs, err), fmt.Errorf("runner/Run %s: session add assistant: %w", a.Name, err)
+				}
+				nudge := fmt.Sprintf(
+					"This turn is not finished: it requires a call to %s. Do not answer in text. Call the tool now with the values you just described.",
+					strings.Join(turnRequired, " or "))
+				if err := sess.Add(ctx, model.Message{Role: "user", Content: nudge}); err != nil {
+					return r.errorRecord(a, startTs, err), fmt.Errorf("runner/Run %s: session add require_tool prompt: %w", a.Name, err)
+				}
+				if r.ProgressFn != nil {
+					r.ProgressFn(ProgressEvent{Kind: "user", Prompt: nudge})
+				}
+				continue
+			}
+
 			if len(resp.ToolCalls) == 0 {
 				if len(answerParts) > 0 {
 					// Splice fragments emitted alongside earlier tool calls ahead
@@ -632,6 +696,14 @@ func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudge
 					r.Log.Warn("out-of-scope tool call refused", "agent", a.Name, "tool", tc.Name)
 				} else {
 					r.Log.Info("executing tool", "agent", a.Name, "tool", tc.Name)
+					// A dispatched call satisfies require_tool whether or not it
+					// succeeds: the requirement is that the model attempted the
+					// act, and a tool that rejects its arguments has its own
+					// contract with the model (out-of-scope calls never execute,
+					// so they never count).
+					if !requiredMet && slices.Contains(turnRequired, tc.Name) {
+						requiredMet = true
+					}
 				}
 				// Debug: log full tool call arguments for diagnostics (tool name/byte-only logs above don't reveal repeated-args loops).
 				argBytes, argErr := json.Marshal(tc.Arguments)
@@ -946,6 +1018,17 @@ func TurnScopeFor(a model.Agent, i int) (skills []string, toolsets []string, too
 	return skills, toolsets, tools, declared
 }
 
+// TurnRequireFor returns the tools named by turn i's require_tool declaration,
+// at least one of which must be called before that turn may end on text.
+// Exported so `leather validate` can check the same requirement the runner
+// enforces.
+func TurnRequireFor(a model.Agent, i int) []string {
+	if len(a.TurnRequireTools) > i {
+		return a.TurnRequireTools[i]
+	}
+	return nil
+}
+
 // executeHideTool dispatches a hide navigation tool call to the HideBuffer.
 // Arguments are type-asserted from JSON-decoded map values (numbers arrive as float64).
 func (r *Runner) executeHideTool(name, callID string, args map[string]any) model.ToolResult {
@@ -1105,6 +1188,9 @@ func MaxTurnDecls(a model.Agent) int {
 	}
 	if len(a.TurnToolsets) > max {
 		max = len(a.TurnToolsets)
+	}
+	if len(a.TurnRequireTools) > max {
+		max = len(a.TurnRequireTools)
 	}
 	return max
 }
@@ -1275,9 +1361,28 @@ func (r *Runner) routeOutput(ctx context.Context, a model.Agent, content string,
 				r.Log.Warn("output route: queue manager not configured", "agent", a.Name, "queue", route.Queue)
 				continue
 			}
+			// The consuming curing's first act is to load the item's hide, so the
+			// content has to be in the hide store before the item is enqueued.
+			// Without this the item carried no HideID, the curing hit "hide
+			// missing", and every item this route produced dead-lettered on first
+			// touch (issue #83). Mirrors curing dispatchQueue: content to the
+			// store, then enqueue by ID.
+			hideStore := r.hideStore()
+			if hideStore == nil {
+				r.Log.Warn("output route: hide store not configured; queue output requires tannery mode",
+					"agent", a.Name, "queue", route.Queue)
+				continue
+			}
+			entry, err := hideStore.Put(a.Name, a.Name, []byte(content), nil)
+			if err != nil {
+				r.Log.Warn("output route: hide write failed", "agent", a.Name, "queue", route.Queue, "error", err)
+				continue
+			}
 			item := model.QueueItem{
 				ID:         fmt.Sprintf("%s-%d", a.Name, time.Now().UnixNano()),
 				AgentName:  a.Name,
+				HideID:     entry.ID,
+				HideKind:   entry.Kind,
 				Payload:    map[string]any{"content": content, "agent": a.Name},
 				EnqueuedAt: time.Now().Unix(),
 			}
@@ -1292,6 +1397,14 @@ func (r *Runner) routeOutput(ctx context.Context, a model.Agent, content string,
 			r.Log.Warn("output route: unknown type", "agent", a.Name, "type", route.Type)
 		}
 	}
+}
+
+// hideStore resolves the configured hide store, or nil when none is available.
+func (r *Runner) hideStore() *hide.Store {
+	if r.HideStoreFn == nil {
+		return nil
+	}
+	return r.HideStoreFn()
 }
 
 // routeNotify delivers content to a named messaging backend.

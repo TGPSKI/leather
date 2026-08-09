@@ -16,10 +16,11 @@ paths.
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
 | `DefaultToolRounds` | `const DefaultToolRounds = 5` | Fallback tool-round cap when neither config nor agent overrides it. |
-| `Runner` | `type Runner struct { ... }` | Runtime executor. Fields: `Client`, `Registry`, `Log`, `MaxToolRounds`, `Cache`, `QueueMgr`, `Notifiers`, `MCPRegistry`, `HideBuffer`, `ProgressFn`, `DebugContextFn`, `ForceTextAfterHide`, `NoToolsForFirstTurn`, `NoToolsForLastTurn`, `Vars`. |
+| `Runner` | `type Runner struct { ... }` | Runtime executor. Fields: `Client`, `Registry`, `Log`, `MaxToolRounds`, `Cache`, `QueueMgr`, `Notifiers`, `MCPRegistry`, `HideBuffer`, `HideStoreFn`, `ProgressFn`, `DebugContextFn`, `ForceTextAfterHide`, `NoToolsForFirstTurn`, `NoToolsForLastTurn`, `Vars`. |
 | `ProgressEvent` | `type ProgressEvent struct { ... }` | Event emitted during prompt and tool activity. Consumed by the pretty-mode CLI and the devtools bus. |
 | `ContextSnapshot` | `type ContextSnapshot struct { ... }` | Point-in-time view of the exact input sent to one LLM completion call (`AgentName`, `Turn`, `Round`, `Messages`, etc.). Delivered to `Runner.DebugContextFn` immediately before each `client.Complete` call. |
 | `(*Runner).Run` | `func (r *Runner) Run(ctx context.Context, a model.Agent, budget model.TokenBudget) (model.RunRecord, error)` | Execute one agent run, including tools, cache, hooks, and output routes. |
+| `TurnRequireFor` | `func TurnRequireFor(a model.Agent, i int) []string` | Tools declared by turn `i`'s `require_tool:`, at least one of which must be called before that turn may end on text. Exported so `leather validate` checks what the runner enforces. |
 | `BuildRunData` | `func BuildRunData(a model.Agent) map[string]any` | Build standard prompt-template variables: `agent_name`, `schedule`, `now`, `tags`. Merged with `Runner.Vars` per turn. |
 | `ExpandPromptPayload` | `func ExpandPromptPayload(a model.Agent, payload map[string]any) (model.Agent, error)` | Apply `text/template` substitution to prompt text from queue payloads. |
 
@@ -58,11 +59,26 @@ context window for that call's prompt size. A warning is logged; no retry is
 attempted if there's no room left to grow into, or if the completion already
 produced content or tool calls.
 
+A turn may name required tools via `model.Agent.TurnRequireTools`. The runner
+resolves them against that turn's own scope before the first LLM call — a
+requirement nothing in scope can satisfy fails immediately instead of burning
+every round — and refuses a text response until one of them is dispatched,
+failing the run if the rounds run out first. A dispatched call counts whether or
+not it succeeds; an out-of-scope call never executes, so it never counts.
+
 Output routing is intentionally non-fatal. `file` writes use 0600 permissions,
-`queue` routes enqueue `model.QueueItem` values, `http` routes send plain text
-with configurable method and headers, and `notify` routes deliver
-`notify.Message` payloads through named backends. One failed route does not
-prevent the others from running.
+`queue` routes stage the response in the hide store and enqueue a
+`model.QueueItem` referencing it, `http` routes send plain text with
+configurable method and headers, and `notify` routes deliver `notify.Message`
+payloads through named backends. One failed route does not prevent the others
+from running.
+
+`queue` routes need `HideStoreFn` to resolve a store. It is a function because
+`leather serve` registers scheduled agents before it constructs the tannery,
+while routing happens at run time. When it resolves to nil the route warns and
+enqueues nothing: an item without a hide is one the consuming curing loads,
+fails to find, and dead-letters on first touch
+([#83](https://github.com/TGPSKI/leather/issues/83)).
 
 ## Dependencies
 

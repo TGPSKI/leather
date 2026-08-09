@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,27 +126,81 @@ Check repo state.
 ---
 toolsets: [release-write]
 Create the tag.`
-	sysPrompt, prompts, tools, skills, toolsets, _ := splitAgentBody(body)
+	sysPrompt, turns, err := splitAgentBody(body)
+	if err != nil {
+		t.Fatalf("splitAgentBody: %v", err)
+	}
 	if sysPrompt != "System prompt." {
 		t.Fatalf("sysPrompt = %q", sysPrompt)
 	}
-	if len(prompts) != 2 {
-		t.Fatalf("len(prompts) = %d, want 2", len(prompts))
+	if len(turns) != 2 {
+		t.Fatalf("len(turns) = %d, want 2", len(turns))
 	}
-	if prompts[0] != "Check repo state." || prompts[1] != "Create the tag." {
-		t.Errorf("prompts = %v", prompts)
+	if turns[0].prompt != "Check repo state." || turns[1].prompt != "Create the tag." {
+		t.Errorf("prompts = %q, %q", turns[0].prompt, turns[1].prompt)
 	}
-	if len(skills[0]) != 1 || skills[0][0] != "shell-git" {
-		t.Errorf("skills[0] = %v", skills[0])
+	if len(turns[0].skills) != 1 || turns[0].skills[0] != "shell-git" {
+		t.Errorf("turns[0].skills = %v", turns[0].skills)
 	}
-	if len(toolsets[0]) != 1 || toolsets[0][0] != "release-read" {
-		t.Errorf("toolsets[0] = %v", toolsets[0])
+	if len(turns[0].toolsets) != 1 || turns[0].toolsets[0] != "release-read" {
+		t.Errorf("turns[0].toolsets = %v", turns[0].toolsets)
 	}
-	if len(tools[0]) != 1 || tools[0][0] != "git_status" {
-		t.Errorf("tools[0] = %v", tools[0])
+	if len(turns[0].tools) != 1 || turns[0].tools[0] != "git_status" {
+		t.Errorf("turns[0].tools = %v", turns[0].tools)
 	}
-	if len(toolsets[1]) != 1 || toolsets[1][0] != "release-write" {
-		t.Errorf("toolsets[1] = %v", toolsets[1])
+	if len(turns[1].toolsets) != 1 || turns[1].toolsets[0] != "release-write" {
+		t.Errorf("turns[1].toolsets = %v", turns[1].toolsets)
+	}
+}
+
+func TestSplitAgentBody_UnknownHeaderKeyIsFatal(t *testing.T) {
+	// `tool_rounds:` set no budget and shipped as the first line of the user
+	// turn before #82. It must now name itself at load time.
+	body := `System prompt.
+---
+toolsets: [release-read]
+tool_rounds: 12
+Check repo state.`
+	if _, _, err := splitAgentBody(body); err == nil {
+		t.Fatal("splitAgentBody: want error for unrecognized header key, got nil")
+	} else if !strings.Contains(err.Error(), "tool_rounds") {
+		t.Errorf("error %q does not name the offending key", err)
+	}
+}
+
+func TestSplitAgentBody_PromptTextIsNotAHeader(t *testing.T) {
+	// The strict check runs only in header position and must not classify
+	// ordinary prose or a URL as a mistyped declaration.
+	for name, body := range map[string]string{
+		"url":                    "System prompt.\n---\nhttp://example.com/docs is the reference.",
+		"prose":                  "System prompt.\n---\nCheck the repo state and report.",
+		"colon in prose":         "System prompt.\n---\nReport format: one line per finding.",
+		"blank line ends header": "System prompt.\n---\ntools: [git_status]\n\ntool_rounds: is discussed in the prose below.",
+	} {
+		if _, _, err := splitAgentBody(body); err != nil {
+			t.Errorf("%s: splitAgentBody: unexpected error: %v", name, err)
+		}
+	}
+}
+
+func TestSplitAgentBody_RequireTool(t *testing.T) {
+	body := `System prompt.
+---
+toolsets: [dispatch]
+require_tool: [dispatch_briefs]
+Dispatch one brief per seed.`
+	_, turns, err := splitAgentBody(body)
+	if err != nil {
+		t.Fatalf("splitAgentBody: %v", err)
+	}
+	if len(turns) != 1 {
+		t.Fatalf("len(turns) = %d, want 1", len(turns))
+	}
+	if got := turns[0].requireTools; len(got) != 1 || got[0] != "dispatch_briefs" {
+		t.Errorf("requireTools = %v", got)
+	}
+	if turns[0].prompt != "Dispatch one brief per seed." {
+		t.Errorf("prompt = %q", turns[0].prompt)
 	}
 }
 

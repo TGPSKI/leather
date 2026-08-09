@@ -339,6 +339,29 @@ func RunValidate(args []string, stdout, stderr io.Writer) int {
 						exitCode = 1
 					}
 				}
+				// A require_tool naming a tool that turn cannot reach is
+				// unsatisfiable: the run would refuse every text response until it
+				// exhausted its rounds. Catch it before the first LLM call.
+				for i := range runner.MaxTurnDecls(resolved) {
+					required := runner.TurnRequireFor(resolved, i)
+					if len(required) == 0 {
+						continue
+					}
+					skills, toolsets, toolNames, declared := runner.TurnScopeFor(resolved, i)
+					if !declared {
+						skills, toolsets, toolNames = resolved.Skills, resolved.Toolsets, nil
+					}
+					inScope := map[string]bool{}
+					for _, td := range reg.ResolveTools(skills, toolsets, toolNames) {
+						inScope[td.Name] = true
+					}
+					for _, name := range required {
+						if !inScope[name] {
+							fmt.Fprintf(stderr, "error:  agent %q turn %d: require_tool %q is not in that turn's tool scope\n", a.Name, i, name)
+							exitCode = 1
+						}
+					}
+				}
 			}
 
 			if exitCode == 0 {

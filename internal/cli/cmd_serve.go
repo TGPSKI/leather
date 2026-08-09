@@ -31,6 +31,7 @@ import (
 	"github.com/TGPSKI/leather/internal/curing"
 	"github.com/TGPSKI/leather/internal/devtools/bus"
 	"github.com/TGPSKI/leather/internal/devtools/sources"
+	"github.com/TGPSKI/leather/internal/hide"
 	"github.com/TGPSKI/leather/internal/httpx"
 	"github.com/TGPSKI/leather/internal/ids"
 	"github.com/TGPSKI/leather/internal/logging"
@@ -929,8 +930,14 @@ func RunServe(args []string, stdout, stderr io.Writer, version, commit string) i
 		}
 	}
 
+	// Set by initTannery further down. Agents register before the tannery is
+	// constructed, but a type=queue output route resolves the store at run time,
+	// so the indirection is what makes the route work at all (issue #83).
+	var tanneryHideStore *hide.Store
+
 	regDeps := agentRegDeps{
 		sched:          sched,
+		hideStoreFn:    func() *hide.Store { return tanneryHideStore },
 		llm:            llmClient,
 		metrics:        metrics,
 		toolReg:        toolReg,
@@ -1106,6 +1113,8 @@ func RunServe(args []string, stdout, stderr io.Writer, version, commit string) i
 		}
 		deps.tannery = td
 		if td != nil {
+			// Resolves the closure handed to every registered agent above.
+			tanneryHideStore = td.hideStore
 			defer drainTannery(td)
 		}
 		// (3) tannery → curing → agent hierarchy.
@@ -1315,6 +1324,11 @@ type agentRegDeps struct {
 	notifiers   map[string]notify.Notifier
 	mcpReg      *mcp.Registry
 	toolLimiter *tool.HostLimiter
+	// hideStoreFn resolves the tannery's hide store, used by type=queue output
+	// routes. It is a function because agents register before initTannery runs,
+	// while output routing happens at run time, long after startup. Returns nil
+	// when the tannery is disabled.
+	hideStoreFn func() *hide.Store
 	// llm is the process-wide LLM client (live, fixture, or recording).
 	// Shared so fixture replay order spans jobs instead of restarting per job.
 	llm            session.LLMClient
@@ -1353,6 +1367,7 @@ func registerAgentJob(deps agentRegDeps, a model.Agent) error {
 		Notifiers:          deps.notifiers,
 		MCPRegistry:        deps.mcpReg,
 		ToolLimiter:        deps.toolLimiter,
+		HideStoreFn:        deps.hideStoreFn,
 		PersistRunsDetail:  deps.cfg.PersistRunsDetail,
 		PersistRunsToolCap: deps.cfg.PersistRunsToolCap,
 	}
