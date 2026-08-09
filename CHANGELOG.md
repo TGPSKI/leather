@@ -9,6 +9,35 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [0.5.2] — 2026-08-09
 
+### Added
+
+- **A reference deployment: [`docs/REFERENCE-TANNERY.md`](docs/REFERENCE-TANNERY.md).**
+  Every numbered example runs from a fresh clone with one `make` target, which
+  bounds how much of a real system any of them can show. This studies
+  [`TGPSKI/catnip/tannery`](https://github.com/TGPSKI/catnip/tree/2033b0d9c8d5739995e2aec4087130babcce699d/tannery)
+  — six agents, four queues, a 41-minute job, running unattended — in place
+  and pinned, rather than vendoring a copy that could not run and would drift.
+  It covers the patterns no example reaches: stages joined by queues instead of
+  clock arithmetic, per-turn scopes that *replace* rather than extend, verdicts
+  that must cite a tool, and a three-layer timeout stack sized from a
+  measurement rather than a guess.
+  It also carries the measurements. Against a 35B MoE (~3B active, NVFP4, one
+  local GPU), decomposition took the analyst stage from a monolith at 237s
+  median that **never completed a recorded cycle** to 43s median, 26 runs for
+  26 — and every "failure" in the ledger is a validation guard refusing bad
+  input, not a crash. The failure ledger's finding is that **zero fixes
+  required a bigger model**: the small model's failures were boundary
+  failures, at each point the design implicitly trusted it to count, name,
+  quote or self-report, and a frontier model would have crossed some of those
+  gaps on raw capability and thereby hidden them.
+  And it carries the A/B that goes the other way. A blind frontier control
+  running the same skill single-shot — 64k tokens, 7.5 minutes, one context —
+  **produced the materially better document** than the tannery's ~750k-token,
+  15-minute pipeline. The gap decomposes into a tool-surface gap (fixable, and
+  most of it) and a whole-store synthesis ceiling that is a property of the
+  decomposition rather than the model. Both are stated in the doc, because a
+  reference deployment that only reports its wins is a brochure.
+
 Every fix in this release is the same defect wearing different clothes: a
 configuration or routing mistake that produced no error, only a run that looked
 successful. A tool reference that resolved to nothing left an agent whose prompt

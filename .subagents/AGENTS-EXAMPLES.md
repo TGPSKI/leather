@@ -1,11 +1,12 @@
 # AGENTS-EXAMPLES.md — leather examples and tutorials
 
-Subagent guide for the **demo content** domain: agents, skills,
-toolsets, and tools shipped under [`tanning/`](../tanning/), the
-tutorial sequence, and the "first 5 minutes" path for new users.
+Subagent guide for the **demo content** domain: the numbered examples
+under [`examples/`](../examples/), the reference-deployment study in
+[`docs/REFERENCE-TANNERY.md`](../docs/REFERENCE-TANNERY.md), and the
+"first 5 minutes" path for new users.
 
 Load this guide when adding, removing, or updating any file under
-`tanning/`, when writing or refreshing a tutorial under `docs/`, or
+`examples/`, when writing or refreshing a tutorial under `docs/`, or
 when answering "is there an example of X?". For the file-format spec
 those examples must obey, see [AGENTS-AGENTDEF.md](AGENTS-AGENTDEF.md).
 For tool / skill / toolset resolution semantics, see
@@ -18,10 +19,15 @@ For the example-as-test policy, see [AGENTS-QUALITY.md](AGENTS-QUALITY.md).
 
 This guide owns:
 
-- The contents of [`tanning/`](../tanning/) (demo agents, skills,
-  toolsets, tools, config, MCP server list).
+- The contents of [`examples/`](../examples/) (per-example agents,
+  skills, toolsets, curings, config, MCP server list) and the index
+  table in `examples/README.md`.
 - The "safe to copy" guarantee and what it means.
-- The tutorial sequence (0–4) under `docs/tutorials/` once authored.
+- [`docs/REFERENCE-TANNERY.md`](../docs/REFERENCE-TANNERY.md) — the
+  study of a real deployment that cannot meet the one-`make`-target
+  contract and so is read in place, pinned upstream, rather than
+  vendored. Anything that cannot run from a fresh clone belongs there,
+  not in `examples/`.
 - The example-as-test contract in CI.
 
 It does **not** own the file-format spec (AGENTS-AGENTDEF) or the
@@ -29,33 +35,40 @@ runtime that loads these examples (AGENTS-CORE / AGENTS-RUNTIME).
 
 ---
 
-## `tanning/` directory map
+## Example directory map
+
+Each numbered example is self-contained and runs from a fresh clone
+with one `make` target. `scripts/new-example.sh` scaffolds this tree:
 
 ```
-tanning/
+examples/NN-slug/
+  README.md                    What it demonstrates, and how to run it.
   config.yaml                  Minimal config that points at this directory.
-  mcp-servers.yaml             Example MCP server registrations.
-  shell-tools.json             Example shell-mcp tool manifest.
+  tannery.yaml                 Only for tannery examples: dirs, queues, routes.
+  mcp-servers.yaml             Only when the example uses MCP tools.
+  shell-tools.json             Only when the example uses shell-mcp.
   agents/
-    *.agent.md                 Demo agent identity + system prompt.
-    *.lifecycle.yaml           Demo agent schedule + model selection.
+    *.agent.md                 Agent identity + system prompt.
+    *.lifecycle.yaml           Agent schedule + model selection.
+  curings/
+    *.curing.yaml              Queue-to-agent bindings for tannery examples.
   tools/
-    *.skill.yaml               Demo skills (named tool bundles).
-    *.toolset.yaml             Demo toolsets (composed skill aliases).
-  tuning/                      Reserved for tuning harness output.
+    *.skill.yaml               Skills — the only place tools are defined.
+    *.toolset.yaml             Toolsets — lists of tool *names* a skill defines.
+  sample/                      Fixtures, including sample/dry/ for dry mode.
+  scripts/                     run-demo.sh and the example's pretty.sh copy.
 ```
 
 Naming convention: the basename of an agent's `*.agent.md` and its
-`*.lifecycle.yaml` must match (e.g. `go-release-prep.agent.md` +
-`go-release-prep.lifecycle.yaml`). The lifecycle YAML's `agent:`
-field is the authoritative link; the filename match is a human
-convention.
+`*.lifecycle.yaml` must match (e.g. `triage.agent.md` +
+`triage.lifecycle.yaml`). The lifecycle YAML's `agent:` field is the
+authoritative link; the filename match is a human convention.
 
 ---
 
 ## Safe-to-copy guarantee
 
-> Every file under `tanning/` must be safe for a new user to copy
+> Every file under `examples/` must be safe for a new user to copy
 > into `~/.leather/` and run with no edits beyond providing required
 > secrets.
 
@@ -75,59 +88,34 @@ What "safe" means here:
   this guide.
 
 A PR that violates the guarantee blocks until the violation is fixed
-or the file moves to `docs/examples/` (out of `tanning/`) with a
+or the file moves to `docs/examples/` (out of `examples/`) with a
 clear "not safe to copy" banner.
 
 ---
 
-## Per-agent walk-through
+## Per-example walk-through
 
-For every agent under `tanning/agents/`, this guide must contain a
-short walk-through. Format:
+**The corpus is enumerated in exactly one place:** the index table in
+[`examples/README.md`](../examples/README.md). This guide does not
+carry a second copy — a duplicated index drifts from the original, and
+the mirror is always the one that is wrong (the same reason
+`.subagents/README.md` no longer mirrors the root routing table).
 
-### `<agent-name>`
+Each example carries its own walk-through in its `README.md`, which
+must state:
 
-- **Files:** `<name>.agent.md`, `<name>.lifecycle.yaml`.
-- **Purpose:** one sentence.
+- **Purpose:** one sentence — what mechanism it demonstrates.
+- **Needs LLM?** yes / no, and whether `make NN` runs dry.
 - **Required secrets:** `${VAR}` list.
-- **Required MCP servers:** names referenced from
-  `mcp-servers.yaml`.
-- **Required tools / skills / toolsets:** from `tanning/tools/`.
+- **Required MCP servers:** names referenced from `mcp-servers.yaml`.
+- **Required tools / skills / toolsets:** which skill file defines
+  each tool the agents name.
 - **Schedule:** cron expression and what it implies for cost.
 - **Safe to copy?** Yes / Yes-with-caveats / No.
 
-Current corpus (keep this list in sync — one entry per file in
-`tanning/agents/`):
-
-### `go-release-prep`
-
-- **Files:** `go-release-prep.agent.md`,
-  `go-release-prep.lifecycle.yaml`.
-- **Purpose:** prepare a Go-module release: changelog draft, version
-  bump suggestions, tag candidate.
-- **Required secrets:** `${GITHUB_TOKEN}` (read-only scope is enough).
-- **Required MCP servers:** the `shell-mcp` companion (for `git`
-  commands).
-- **Required tools / skills / toolsets:** `shell-git.skill.yaml`,
-  `github-repo.skill.yaml`, `release-tag-read.toolset.yaml`.
-- **Schedule:** typically `once` or manual; safe to invoke ad hoc.
-- **Safe to copy?** Yes.
-
-### `go-release-tag`
-
-- **Files:** `go-release-tag.agent.md`,
-  `go-release-tag.lifecycle.yaml`.
-- **Purpose:** create and verify a release tag after prep approval.
-- **Required secrets:** `${GITHUB_TOKEN}` (write scope for release
-  creation).
-- **Required MCP servers:** `shell-mcp`.
-- **Required tools / skills / toolsets:**
-  `shell-release.skill.yaml`, `github-release.skill.yaml`,
-  `release-tag-write.toolset.yaml`,
-  `release-tag-verify.toolset.yaml`.
-- **Schedule:** `once`; gated behind explicit invocation.
-- **Safe to copy?** Yes-with-caveats — writes a tag and a GitHub
-  release. Run against a throwaway repo first.
+When adding an example, add its row to `examples/README.md` and its
+`make help` line. Those two registrations stay hand-written; the
+scaffolder prints them.
 
 ---
 
@@ -149,8 +137,8 @@ Authoring rules:
 
 - Every tutorial ends with a "you should now have…" outcome bullet
   list.
-- Every tutorial uses files that already exist in `tanning/`, or
-  introduces new ones into `tanning/` in the same PR.
+- Every tutorial uses files that already exist in `examples/`, or
+  introduces new ones into `examples/` in the same PR.
 - Every tutorial is runnable end-to-end against `MockLLM`; live LLM
   use is optional and clearly marked.
 
@@ -158,16 +146,16 @@ Authoring rules:
 
 ## Example-as-test policy
 
-Every file under `tanning/agents/`, `tanning/tools/`, and every
-config in `tanning/` must pass `leather validate` in CI.
+Every file under `examples/*/agents/`, `examples/*/tools/`, and every
+config in `examples/` must pass `leather validate` in CI.
 
 The hook lives in [AGENTS-QUALITY.md](AGENTS-QUALITY.md); the
 authoring contract is:
 
 - A new example PR includes a CI run that validates the new file.
-- A change to a schema in `internal/schema` that breaks a `tanning/`
+- A change to a schema in `internal/schema` that breaks an `examples/`
   file is a release-blocker — fix the example in the same PR.
-- A new agent under `tanning/agents/` ships with a `MockLLM`
+- A new agent under `examples/*/agents/` ships with a `MockLLM`
   test-agent invocation logged in the PR description showing it
   runs to completion.
 
@@ -176,13 +164,13 @@ authoring contract is:
 ## Adding a new example
 
 1. **Decide whether it belongs.** If it demonstrates a *core
-   capability*, ship it under `tanning/`. If it's a one-off
+   capability*, ship it under `examples/`. If it's a one-off
    integration tip, write a section in `docs/` instead.
 2. **Mirror the existing pattern.** Reuse skill / toolset files when
    possible; do not invent parallel toolsets that duplicate
-   `tanning/tools/`.
+   `examples/*/tools/`.
 3. **Verify the safe-to-copy guarantee** against the checklist above.
-4. **Update this guide's per-agent walk-through table** in the same
+4. **Add the row to `examples/README.md`** and the `make help` line in the same
    PR.
 5. **Run `leather validate`** and `leather test-agent <name>` against
    `MockLLM`.
@@ -191,8 +179,8 @@ authoring contract is:
 
 ## Removing or renaming an example
 
-- Renaming a `tanning/` file requires updating every cross-reference
-  in this guide and in `tanning/agents/*.lifecycle.yaml`
+- Renaming an `examples/` file requires updating every cross-reference
+  in this guide and in `examples/*/agents/*.lifecycle.yaml`
   `agent:` fields if the change touches an agent name.
 - Removing an example requires a one-line note in the PR description or
   release notes explaining why it was removed.
@@ -201,15 +189,16 @@ authoring contract is:
 
 ## Verification checklist
 
-Before opening a PR that touches `tanning/` or a tutorial:
+Before opening a PR that touches `examples/` or a tutorial:
 
-- [ ] `leather validate --agent-dir tanning/agents --tool-dir
-      tanning/tools` exits 0.
+- [ ] `cd examples/NN-slug && leather validate --config ./config.yaml`
+      exits 0 — this loads the whole tool registry, so it also catches
+      duplicate tool names and dangling skill/toolset references.
 - [ ] `leather test-agent <name>` against `MockLLM` prints a
       complete turn transcript.
 - [ ] Safe-to-copy guarantee re-verified for any added or modified
       file.
-- [ ] Per-agent walk-through table in this guide updated for any
+- [ ] Index row in `examples/README.md` updated for any
       add / rename / remove.
 - [ ] Cross-references to skills / toolsets resolve under the
       precedence rules in
@@ -260,4 +249,4 @@ manually.
 
 ---
 
-_Last reviewed: 2026-07-05_
+_Last reviewed: 2026-08-09_
