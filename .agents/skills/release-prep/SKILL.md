@@ -1,6 +1,6 @@
 ---
 name: release-prep
-description: "Prepare a leather release: auto-detect next version from git history, insert CHANGELOG section, update docs, commit and push. USE FOR: cutting a new release; bumping version after feature or fix work. DO NOT USE FOR: tagging the release (use release-tag after this skill completes)."
+description: "Prepare a leather release: auto-detect next version from git history, insert CHANGELOG section, bump CITATION.cff, update docs, commit, push, and merge the PR. USE FOR: cutting a new release; bumping version after feature or fix work. DO NOT USE FOR: tagging the release (use release-tag after this skill completes)."
 compatibility: Designed for Claude Code and similar coding agents working in the leather repository.
 metadata:
   argument-hint: 'Optional explicit version, e.g. "v0.2.0". Omit to auto-detect from commits.'
@@ -102,7 +102,23 @@ per-subcommand list. Nothing to sync there.
 
 ---
 
-## Step 6 — Commit and push
+## Step 6 — CITATION.cff
+
+Zenodo mints a record for every GitHub release and reads `CITATION.cff` for
+its title, author, and version. Set the two fields that change per release:
+
+```
+version: X.Y.Z            # NEXT_VERSION without the v
+date-released: "YYYY-MM-DD"
+```
+
+Leave `doi:` at the previous release's value. The new record's DOI does not
+exist until the release is published; `release-tag` records it afterwards.
+The `identifiers:` entry is the concept DOI and never changes.
+
+---
+
+## Step 7 — Commit, push, and merge
 
 Stay on the **current branch** — do not switch to or push directly to `main`.
 Stage what this skill actually changed and make one commit:
@@ -114,14 +130,31 @@ git commit -m "chore(release): prepare NEXT_VERSION"
 git push origin "$CURRENT_BRANCH"
 ```
 
-Often that is `CHANGELOG.md` alone. A one-file release-prep commit is normal.
+Usually that is `CHANGELOG.md` and `CITATION.cff`.
 
 If the current branch already has an open PR, the commit is added to it
-automatically. If not, open a new PR targeting `main`:
+automatically. If not, open a new PR targeting `main` with the `full-test`
+label:
 
 ```
-gh pr create --title "chore(release): prepare NEXT_VERSION" --body "..."
+gh pr create --title "chore(release): prepare NEXT_VERSION" --body "..." --label full-test
 ```
+
+The `main` ruleset requires three status contexts and one approving review.
+`Build & Test (linux/amd64)` runs on every PR; `Full-scope (linux/arm64)` and
+`Full-scope (macos/arm64)` run only when the PR carries the `full-test` label
+(add it with `gh pr edit N --add-label full-test` if the PR already exists).
+The owner cannot approve their own PR, so the merge uses the owner bypass:
+
+```
+gh pr checks N --watch --fail-fast
+gh pr merge N --squash --admin --delete-branch
+git switch main && git pull --ff-only origin main
+```
+
+A `Full-scope (${{ matrix.label }})` row showing cancelled or skipping is the
+unlabeled run superseded by the labeled one; the named contexts are what the
+ruleset checks.
 
 Do not tag in this step. Tagging is the job of `leather-release-tag`.
 
@@ -133,9 +166,10 @@ Must hold:
 
 - [ ] NEXT_VERSION is set, with one sentence of reasoning
 - [ ] CHANGELOG has the new section, dated, with its comparison link
+- [ ] CITATION.cff `version` and `date-released` match NEXT_VERSION
 - [ ] Commit is pushed to the current branch (never directly to main)
-- [ ] A PR targeting main exists
-- [ ] Working tree is clean (`git status` shows nothing)
+- [ ] The PR carried `full-test`, all three required contexts passed, and it is merged
+- [ ] Local main is at the merge commit and the tree is clean
 
 Checked, and "nothing to do" is a valid outcome for each:
 

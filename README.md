@@ -1,7 +1,5 @@
 # leather
 
-[![DOI](https://zenodo.org/badge/1245164823.svg)](https://doi.org/10.5281/zenodo.22637735)
-
 [releases](https://github.com/TGPSKI/leather/releases) | [changelog](CHANGELOG.md) | [pkg.go.dev](https://pkg.go.dev/github.com/TGPSKI/leather) | [leather.sh](https://leather.sh) | [pate.sh](https://pate.sh)
 
 **Local agent infrastructure in one stdlib-only Go binary.** 
