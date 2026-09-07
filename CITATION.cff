@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use leather in research, cite it as below."
+type: software
+title: "leather: local agent infrastructure in one stdlib-only Go binary"
+authors:
+  - family-names: Pate
+    given-names: Tyler
+    alias: TGPSKI
+version: 0.5.4
+date-released: "2026-09-07"
+license: GPL-3.0
+repository-code: "https://github.com/TGPSKI/leather"
+url: "https://leather.sh"
+abstract: >-
+  A single Go binary, no dependencies outside the standard library, that runs
+  declarative agents on a workstation, server, or Raspberry Pi: scheduled jobs,
+  one-shot runs, webhook-driven workflows, tool calling, and auditable run
+  records. The repository includes examples/14-sig-triage, an evaluation
+  campaign that measures how much of a small local model's task accuracy is
+  determined by the runtime around it, with the weights and hardware held
+  fixed.
+keywords:
+  - agents
+  - LLM runtime
+  - local inference
+  - tool calling
+  - Go
+  - evaluation
