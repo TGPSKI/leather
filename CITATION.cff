@@ -7,7 +7,12 @@ authors:
     given-names: Tyler
     alias: TGPSKI
 version: 0.5.4
+doi: 10.5281/zenodo.22637736
 date-released: "2026-09-07"
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22637735
+    description: "Concept DOI, resolves to the latest release"
 license: GPL-3.0
 repository-code: "https://github.com/TGPSKI/leather"
 url: "https://leather.sh"

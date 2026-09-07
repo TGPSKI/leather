@@ -1,5 +1,7 @@
 # leather
 
+[![DOI](https://zenodo.org/badge/1245164823.svg)](https://doi.org/10.5281/zenodo.22637735)
+
 [releases](https://github.com/TGPSKI/leather/releases) | [changelog](CHANGELOG.md) | [pkg.go.dev](https://pkg.go.dev/github.com/TGPSKI/leather) | [leather.sh](https://leather.sh) | [pate.sh](https://pate.sh)
 
 **Local agent infrastructure in one stdlib-only Go binary.** 
@@ -204,4 +206,4 @@ and descends as far as you want to go.
 | 2026-07-05 | v0.4.0 "vegan leather" |
 | 2026-07-29 | v0.5.0 "alligator": [examples/14-sig-triage](examples/14-sig-triage/) and its eval campaign |
 | 2026-08-09 | v0.5.3; [docs/REFERENCE-TANNERY.md](docs/REFERENCE-TANNERY.md) |
-| 2026-09-07 | v0.5.4; releases archived on Zenodo from this version on |
+| 2026-09-07 | v0.5.4; releases archived on Zenodo from this version on, concept DOI [10.5281/zenodo.22637735](https://doi.org/10.5281/zenodo.22637735) |
