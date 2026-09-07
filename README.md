@@ -193,3 +193,15 @@ and descends as far as you want to go.
 | **see** a real deployment | [docs/REFERENCE-TANNERY.md](docs/REFERENCE-TANNERY.md) — six agents, four queues, running unattended, with measured run records and an honest A/B against a frontier control | the system itself: [TGPSKI/catnip/tannery](https://github.com/TGPSKI/catnip/tree/2033b0d9c8d5739995e2aec4087130babcce699d/tannery) |
 | **understand** the internals | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — package layout and data flow | [docs/modules/](docs/modules) (per-package) · [docs/GLOSSARY.md](docs/GLOSSARY.md) |
 | **contribute** (human or agent) | [AGENTS.md](AGENTS.md) — the routing table | [.subagents/](.subagents) domain guides · [CHANGELOG.md](CHANGELOG.md) |
+
+## History
+
+| Date | Event |
+|---|---|
+| 2026-05-21 | Repository created |
+| 2026-06-01 | v0.1.0 "napa", first public release; `c09d184` is the first commit in this history |
+| 2026-06-05 | v0.2.0 "weathered" |
+| 2026-07-05 | v0.4.0 "vegan leather" |
+| 2026-07-29 | v0.5.0 "alligator": [examples/14-sig-triage](examples/14-sig-triage/) and its eval campaign |
+| 2026-08-09 | v0.5.3; [docs/REFERENCE-TANNERY.md](docs/REFERENCE-TANNERY.md) |
+| 2026-09-07 | v0.5.4; releases archived on Zenodo from this version on |
