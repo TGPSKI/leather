@@ -1,6 +1,6 @@
 ---
 name: release-tag
-description: "Tag a prepared leather release and push the tag to origin. Triggers the automated release pipeline. USE FOR: after release-prep has committed and pushed. DO NOT USE FOR: preparing the CHANGELOG or docs (use release-prep first); creating GitHub releases directly (the pipeline handles that)."
+description: "Sign and push the tag for a prepared leather release, then record the Zenodo DOI the pipeline produces in CITATION.cff. USE FOR: after release-prep has committed and pushed. DO NOT USE FOR: preparing the CHANGELOG or docs (use release-prep first); creating GitHub releases directly (the pipeline handles that)."
 compatibility: Designed for Claude Code and similar coding agents working in the leather repository.
 metadata:
   argument-hint: 'Version to tag, e.g. "v0.1.3". Must match the CHANGELOG entry created by leather-release-prep.'
@@ -64,9 +64,12 @@ origin."
 All four gates passed — proceed:
 
 ```bash
-git tag -a VERSION -m "VERSION"
-git push origin VERSION
+git tag -s VERSION -m "VERSION"
+git push origin refs/tags/VERSION
 ```
+
+The `main` ruleset requires signed commits and tags; `-s` signs with the
+configured key, `-a` alone does not.
 
 ---
 
@@ -97,6 +100,24 @@ the Actions tab if the pipeline does not appear within ~30 seconds of the push.
 
 ---
 
+## Record the Zenodo DOI
+
+Zenodo archives every GitHub release and mints a version DOI about a minute
+after the release is published. Wait for the pipeline, then find the record:
+
+```bash
+gh run watch $(gh run list --workflow release.yml --limit 1 --json databaseId -q '.[0].databaseId') --exit-status
+curl -s 'https://zenodo.org/api/records?q=metadata.related_identifiers.identifier:%22https://github.com/TGPSKI/leather/tree/VERSION%22' \
+  | python3 -c "import json,sys; h=json.load(sys.stdin)['hits']['hits']; print(h[0]['doi'] if h else 'not yet')"
+```
+
+Set `doi:` in `CITATION.cff` to that value. The concept DOI under
+`identifiers:` (10.5281/zenodo.22637735) stays as it is. Commit, open a PR
+with the `full-test` label, and merge it the way release-prep Step 7
+describes.
+
+---
+
 ## Checklist
 
 - [ ] `leather-release-prep` committed and pushed
@@ -106,3 +127,5 @@ the Actions tab if the pipeline does not appear within ~30 seconds of the push.
 - [ ] Gate 4 passed (tag does not exist)
 - [ ] Tag created and pushed
 - [ ] `git ls-remote` confirms tag is on origin
+- [ ] Release pipeline green and the GitHub release exists
+- [ ] CITATION.cff `doi` set to the new Zenodo record and merged
