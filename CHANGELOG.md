@@ -7,6 +7,28 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Hallucinated hide IDs were run-fatal in multi-hide runs** — models
+  sometimes echo a plausible-looking ID (e.g. the PR number) instead of the
+  `[HIDE id=...]` envelope value when calling `hide_next` / `hide_jump` /
+  `hide_search`. Resolution previously fell back to the single active hide
+  only when the buffer held exactly one hide; with more than one hide the
+  same hallucination killed the run. The runner already tracks which hide
+  it most recently delivered a page from (prompt injection, buffered tool
+  result, or hide navigation result); an unknown `hide_id` now resolves
+  deterministically against that tracked active hide regardless of buffer
+  size, still logging
+  `hide tool resolved unknown id to active hide` (WARN). Unknown IDs still
+  fail closed when no page has been delivered. The model-echoed ID is
+  advisory; delivery state is authoritative.
+- Hide ID format doc drift: `internal/hide` comments and the tannery and
+  runtime subagent guides still described the pre-v0.4.0
+  `hide_<yyyymmdd>_<HHMM>_<4hex>` format (and a `GenerateHideID()` function
+  that no longer exists). Updated to the actual
+  `hide_<sanitized-source>_<yyyymmdd>_<HHMM>_<8hex>` form generated via
+  `ids.TimestampHex`.
+
 ## [0.5.4] — 2026-09-07
 
 Citation metadata only. Nothing changes for a running install.

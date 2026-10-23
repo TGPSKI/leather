@@ -19,7 +19,7 @@ import (
 // Hide is a stored large raw tool result.
 type Hide struct {
 	// ID is the unique buffer identifier in the form
-	// "hide_<sanitized-source>_<yyyymmdd>_<HHMM>_<4-hex>".
+	// "hide_<sanitized-source>_<yyyymmdd>_<HHMM>_<8-hex>".
 	ID string
 	// Source is the tool name that produced this hide.
 	Source string
@@ -283,7 +283,7 @@ func (b *HideBuffer) FirstCut() (Cut, error) {
 }
 
 // generateHideID generates a unique hide identifier from source.
-// Format: "hide_<sanitized>_<yyyymmdd>_<HHMM>_<4-hex>"
+// Format: "hide_<sanitized>_<yyyymmdd>_<HHMM>_<8-hex>"
 func generateHideID(source string) string {
 	return ids.TimestampHex("hide_" + sanitizeSource(source))
 }
