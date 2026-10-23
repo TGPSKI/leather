@@ -344,9 +344,21 @@ func (b *HideBuffer) Cut(page int) (model.Hidecut, bool)
 - `TotalPages int` — total pages in this hide
 - `HideID string` — originating hide ID
 
-`Runner` receives a `*HideBuffer` when a curing pipeline calls `buildRunner(buf)`.
-It injects `Cut(0)` into the agent's first user message and exposes a
-`get_hide_cut` tool for subsequent pages if needed.
+`Runner` receives a `*hide.HideBuffer` when a curing pipeline calls
+`buildRunner(buf)`. The first cut is injected into the agent's first user
+message (its `[HIDE id=... page=n/m]` envelope recorded as delivery state),
+and the `hide_next` / `hide_jump` / `hide_search` tools
+(`hide.ToolDefs()`) are exposed when paging is needed.
+
+**Hide ID resolution is deterministic, not model-authoritative.** The runner
+tracks the hide whose page was most recently delivered to the model (prompt
+injection, buffered tool result, or hide navigation result — all funnel
+through `recordHidePage`). When a hide tool call's `hide_id` argument does
+not match a buffered hide (models hallucinate IDs, e.g. echoing a PR number),
+the runner resolves the call against that tracked active hide regardless of
+how many hides the buffer holds, logging
+`hide tool resolved unknown id to active hide` (WARN). With no page delivered
+yet there is nothing to resolve against, so an unknown ID fails closed.
 
 ---
 
@@ -469,4 +481,4 @@ Before opening a PR touching this domain:
 
 ---
 
-_Last reviewed: 2026-05-19_
+_Last reviewed: 2026-10-22_

@@ -638,6 +638,49 @@ func TestRunner_HideToolRejectsAmbiguousUnknownID(t *testing.T) {
 	}
 }
 
+func TestRunner_HideToolResolvesUnknownIDToTrackedActiveHide(t *testing.T) {
+	buf := hide.NewHideBuffer(5)
+	h1 := buf.Store("cli", "aaaaabbbbb")
+	h2 := buf.Store("web", "cccccddddd")
+	r := &Runner{HideBuffer: buf, Log: testLogger(t)}
+	// Page 1 of h2 was delivered to the model (prompt injection or a
+	// buffered tool result); the runner tracks it as the active hide.
+	r.recordHidePage(h2.ID, 1)
+
+	// A hallucinated hide_id (e.g. the PR number) must resolve to the
+	// tracked active hide even though the buffer holds two hides.
+	result := r.executeHideTool("hide_next", "call-1", map[string]any{
+		"hide_id":      "pr-4821",
+		"current_page": 1,
+	})
+	if result.Error != "" {
+		t.Fatalf("executeHideTool error = %q", result.Error)
+	}
+	if !strings.Contains(result.Content, "id="+h2.ID) || !strings.Contains(result.Content, "page=2/2") {
+		t.Fatalf("unexpected hide_next content:\n%s", result.Content)
+	}
+	if strings.Contains(result.Content, "id="+h1.ID) {
+		t.Fatalf("resolved to non-active hide %s", h1.ID)
+	}
+}
+
+func TestRunner_HideToolUnknownIDStillFailsWithoutDelivery(t *testing.T) {
+	buf := hide.NewHideBuffer(5)
+	buf.Store("cli", "aaaaabbbbb")
+	buf.Store("cli", "cccccddddd")
+	r := &Runner{HideBuffer: buf, Log: testLogger(t)}
+
+	// No page delivered yet: nothing to deterministically resolve against,
+	// so an unknown hide_id must fail closed even with tracking in place.
+	result := r.executeHideTool("hide_next", "call-1", map[string]any{
+		"hide_id":      "pr-4821",
+		"current_page": 1,
+	})
+	if result.Error == "" || !strings.Contains(result.Error, "unknown hide id") {
+		t.Fatalf("error = %q, want unknown hide id", result.Error)
+	}
+}
+
 func TestRunner_HideToolValidatesPageArgs(t *testing.T) {
 	buf := hide.NewHideBuffer(5)
 	h := buf.Store("cli", "aaaaabbbbb")

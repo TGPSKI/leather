@@ -117,6 +117,12 @@ type Runner struct {
 	// leather run when skills declare parameters.
 	Vars      map[string]string
 	hidePages map[string]int
+	// activeHideID is the hide whose page the runner most recently delivered
+	// to the model (via prompt injection, a buffered tool result, or a hide
+	// navigation tool). It is the deterministic fallback for resolving hide
+	// tool calls whose hide_id argument does not match a buffered hide: the
+	// model-echoed ID is advisory, delivery state is authoritative.
+	activeHideID string
 	// PersistRunsDetail selects how much tool-execution detail is captured
 	// into Turn.ToolCalls. "tools" populates traces; anything else (including
 	// the empty string / "none") leaves Turn.ToolCalls nil, matching legacy
@@ -1039,6 +1045,18 @@ func (r *Runner) executeHideTool(name, callID string, args map[string]any) model
 	}
 	rawHideID, _ := args["hide_id"].(string)
 	hideID, ok := r.HideBuffer.ResolveID(rawHideID)
+	if !ok && rawHideID != "" {
+		// Deterministic fallback: resolve against the hide the runner most
+		// recently delivered a page from, regardless of how many hides the
+		// buffer holds. The model-echoed ID is advisory; the runner's
+		// delivery state is authoritative. Still fails closed when no page
+		// has been delivered (nothing to resolve against).
+		if active := r.activeHideID; active != "" && active != rawHideID {
+			if resolved, exists := r.HideBuffer.ResolveID(active); exists {
+				hideID, ok = resolved, true
+			}
+		}
+	}
 	if !ok {
 		if rawHideID == "" {
 			res.Error = "hide tool requires hide_id"
@@ -1119,6 +1137,9 @@ func (r *Runner) recordHidePage(hideID string, page int) {
 	if page > r.hidePages[hideID] {
 		r.hidePages[hideID] = page
 	}
+	// Last delivered hide wins: the model's next hide navigation call reacts
+	// to this page, so a malformed or hallucinated hide_id resolves here.
+	r.activeHideID = hideID
 }
 
 func (r *Runner) currentHidePage(hideID string) (int, bool) {
